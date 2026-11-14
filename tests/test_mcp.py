@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 
 import pytest
 from typer.testing import CliRunner
@@ -215,11 +216,17 @@ def test_http_requires_bearer_token(server):
 # ---- CLI
 
 runner = CliRunner()
+ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def plain(text: str) -> str:
+    """CI forces colours (rich/typer split option names with ANSI codes): compare plain text."""
+    return ANSI.sub("", text)
 
 
 def test_cli_help_shows_mcp():
-    assert "mcp" in runner.invoke(app, ["--help"]).output
-    out = runner.invoke(app, ["mcp", "--help"]).output
+    assert "mcp" in plain(runner.invoke(app, ["--help"]).output)
+    out = plain(runner.invoke(app, ["mcp", "--help"]).output)
     assert "--http" in out
 
 
