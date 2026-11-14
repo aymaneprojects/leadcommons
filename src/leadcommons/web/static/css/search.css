@@ -392,3 +392,19 @@ html:not(.js) .company-card .nojs-h { display: block; margin: 12px 0 6px; }
   .viewmenu, .setmenu, .aimenu { min-width: min(320px, 90vw); }
   .tbl { max-height: none; }
 }
+
+/* no JavaScript: both bars show, so let them wrap instead of overlap */
+html:not(.js) .tb-main, html:not(.js) .tb-normal, html:not(.js) .selbar { flex-wrap: wrap; }
+@media (max-width: 820px) {
+  .tb-normal { flex-wrap: wrap; }
+  .tb-gap { display: none; }
+  .sbar .grow { flex-basis: 100%; max-width: none; }
+  .selbar { flex-wrap: wrap; }
+}
+
+/* AI search box inside the "Research with AI" menu */
+.ai-box { display: grid; gap: 8px; padding: 8px 10px 4px; min-width: 300px; }
+.ai-box input { width: 100%; }
+.ai-box .btn { justify-self: start; }
+.ai-out:empty { display: none; }
+.ai-out { font-size: 12px; margin: 0; }

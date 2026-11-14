@@ -101,6 +101,13 @@
       </div>
     </header>
     <main id="main" class="content">
+      {% if request.app.state.settings.mode == "demo" %}
+      <div class="demo-banner" role="note">
+        <b>Public demo.</b> Search the open company data freely. Finding people and emails is turned off here,
+        and lists you save are temporary and visible to other visitors.
+        <a href="https://github.com/aymaneprojects/leadcommons#install">Install LeadCommons</a> to use everything, privately, on your own machine or server.
+      </div>
+      {% endif %}
       {% if notice %}<div class="notice" role="status">{{ notice }}</div>{% endif %}
       {% block content %}{% endblock %}
     </main>

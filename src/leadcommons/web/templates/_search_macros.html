@@ -95,12 +95,25 @@
 </div>
 {%- endmacro %}
 
-{# Disabled preview of the AI menus (no fake behaviour): everything is labelled v0.2. #}
-{% macro ai_menu(label="Research with AI", up=False) -%}
+{# AI menu. With `kind`, the top box turns plain words into filters (POST /api/ai/parse; works
+   offline with rules, optionally a local model). The other items are labelled previews. #}
+{% macro ai_menu(label="Research with AI", up=False, kind=None) -%}
 <details class="dd ai-dd">
-  <summary class="btn ai-btn" title="{{ label }} (coming in v0.2)">{{ ic("wand-sparkles") }}<span>{{ label }}</span>{{ ic("chevron-down", "sm") }}</summary>
+  <summary class="btn ai-btn" title="{{ label }}">{{ ic("wand-sparkles") }}<span>{{ label }}</span>{{ ic("chevron-down", "sm") }}</summary>
   <div class="menu left aimenu{% if up %} right{% endif %}">
-    <div class="menu-note">AI research is planned for v0.2. These are previews only.</div>
+    {% if kind %}
+    <div class="ai-box" data-ai-box data-kind="{{ kind }}">
+      <label class="menu-note" for="ai-q-{{ kind }}">Describe who you want, in plain words</label>
+      {# form= points nowhere so typing here never submits or refreshes the filter form #}
+      <input id="ai-q-{{ kind }}" type="text" form="lc-ai-detached" maxlength="500" autocomplete="off" data-ai-input
+             placeholder="{{ 'e.g. French fintech startups' if kind == 'companies' else 'e.g. CTOs at German SaaS companies, 50-200' }}">
+      <button type="button" class="btn primary sm" data-ai-go>{{ ic("wand-sparkles", "sm") }}<span>Apply as filters</span></button>
+      <p class="ai-out muted" data-ai-out aria-live="polite"></p>
+    </div>
+    <div class="menu-sep"></div>
+    {% else %}
+    <div class="menu-note">More AI research tools are planned for v0.2. These are previews only.</div>
+    {% endif %}
     <button type="button" class="menu-item" disabled aria-disabled="true">{{ ic("wand-sparkles", "sm") }}<span>Run a custom prompt</span><span class="badge soon-badge">v0.2</span></button>
     <button type="button" class="menu-item" disabled aria-disabled="true">{{ ic("hash", "sm") }}<span>Generate a formula column</span><span class="badge soon-badge">v0.2</span></button>
     <div class="menu-sep"></div>

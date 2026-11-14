@@ -17,7 +17,7 @@
   <div class="hub-head">
     <div>
       <h1>Get started with LeadCommons</h1>
-      <p class="muted">{{ tasks_done }} of {{ tasks|length }} steps done. Everything stays on this machine.</p>
+      <p class="muted">{{ tasks_done }} of {{ tasks|length }} steps done. {% if request.app.state.settings.mode != "demo" %}Everything stays on this machine.{% endif %}</p>
     </div>
     <a class="btn" href="/onboarding">Open the getting started hub</a>
   </div>

@@ -8,7 +8,7 @@
   <div class="hub-head">
     <div>
       <h1>Get started with LeadCommons</h1>
-      <p class="muted">Work through these steps to go from open data to a clean list of contacts. {{ tasks_done }} of {{ tasks|length }} steps done. Everything stays on this machine.</p>
+      <p class="muted">Work through these steps to go from open data to a clean list of contacts. {{ tasks_done }} of {{ tasks|length }} steps done. {% if request.app.state.settings.mode != "demo" %}Everything stays on this machine.{% endif %}</p>
     </div>
   </div>
   {{ hub_progress(tasks, tasks_done) }}

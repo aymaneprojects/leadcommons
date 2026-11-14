@@ -396,3 +396,41 @@
   restorePerPage();
   init();
 })();
+
+/* AI search: plain words -> filters (POST /api/ai/parse), then open the filtered page. */
+(function () {
+  async function run(box) {
+    var input = box.querySelector("[data-ai-input]");
+    var out = box.querySelector("[data-ai-out]");
+    var text = (input.value || "").trim();
+    if (!text) { input.focus(); return; }
+    out.textContent = "Reading your request…";
+    try {
+      var r = await fetch("/api/ai/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text, kind: box.dataset.kind })
+      });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      var d = await r.json();
+      if (!d.query) {
+        out.textContent = "Nothing to turn into filters. Try a country, a size, an industry or a job title.";
+        return;
+      }
+      out.textContent = (d.explanation || []).join(" · ");
+      window.location.assign(d.url);
+    } catch (e) {
+      out.textContent = "AI search is unavailable right now. Use the filters on the left.";
+    }
+  }
+  document.addEventListener("click", function (e) {
+    var go = e.target.closest("[data-ai-go]");
+    if (go) run(go.closest("[data-ai-box]"));
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && e.target.matches && e.target.matches("[data-ai-input]")) {
+      e.preventDefault();
+      run(e.target.closest("[data-ai-box]"));
+    }
+  });
+})();

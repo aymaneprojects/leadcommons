@@ -196,3 +196,8 @@ dialog.palette { width: min(640px, 94vw); margin: 9vh auto auto; border-radius: 
 
 /* disabled primary actions (features that arrive later) must not look clickable */
 .btn.primary[disabled], .btn.primary[aria-disabled="true"] { background: var(--raised); border-color: var(--line); color: var(--muted); opacity: .8; }
+
+/* Public demo notice (LEADCOMMONS_MODE=demo, the default on Vercel) */
+.demo-banner { margin: 0 0 16px; padding: 10px 14px; border: 1px solid var(--orange); border-radius: 8px;
+  background: var(--orange-tint); color: var(--text); font-size: 13px; line-height: 1.5; }
+.demo-banner a { color: var(--orange-text); font-weight: 600; }

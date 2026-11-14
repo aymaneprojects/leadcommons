@@ -128,17 +128,6 @@ ISIC_SECTIONS = {
     "T": "Households as employers",
     "U": "Extraterritorial bodies",
 }
-SOON_PAGES = {
-    "sequences": ("Sequences", "send", "Multi-step outreach sequences with automatic follow-ups."),
-    "emails": ("Emails", "mail", "A shared inbox for the emails you send from LeadCommons."),
-    "tasks": ("Tasks", "square-check-big", "Reminders and to-dos tied to the people you prospect."),
-    "deals": ("Deals", "handshake", "A simple pipeline to track opportunities to a close."),
-    "email-health": (
-        "Email health",
-        "heart-pulse",
-        "Domain warm-up, bounce and deliverability checks.",
-    ),
-}
 
 
 # ---------------------------------------------------------------- helpers
@@ -1891,16 +1880,6 @@ def enrich_page(request: Request) -> Response:
 # ---------------------------------------------------------------- settings + opt-out
 
 
-@router.get("/settings", response_class=HTMLResponse)
-def settings_page(request: Request, search: Any = Depends(get_search)) -> Response:
-    info = getattr(search, "pack_info", None)
-    try:
-        packs = list(info()) if info else []
-    except Exception:
-        packs = []
-    return render(request, "settings.html", active="settings", packs=packs)
-
-
 def clean_suppression(value: str) -> str | None:
     v = value.strip().lower()
     if not v or len(v) > 254 or " " in v:
@@ -1909,18 +1888,6 @@ def clean_suppression(value: str) -> str | None:
         local, _, domain = v.rpartition("@")
         return v if local and "." in domain else None
     return v if "." in v else None
-
-
-@router.post("/settings/suppression")
-async def settings_suppress(
-    request: Request, _: None = Depends(csrf), store: Any = Depends(get_store)
-) -> Response:
-    form = await form_values(request)
-    value = clean_suppression(str(form.get("value") or ""))
-    if not value:
-        return done(request, "Enter a valid email address or domain.", "/settings", "error")
-    store.add_suppression(value, "manual")
-    return done(request, f"{value} will never be contacted or exported.", "/settings")
 
 
 @router.get("/opt-out", response_class=HTMLResponse)
@@ -1961,20 +1928,6 @@ async def opt_out_submit(
 @router.get("/assistant", response_class=HTMLResponse)
 def assistant(request: Request) -> Response:
     return render(request, "assistant.html", active="assistant")
-
-
-def _soon_route(slug: str) -> None:
-    title, ico, blurb = SOON_PAGES[slug]
-
-    @router.get(f"/{slug}", response_class=HTMLResponse, name=f"soon_{slug}")
-    def soon(request: Request) -> Response:
-        return render(
-            request, "soon.html", active=slug, title=title, ico=ico, blurb=blurb, soon=True
-        )
-
-
-for _slug in SOON_PAGES:
-    _soon_route(_slug)
 
 
 @router.get("/partials/jobs-pill", response_class=HTMLResponse)

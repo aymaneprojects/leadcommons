@@ -16,6 +16,7 @@ from leadcommons.config import Settings
 from leadcommons.models import EmailStatus
 from leadcommons.web.deps import STATIC_DIR
 from leadcommons.web.pages import router
+from leadcommons.web.pages_extra import router as extra_router
 from tests.fakes import FakeJobs, FakeSearch, FakeStore, sample_email, sample_person
 
 HX = {"HX-Request": "true"}
@@ -30,6 +31,7 @@ def make_app(tmp_path: Path, **settings_kw: object) -> FastAPI:
     app.state.store = FakeStore()
     app.state.jobs = FakeJobs()
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+    app.include_router(extra_router)  # same order as create_app
     app.include_router(router)
     return app
 
@@ -76,13 +78,19 @@ def ids(app: FastAPI) -> dict[str, str]:
         "/emails",
         "/tasks",
         "/deals",
-        "/email-health",
     ],
 )
 def test_pages_render(client: TestClient, path: str) -> None:
     r = client.get(path)
     assert r.status_code == 200
     assert "<title>" in r.text
+
+
+def test_email_health_lives_in_settings(client: TestClient) -> None:
+    r = client.get("/email-health", follow_redirects=False)
+    assert r.status_code in (302, 303, 307)
+    assert r.headers["location"].endswith("/settings/email-health")
+    assert client.get("/email-health", follow_redirects=True).status_code == 200
 
 
 def test_shell_navigation(client: TestClient) -> None:
@@ -441,3 +449,179 @@ def test_static_assets_served(client: TestClient) -> None:
         "/static/fonts/inter-latin-400-normal.woff2",
     ):
         assert client.get(path).status_code == 200
+
+
+# ---------------------------------------------------------------- search screens (v2)
+
+
+def test_pager_math() -> None:
+    from leadcommons.web.pages import pager
+
+    pg = pager("/companies", {"country": ["DE"]}, 3, 130, 25)
+    assert (pg["pages"], pg["start"], pg["end"]) == (6, 51, 75)
+    assert pg["prev"] == "/companies?country=DE&page=2" and pg["next"].endswith("page=4")
+    assert [n for n, _ in pg["options"]] == [1, 2, 3, 4, 5, 6]
+    first = pager("/people", {}, 1, 0, 25)
+    assert (first["start"], first["end"], first["prev"], first["next"]) == (0, 0, None, None)
+    last = pager("/people", {"per": 50}, 9, 101, 50)  # page clamped to the last one
+    assert last["page"] == 3 and last["end"] == 101 and last["next"] is None
+    assert pager("/x", {}, 1, 10, 7)["per"] == 25  # unknown page size falls back
+
+
+def test_size_range_maps_to_buckets(client: TestClient) -> None:
+    from leadcommons.web.pages import buckets_for_range
+
+    assert buckets_for_range(20, 300) == ["11-50", "51-200", "201-500"]
+    assert buckets_for_range(None, 10) == ["1-10"]
+    assert buckets_for_range(10001, None) == ["10001+"]
+    assert buckets_for_range(300, 20) == ["11-50", "51-200", "201-500"]  # swapped ends
+    html = client.get("/companies?size_min=20&size_max=60").text
+    assert "Atelier Nuage" in html and "Nordwind Data" in html
+    assert "Moss and Pine" not in html and "Kestrel Systems" not in html
+    assert "Matches sizes" in html
+
+
+def test_column_chooser_markup(client: TestClient, seeded: FastAPI) -> None:
+    html = client.get("/companies").text
+    assert 'id="col-chooser"' in html and "Add column" in html
+    for key in ("domain", "country", "city", "founded", "lei", "wikidata"):
+        assert f'data-col-toggle="{key}"' in html
+    assert 'data-col="lei" hidden' in html  # optional columns start hidden
+    assert 'data-col="sources"' in html and 'data-col="sources" hidden' not in html
+    people = TestClient(seeded).get("/people").text
+    assert 'data-key="lc-cols-people"' in people and 'data-col-toggle="seniority"' in people
+
+
+def test_filter_badges_and_clearing(client: TestClient) -> None:
+    html = client.get("/companies?country=DE&country=FR&size=11-50").text
+    assert 'data-fgroup="location" data-fcol="company" data-count="2"' in html
+    assert 'href="/companies?size=11-50"' in html  # clearing Location keeps the other filters
+    assert 'href="/companies?country=DE&amp;country=FR"' in html  # clearing # Employees
+    assert 'class="cnt">3</span>' in html  # Clear all shows the total active count
+    clear = client.get("/companies").text
+    assert 'class="btn ghost off"' in clear
+
+
+def test_include_exclude_countries_and_keywords(client: TestClient) -> None:
+    html = client.get("/companies?xcountry=DE").text
+    assert "Nordwind Data" not in html and "Brücke Software" not in html
+    assert "Atelier Nuage" in html and "Kestrel Systems" in html
+    html = client.get("/companies?country=DE&country=FR&xcountry=FR").text
+    assert "Nordwind Data" in html and "Atelier Nuage" not in html
+    assert "No companies match" in client.get("/companies?xcountry=DE&xcountry=FR&xcountry=GB").text
+    html = client.get("/companies?xkeyword=moss").text
+    assert "Moss and Pine" not in html and "Atelier Nuage" in html
+    html = client.get("/companies?keyword=nuage&keyword_add=pine").text
+    assert "Atelier Nuage" in html and 'name="keyword" value="pine"' in html
+
+
+def test_count_endpoint(seeded: FastAPI) -> None:
+    client = TestClient(seeded)
+    html = client.get("/search/count?kind=companies&country=DE").text
+    assert ">2</span>" in html and "records found" in html
+    assert ">3</span>" in client.get("/search/count?kind=companies&xcountry=DE").text
+    assert ">2</span>" in client.get("/search/count?kind=people").text
+    assert ">1</span>" in client.get("/search/count?kind=people&xtitle=ceo").text
+    assert ">0</span>" in client.get("/search/count?kind=companies&q=zzzz").text
+
+
+def test_all_filters_modal_renders(client: TestClient, seeded: FastAPI) -> None:
+    html = client.get("/companies").text
+    assert 'id="allf-dialog"' in html and "Pinned filters" in html
+    assert "Person info" in html and "Company info" in html and "Type: All" in html
+    assert "Apply filters" in html and "records found" in html
+    for label in ("Technologies", "Funding", "Headcount growth", "Buying intent", "Time zone"):
+        assert label in html
+    assert html.count("soon-badge") >= 10 and 'aria-disabled="true"' in html
+    people = TestClient(seeded).get("/people").text
+    assert 'data-fgroup="titles"' in people and "include" in people.lower()
+    assert "Include people with similar titles" in people
+
+
+def real_people_app(tmp_path: Path) -> FastAPI:
+    from leadcommons.store import Store
+
+    app = make_app(tmp_path)
+    app.state.store = Store(f"sqlite:///{tmp_path / 't.db'}")
+    search = app.state.search
+    rows = [
+        ("Ann One", "CEO", 0),
+        ("Bob Two", "Chief Executive Officer", 1),
+        ("Cy Three", "CTO and Co-Founder", 2),
+        ("Di Four", "Director of Engineering", 3),
+        ("Ed Five", "Head of Sales", 4),
+    ]
+    for name, title, i in rows:
+        app.state.store.save_person(sample_person(search.companies[i], name, title))
+    return app
+
+
+def test_include_exclude_titles_and_similar(tmp_path: Path) -> None:
+    from leadcommons.web.pages import expand_titles
+
+    assert "chief executive officer" in expand_titles(["CEO"])
+    assert {"founder", "co-founder"} <= set(expand_titles(["founder"]))
+    client = TestClient(real_people_app(tmp_path))
+
+    def names(query: str) -> set[str]:
+        html = client.get("/people" + query).text
+        return {n for n in ("Ann One", "Bob Two", "Cy Three", "Di Four", "Ed Five") if n in html}
+
+    assert names("?title=ceo") == {"Ann One", "Bob Two"}  # similar titles on by default
+    assert names("?title=ceo&similar=0") == {"Ann One"}
+    assert names("?title=cto") == {"Cy Three"}  # "cto" must not match "Director"
+    assert names("?xtitle=ceo") == {"Cy Three", "Di Four", "Ed Five"}
+    assert names("?xtitle=ceo&similar=0") == {"Bob Two", "Cy Three", "Di Four", "Ed Five"}
+    assert names("?title=founder&xtitle=cto") == set()
+    assert names("?title=ceo&title_add=sales") == {"Ann One", "Bob Two", "Ed Five"}
+    html = client.get("/people?title=ceo&xtitle=cto").text
+    assert "Include titles" in html and "Exclude titles" in html
+
+
+def test_people_location_filter_uses_company_data(tmp_path: Path) -> None:
+    client = TestClient(real_people_app(tmp_path))
+    html = client.get("/people?country=FR").text  # companies 0 and 3 are French
+    assert "Ann One" in html and "Di Four" in html and "Bob Two" not in html
+    html = client.get("/people?xcountry=FR").text
+    assert "Bob Two" in html and "Ann One" not in html
+
+
+def test_person_page_contact_score_and_optout(seeded: FastAPI) -> None:
+    client = TestClient(seeded)
+    store = seeded.state.store
+    pid = next(p.id for p in store.people.values() if p.full_name == "Claire Martin")
+    html = client.get(f"/people/{pid}").text
+    assert "<html" in html and 'aria-label="Breadcrumb"' in html
+    assert "Contact information" in html and "claire.martin@ateliernuage.example" in html
+    assert "90" in html and "/ 100" in html and "Show breakdown" in html
+    assert "Opted out" not in html and "No phone data" in html
+    assert "Atelier Nuage" in html and "People at this company" in html
+    store.add_suppression("claire.martin@ateliernuage.example")
+    html = client.get(f"/people/{pid}").text
+    assert "Opted out" in html and "claire.martin@ateliernuage.example" not in html
+    drawer = client.get(f"/people/{pid}", headers=HX).text
+    assert "<html" not in drawer and "Opted out" in drawer
+
+
+def test_company_panel_tabs_and_sources(app: FastAPI, client: TestClient) -> None:
+    cid = ids(app)["Atelier Nuage"]
+    html = client.get(f"/companies/{cid}", headers=HX).text
+    for tab in ("Overview", "People", "Sources"):
+        assert tab in html
+    assert 'data-panel="sources"' in html and "Find people" in html
+
+
+def test_saved_views_and_settings_markup(app: FastAPI, client: TestClient) -> None:
+    app.state.store.save_search("German", "companies", json.dumps({"query": "country=DE"}))
+    html = client.get("/companies?country=DE").text
+    assert 'class="menu-item vitem on"' in html and "Save current view" in html
+    assert "Results per page" in html and 'data-pref="compact"' in html
+    assert "v0.2" in html and "From a list of URLs" in html
+
+
+def test_search_css_scrim_matches_drawer_width() -> None:
+    import re
+
+    css = (STATIC_DIR / "css" / "search.css").read_text()
+    width = re.search(r"#drawer\s*\{\s*width:\s*(min\([^)]*\))", css)
+    assert width and f"inset: 0 {width.group(1)} 0 0" in css
