@@ -77,6 +77,16 @@ leadcommons optout someone@example.com  # never contact this address
 leadcommons --help
 ```
 
+## Use it from Claude or ChatGPT
+
+LeadCommons includes an MCP server, so an AI assistant can search companies, find people and emails, build lists and export CSV for you.
+
+```sh
+claude mcp add leadcommons -- leadcommons mcp        # Claude Code
+```
+
+For Claude Desktop, add `{"command": "leadcommons", "args": ["mcp"]}` to `claude_desktop_config.json`. For ChatGPT and other remote clients, run `leadcommons mcp --http` behind your HTTPS server with a bearer token. Details and security notes: [docs/mcp.md](docs/mcp.md).
+
 ## Data sources and licences
 
 | Source | Licence | Used for |

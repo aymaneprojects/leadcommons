@@ -297,3 +297,39 @@ def optout(
     settings.ensure_dirs()
     _guard("saving the opt-out", lambda: Store(settings.database_url).add_suppression(target))
     typer.echo(f"{target} added to the suppression list.")
+
+
+@app.command("mcp")
+def mcp_cmd(
+    http: Annotated[
+        bool, typer.Option("--http", help="Serve over HTTP (endpoint /mcp) instead of stdio.")
+    ] = False,
+    host: Annotated[
+        str | None, typer.Option(help="HTTP only. Default 127.0.0.1 (local) or 0.0.0.0 (server).")
+    ] = None,
+    port: Annotated[int, typer.Option(help="HTTP only. Port to listen on.")] = 8001,
+) -> None:
+    """Run the MCP server so Claude, ChatGPT and other MCP clients can use LeadCommons."""
+    settings = _settings()
+    if not http:
+        from leadcommons.mcp_server import build_server
+
+        _guard("the MCP server", lambda: build_server().run("stdio"))
+        return
+    from leadcommons.mcp_server import build_http_app, build_server, resolve_http_token
+
+    if host is None:
+        host = "0.0.0.0" if settings.mode == "server" else "127.0.0.1"  # noqa: S104
+    try:
+        token = resolve_http_token(settings.mode, host, os.environ.get("LEADCOMMONS_MCP_TOKEN"))
+    except ValueError as exc:
+        raise _fail(str(exc)) from None
+    import uvicorn
+
+    asgi = build_http_app(build_server(), token, host)
+    typer.echo(
+        f"LeadCommons MCP on http://{host}:{port}/mcp "
+        f"({'bearer token required' if token else 'no token, loopback only'})",
+        err=True,
+    )
+    _guard("the MCP server", lambda: uvicorn.run(asgi, host=host, port=port))
