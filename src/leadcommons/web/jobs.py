@@ -23,6 +23,10 @@ JobKind = Literal["find_people", "find_email", "enrich_csv"]
 JobStatus = Literal["queued", "running", "done", "failed"]
 
 MAX_JOBS = 200
+DEMO_DISABLED = (
+    "Disabled in the public demo. Install LeadCommons on your computer or server "
+    "to find people and emails."
+)
 
 
 @dataclass
@@ -68,6 +72,12 @@ class JobRunner:
             job = Job(id=uuid.uuid4().hex[:12], kind=kind, label=label, payload=dict(payload))
             self._jobs[job.id] = job
             self._trim()
+        if not getattr(self.settings, "enrichment_enabled", True):
+            self._finish(job.id, "failed", error=DEMO_DISABLED)
+            return job.id
+        if getattr(self.settings, "sync_jobs", False):
+            self._run(job.id)  # serverless: threads are frozen once the response is sent
+            return job.id
         try:
             self._pool.submit(self._run, job.id)
         except RuntimeError:  # pool shut down
