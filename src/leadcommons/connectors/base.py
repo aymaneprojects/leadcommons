@@ -8,7 +8,7 @@ from typing import Protocol
 from leadcommons.models import Company
 
 USER_AGENT = (
-    "LeadCommons/0.1 (+https://github.com/leadcommons/leadcommons; open-source prospecting)"
+    "LeadCommons/0.1 (+https://github.com/aymaneprojects/leadcommons; open-source prospecting)"
 )
 
 
