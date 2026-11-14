@@ -22,7 +22,7 @@
       <div class="grow">
         {{ ic("search") }}
         <label class="sr-only" for="q">{{ "Search companies" if s.kind == "companies" else "Search people" }}</label>
-        <input id="q" type="search" name="q" value="{{ p.q }}" placeholder="{{ 'Search by company name or domain' if s.kind == 'companies' else 'Search by name or job title' }}" autocomplete="off">
+        <input id="q" type="search" name="q" value="{{ p.q }}" placeholder="{{ 'Search companies' if s.kind == 'companies' else 'Search people' }}" autocomplete="off">
       </div>
       <span class="tb-gap"></span>
       {{ ai_menu("Research with AI") }}

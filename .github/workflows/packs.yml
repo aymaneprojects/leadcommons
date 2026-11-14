@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
       - name: Install
-        run: uv sync --python 3.13
+        run: uv sync --python 3.13 --extra build
       - name: Build pack
         env:
           COUNTRIES: ${{ inputs.countries || 'FR DE GB US ES IT NL BE CA MA' }}

@@ -180,7 +180,7 @@ html.js .fpanel .fgroup.unpinned { display: none; }
 table.data { border-collapse: separate; border-spacing: 0; min-width: 100%; }
 table.data th { font: 600 11px/1.2 var(--font-ui); text-transform: uppercase; letter-spacing: .06em; padding: 10px 12px; z-index: 3; background: var(--surface); }
 table.data th + th, table.data td + td { border-left: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
-table.data td { padding: 6px 12px; height: 44px; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-bottom: 1px solid var(--line); }
+table.data td { padding: 6px 12px; height: 44px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-bottom: 1px solid var(--line); }
 table.data tbody tr { background: var(--surface); }
 table.data tbody tr:hover { background: var(--raised); }
 table.data tbody tr.sel { background: color-mix(in srgb, var(--orange) 14%, var(--surface)); }
@@ -188,7 +188,7 @@ table.data tr:last-child td { border-bottom: 0; }
 table.data th.cb, table.data td.cb { position: sticky; left: 0; z-index: 2; width: 40px; min-width: 40px; padding: 0 0 0 14px; background: inherit; }
 table.data th.cb { z-index: 4; background: var(--surface); }
 table.data td.cb { border-left: 0; }
-table.data th[data-col="name"], table.data td[data-col="name"] { position: sticky; left: 40px; z-index: 2; min-width: 240px; background: inherit; box-shadow: 1px 0 0 var(--line); }
+table.data th[data-col="name"], table.data td[data-col="name"] { position: sticky; left: 40px; z-index: 2; min-width: 220px; max-width: 280px; background: inherit; box-shadow: 1px 0 0 var(--line); }
 table.data th[data-col="name"] { z-index: 4; background: var(--surface); }
 table.data th.addcol, table.data td.ract { position: sticky; right: 0; z-index: 2; background: inherit; width: 1%; padding: 4px 8px; box-shadow: -1px 0 0 var(--line); }
 table.data th.addcol { z-index: 4; background: var(--surface); }

@@ -1082,7 +1082,7 @@ SOON_FILTERS: tuple[dict[str, str], ...] = (
 
 COMPANY_COLUMNS: tuple[dict[str, Any], ...] = (
     {"key": "name", "label": "Company", "locked": True, "default": True},
-    {"key": "domain", "label": "Domain", "default": True},
+    {"key": "domain", "label": "Domain"},
     {"key": "location", "label": "Location", "default": True},
     {"key": "industry", "label": "Industry", "default": True},
     {"key": "size", "label": "Employees", "default": True},
