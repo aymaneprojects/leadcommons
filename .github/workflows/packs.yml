@@ -8,7 +8,11 @@ on:
       countries:
         description: "Space-separated ISO country codes (empty = all)"
         required: false
-        default: "FR DE GB US ES IT NL BE"
+        default: "FR DE GB US ES IT NL BE CA MA"
+      limit:
+        description: "Max companies per source and country"
+        required: false
+        default: "1500"
 
 permissions:
   contents: read
@@ -30,11 +34,12 @@ jobs:
         run: uv sync --python 3.13
       - name: Build pack
         env:
-          COUNTRIES: ${{ inputs.countries || 'FR DE GB US ES IT NL BE' }}
+          COUNTRIES: ${{ inputs.countries || 'FR DE GB US ES IT NL BE CA MA' }}
+          LIMIT: ${{ inputs.limit || '1500' }}
         run: |
           args=()
           for c in $COUNTRIES; do args+=(--country "$c"); done
-          uv run leadcommons pack build "${args[@]}" --out packs-out
+          uv run leadcommons pack build "${args[@]}" --limit "$LIMIT" --out packs-out
           ls -l packs-out
       - name: Publish release
         env:
