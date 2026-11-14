@@ -12,9 +12,7 @@
       <label class="searchbox big">{{ ic("search") }}<input id="allf-search" type="search" data-allf-search placeholder="Search filters" aria-label="Search filters" form="ui-only" autocomplete="off"></label>
       <label class="typesel">{{ ic("briefcase", "sm") }}<select data-type-select aria-label="Type" form="ui-only"><option value="all">Type: All</option><option value="person">Type: Person</option><option value="company">Type: Company</option></select></label>
       <span class="grow"></span>
-      <span id="allf-count" class="allf-count" role="status" aria-live="polite"
-            hx-get="/search/count?kind={{ s.kind }}" hx-include="#allf" hx-target="this" hx-select="unset" hx-swap="innerHTML" hx-push-url="false"
-            hx-trigger="change from:#allf, input from:#allf delay:400ms, refresh"><span class="n mono">…</span> records found</span>
+      <span id="allf-count" class="allf-count" role="status" aria-live="polite" data-count-url="/search/count?kind={{ s.kind }}"><span class="n mono">…</span> records found</span>
       <button type="submit" class="btn primary">Apply filters</button>
     </div>
     <div class="allf-body">

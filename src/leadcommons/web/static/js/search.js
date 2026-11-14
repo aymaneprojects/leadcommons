@@ -89,6 +89,7 @@
   function addTag(input, raw) {
     var box = input.closest("[data-tagbox]"); if (!box) return;
     var name = input.name.replace(/_add$/, "");
+    input.value = ""; /* clear first: the change event below sends the form */
     String(raw).split(",").forEach(function (part) {
       var v = part.trim().replace(/^"|"$/g, ""); if (!v) return;
       var dup = $$("input[type=hidden]", box).some(function (h) { return h.value.toLowerCase() === v.toLowerCase(); });
@@ -101,7 +102,6 @@
       input.parentNode.insertBefore(tag, input);
       fire(hid, "change");
     });
-    input.value = "";
   }
   doc.addEventListener("keydown", function (e) {
     var t = e.target;
@@ -163,6 +163,22 @@
     lsSet(pinKey(), JSON.stringify(list));
     applyPins();
   }
+  /* live "N records found": plain fetch, because app.js closes any dialog that issues an htmx call */
+  var countTimer = null, countSeq = 0;
+  function refreshCount(delay) {
+    clearTimeout(countTimer);
+    countTimer = setTimeout(function () {
+      var out = $("#allf-count"), form = $("#allf");
+      if (!out || !form || !window.fetch) return;
+      var params = new URLSearchParams(new FormData(form));
+      ["tab", "sort", "per"].forEach(function (k) { params.delete(k); });
+      var base = out.getAttribute("data-count-url"), seq = ++countSeq;
+      fetch(base + "&" + params.toString(), { credentials: "same-origin" })
+        .then(function (r) { return r.ok ? r.text() : Promise.reject(); })
+        .then(function (html) { if (seq === countSeq) out.innerHTML = html; })
+        .catch(function () { if (seq === countSeq) out.textContent = "Count unavailable"; });
+    }, delay === undefined ? 350 : delay);
+  }
   function filterModalRows(q) {
     q = q.trim().toLowerCase();
     $$(".allf .fgroup").forEach(function (g) {
@@ -180,6 +196,7 @@
   /* ---------- lists: searchable checklists, view menu, save-to-list window ---------- */
   doc.addEventListener("input", function (e) {
     var t = e.target; if (!t.matches) return;
+    if (t.closest("#allf") && !t.matches("[data-list-search], [data-allf-search], [data-type-select]")) refreshCount();
     if (t.matches("[data-list-search]")) {
       var scope = t.closest(".checklist") || t.closest(".sd-body");
       var q = t.value.trim().toLowerCase();
@@ -248,7 +265,7 @@
       var menu = el.closest("details.dd"); if (menu) menu.open = false;
       var id = el.getAttribute("data-open-dialog");
       if (id === "save-dialog") updateSelCount();
-      if (id === "allf-dialog") { applyPins(); var cnt = $("#allf-count"); if (cnt && window.htmx) window.htmx.trigger(cnt, "refresh"); }
+      if (id === "allf-dialog") { applyPins(); refreshCount(0); }
       if (id === "savesearch-dialog") { var nm = $("#ss-name"); if (nm) setTimeout(function () { nm.focus(); }, 30); }
     }
     if (t.closest("[data-col-reset]")) {
@@ -298,6 +315,7 @@
 
   doc.addEventListener("change", function (e) {
     var t = e.target; if (!t.matches) return;
+    if (t.closest("#allf") && !t.matches("[data-list-search], [data-allf-search], [data-type-select]")) refreshCount();
     if (t.matches("[data-col-toggle]")) saveCols();
     else if (t.matches("[data-page-select]")) {
       var url = t.value;
@@ -311,6 +329,20 @@
     } else if (t.classList.contains("rowcb") || t.classList.contains("allcb")) updateSelCount();
   });
 
+  /* a min-max pair is sent once, when focus has left both fields (a swap would eat the second) */
+  var rangeTimer = null;
+  doc.addEventListener("change", function (e) {
+    var t = e.target;
+    if (e.lcPass || !t.matches || !t.matches("[name=size_min], [name=size_max]") || !t.closest("#f")) return;
+    e.stopImmediatePropagation();
+    clearTimeout(rangeTimer);
+    rangeTimer = setTimeout(function () {
+      var a = doc.activeElement;
+      if (a && a.matches && a.matches("[name=size_min], [name=size_max]")) return;
+      var ev = new Event("change", { bubbles: true }); ev.lcPass = true; t.dispatchEvent(ev);
+    }, 450);
+  }, true);
+
   doc.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
     closePanels();
@@ -322,26 +354,31 @@
   doc.body.addEventListener("htmx:configRequest", function (e) {
     var d = e.detail, el = d.elt;
     if (String(d.verb).toLowerCase() !== "get" || !el || (el.id !== "f" && el.id !== "allf")) return;
-    var P = d.parameters;
-    Object.keys(P).forEach(function (k) {
-      var v = P[k];
-      if (Array.isArray(v)) {
-        v = v.filter(function (x) { return x !== ""; });
-        if (k === "similar") v = v.indexOf("1") >= 0 ? [] : ["0"];
-        if (!v.length) delete P[k]; else P[k] = v.length === 1 ? v[0] : v;
-      } else if (v === "" || (k === "per" && v === "25") || (k === "sort" && v === "relevance") ||
-                 (k === "tab" && v === "all") || (k === "similar" && v === "1")) {
-        delete P[k];
-      }
+    var fd = d.formData; if (!fd) return;
+    var seen = {};
+    Array.from(fd.keys()).forEach(function (k) {
+      if (seen[k]) return;
+      seen[k] = true;
+      var vals = fd.getAll(k).filter(function (x) { return x !== ""; });
+      if (k === "similar") vals = vals.indexOf("1") >= 0 ? [] : vals.slice(0, 1);
+      else if ((k === "per" && vals[0] === "25") || (k === "sort" && vals[0] === "relevance") ||
+               (k === "tab" && vals[0] === "all")) vals = [];
+      fd.delete(k);
+      vals.forEach(function (v) { fd.append(k, v); });
     });
   });
   doc.addEventListener("htmx:afterRequest", function (e) {
     var el = e.detail && e.detail.elt; if (!el || !el.closest || !e.detail.successful) return;
     var pop = el.closest(".addlist"); if (pop) { var dd = pop.closest("details.dd"); if (dd) dd.open = false; }
     if (el.closest("#save-dialog")) {
+      var hdr = (e.detail.xhr && e.detail.xhr.getResponseHeader("HX-Trigger")) || "";
+      if (hdr.indexOf('"error"') >= 0) { /* nothing was saved: keep the window open */
+        var sd = $("#save-dialog"); if (sd && !sd.open) sd.showModal();
+        return;
+      }
       clearSelection();
-      var nn = $("#sd-new"); if (nn) nn.value = "";
-      $$('#save-dialog input[name="list_id"]').forEach(function (r) { r.checked = false; });
+      /* re-render the results so "Saved" chips, counts and the list sizes are current */
+      if (window.htmx) window.htmx.ajax("GET", location.pathname + location.search, { target: "#workspace", select: "#workspace", swap: "outerHTML" });
     }
   });
 
