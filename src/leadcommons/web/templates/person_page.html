@@ -1,6 +1,61 @@
 {% extends "base.html" %}
+{% from "_macros.html" import ic, avatar %}
+{% from "_search_profile.html" import addlist, contact_card, company_fields, people_list %}
 {% block title %}{{ person.full_name }} · LeadCommons{% endblock %}
 {% block content %}
-{% set page_mode = true %}
-{% include "_person_drawer.html" %}
+{% set back = "/people/" ~ person.id %}
+<article class="pe-page" aria-label="Person profile">
+  <nav class="crumb page" aria-label="Breadcrumb">
+    <a href="/people">People</a><span class="sep">{{ ic("chevron-right", "sm") }}</span><span class="cur">{{ person.full_name }}</span>
+  </nav>
+  <header class="pp-head">
+    {{ avatar(person.full_name, "pe", "lg") }}
+    <div class="pp-id">
+      <h1>{{ person.full_name }}</h1>
+      <p class="muted">{{ person.title or "No title" }}{% if person.company_domain %} at {% if company %}<a href="/companies/{{ company.id }}">{{ company.name }}</a>{% else %}<span class="mono">{{ person.company_domain }}</span>{% endif %}{% endif %}{% if company and company.country %} · {% if company.city %}{{ company.city }}, {% endif %}{{ country_name(company.country) }}{% endif %}</p>
+    </div>
+    <div class="pp-actions">
+      {{ addlist("people", person.id, lists, back, "pl") }}
+      <form method="post" action="/people/{{ person.id }}/find-email" hx-post="/people/{{ person.id }}/find-email" hx-swap="none" hx-push-url="false">
+        <button class="btn primary" type="submit">{{ ic("mail") }}<span>Find email</span></button>
+      </form>
+    </div>
+  </header>
+  <div class="pp-grid">
+    <div class="pp-left">
+      {{ contact_card(person, best, candidates, suppressed, opted_out, score, lists) }}
+    </div>
+    <div class="pp-right">
+      {% if company %}
+      <section class="card company-card" aria-label="Company">
+        <header class="cc-head">
+          {{ avatar(company.name, "co") }}
+          <div class="cc-id"><a class="cc-name" href="/companies/{{ company.id }}">{{ company.name }}</a><span class="muted">{{ [company.industry_label or company.industry, (company.size_range ~ " employees") if company.size_range else none] | select | join(" · ") }}</span></div>
+          <a class="btn sm" href="/companies/{{ company.id }}">Open company</a>
+        </header>
+        <div class="tabs" role="tablist" data-tabs aria-label="Company sections">
+          <a href="#pc-overview" role="tab" data-tab="overview" aria-selected="true">Overview</a>
+          <a href="#pc-people" role="tab" data-tab="people" aria-selected="false">People at this company<span class="n">{{ colleagues|length + 1 }}</span></a>
+        </div>
+        <div class="tab-panel" id="pc-overview" data-panel="overview">{{ company_fields(company) }}</div>
+        <div class="tab-panel" id="pc-people" data-panel="people">
+          <h3 class="nojs-h">People at this company</h3>
+          {{ people_list(colleagues, emails, suppressed, "Nobody else found at this company yet.") }}
+        </div>
+      </section>
+      {% else %}
+      <section class="card company-card"><h3>Company</h3><p class="muted">{% if person.company_domain %}No company record for <span class="mono">{{ person.company_domain }}</span> in the loaded data packs.{% else %}This person has no company on record.{% endif %}</p></section>
+      {% endif %}
+      <section class="card">
+        <h3>Profile</h3>
+        <div class="kv2">
+          <div class="k">Seniority</div><div class="v">{{ seniority_label(person.seniority) if person.seniority else "Unknown" }}</div>
+          <div class="k">Department</div><div class="v">{{ person.department or "Unknown" }}</div>
+          <div class="k">First seen</div><div class="v mono">{{ fmt_date(person.first_seen) }}</div>
+          <div class="k">Last seen</div><div class="v mono">{{ fmt_date(person.last_seen) }}</div>
+        </div>
+      </section>
+    </div>
+  </div>
+</article>
 {% endblock %}

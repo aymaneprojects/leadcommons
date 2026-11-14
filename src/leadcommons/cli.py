@@ -115,8 +115,20 @@ def pack_build(
     ] = None,
 ) -> None:
     """Build a company pack from open data (Wikidata, GLEIF)."""
+    import logging
+    import os
+    import sys
+
     from leadcommons.packs import build_pack
 
+    # Progress goes to stderr so CI logs show it (DEBUG with LEADCOMMONS_DEBUG=1).
+    logging.basicConfig(
+        stream=sys.stderr,
+        level=logging.DEBUG if os.environ.get("LEADCOMMONS_DEBUG") == "1" else logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        force=True,
+    )
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     out_dir = out or _settings().data_dir
     out_dir.mkdir(parents=True, exist_ok=True)
     countries = [c.upper() for c in country] if country else None

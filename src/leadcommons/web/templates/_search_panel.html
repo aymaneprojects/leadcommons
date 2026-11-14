@@ -1,0 +1,18 @@
+{% from "_macros.html" import ic, hxf %}
+{% from "_search_macros.html" import fgroup %}
+<aside class="fpanel" aria-label="Filters" data-kind="{{ s.kind }}" data-pin-defaults="{{ s.pin_defaults|join(',') }}">
+  <input type="hidden" name="tab" value="{{ p.tab }}">
+  <nav class="seg tabs3" aria-label="Show">
+    {% for key, label in (("all","Total"),("new","Net new"),("saved","Saved")) %}
+    <a href="{{ s.tab_urls[key] }}" {{ hxf(s.tab_urls[key]) }}{% if p.tab == key %} aria-current="true"{% endif %}><span class="t">{{ label }}</span><span class="n">{{ fmt_int(counts[key]) }}</span></a>
+    {% endfor %}
+  </nav>
+  <div class="fgroups">
+    {% for g in s.groups if g.panel %}{{ fgroup(g, s, "panel") }}{% endfor %}
+  </div>
+  <div class="fpanel-foot">
+    <button class="btn sm nojs-only" type="submit">Apply filters</button>
+    {% if s.active_total %}<a class="btn ghost" href="{{ s.clear_all_url }}" {{ hxf(s.clear_all_url) }}>Clear all<span class="cnt">{{ s.active_total }}</span></a>{% else %}<span class="btn ghost off" aria-disabled="true">Clear all</span>{% endif %}
+    <button class="btn" type="button" data-open-dialog="allf-dialog">View all filters</button>
+  </div>
+</aside>

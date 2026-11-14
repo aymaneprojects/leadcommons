@@ -1,0 +1,49 @@
+{% from "_macros.html" import ic %}
+{# Everything that floats above the results. Lives inside #workspace (outside form #f) so it is
+   re-rendered with the results and never nests forms. #}
+<form id="bulk" method="post" action="/lists/save-to">
+  <input type="hidden" name="kind" value="{{ s.kind }}">
+  <input type="hidden" name="next" value="{{ current_url }}">
+  <dialog id="save-dialog" class="sd" aria-labelledby="sd-title">
+    <header class="allf-head"><h2 id="sd-title">Save to list</h2><button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">{{ ic("x") }}</button></header>
+    <div class="sd-body">
+      <p class="sd-sub"><b data-sel-count>0</b> selected {{ s.kind }}. Add them to an existing list or start a new one.</p>
+      <label class="searchbox">{{ ic("search", "sm") }}<input type="search" data-list-search placeholder="Search lists" aria-label="Search lists" form="ui-only" autocomplete="off"></label>
+      <div class="opts list-opts" role="radiogroup" aria-label="Lists" data-checklist-opts>
+        {% for li in lists %}
+        <label class="opt" data-text="{{ li.name|lower }}"><input type="radio" name="list_id" value="{{ li.id }}"><span class="ol">{{ li.name }}</span><span class="n">{{ li.size }}</span></label>
+        {% endfor %}
+        {% if not lists %}<span class="fnote nolists">No {{ s.kind }} lists yet. Create the first one below.</span>{% endif %}
+      </div>
+      <div class="newlist">
+        <label class="opt"><input type="radio" name="list_id" value="new" data-new-radio><span class="ol">Create a new list</span></label>
+        <input type="text" id="sd-new" name="new_name" maxlength="120" placeholder="List name" aria-label="New list name" autocomplete="off">
+      </div>
+    </div>
+    <footer class="sd-foot">
+      <button type="button" class="btn close-dlg">Cancel</button>
+      <button type="submit" class="btn primary" formaction="/lists/save-to" hx-post="/lists/save-to" hx-swap="none" hx-push-url="false">Save</button>
+    </footer>
+  </dialog>
+</form>
+
+<form id="savesearch" method="post" action="/searches" data-save-search-form>
+  <input type="hidden" name="kind" value="{{ s.kind }}">
+  <input type="hidden" name="query" value="{{ s.base_qs }}">
+  <input type="hidden" name="next" value="{{ current_url }}">
+  <dialog id="savesearch-dialog" class="sd narrow" aria-labelledby="ss-title">
+    <header class="allf-head"><h2 id="ss-title">Save current view</h2><button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">{{ ic("x") }}</button></header>
+    <div class="sd-body">
+      <label class="flabel" for="ss-name">Name this search</label>
+      <input id="ss-name" type="text" name="name" required maxlength="120" placeholder="{{ 'e.g. German software, 11-50' if s.kind == 'companies' else 'e.g. Founders with a valid email' }}" autocomplete="off">
+      <span class="fnote">The filters you applied are saved. Find it again in the view menu.</span>
+    </div>
+    <footer class="sd-foot">
+      <button type="button" class="btn close-dlg">Cancel</button>
+      <button type="submit" class="btn primary">Save search</button>
+    </footer>
+  </dialog>
+</form>
+
+{% include "_search_modal.html" %}
+{% include "_search_columns.html" %}

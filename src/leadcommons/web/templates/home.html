@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 {% from "_macros.html" import icon %}
+{% from "_shell_checklist.html" import checklist, hub_progress %}
 {% block title %}Home · LeadCommons{% endblock %}
 {% block content %}
-<div class="home">
+<div class="hub">
   {% if show_banner %}
   <div class="banner" id="banner">
     <span class="logo" aria-hidden="true">{{ icon("sparkles", "lg") }}</span>
@@ -13,17 +14,14 @@
     </form>
   </div>
   {% endif %}
-  <h1>Get started with LeadCommons</h1>
-  <p class="muted">{{ tasks_done }} of {{ tasks|length }} steps done. Everything stays on this machine.</p>
-  <div class="progress" role="progressbar" aria-label="Progress" aria-valuemin="0" aria-valuemax="{{ tasks|length }}" aria-valuenow="{{ tasks_done }}"><i style="width: {{ (tasks_done * 100 // (tasks|length)) }}%"></i></div>
-  <ul class="checklist">
-    {% for t in tasks %}
-    <li class="{% if t.done %}done{% endif %}">
-      <span class="check" aria-hidden="true">{% if t.done %}{{ icon("circle-check", "sm") }}{% endif %}</span>
-      <span class="txt"><b>{{ t.verb }}</b> {{ t.text }}<span class="sr-only">{% if t.done %} (done){% endif %}</span></span>
-      <a class="btn {% if t.primary %}primary{% endif %}" href="{{ t.href }}">{{ t.label }}</a>
-    </li>
-    {% endfor %}
-  </ul>
+  <div class="hub-head">
+    <div>
+      <h1>Get started with LeadCommons</h1>
+      <p class="muted">{{ tasks_done }} of {{ tasks|length }} steps done. {% if request.app.state.settings.mode != "demo" %}Everything stays on this machine.{% endif %}</p>
+    </div>
+    <a class="btn" href="/onboarding">Open the getting started hub</a>
+  </div>
+  {{ hub_progress(tasks, tasks_done) }}
+  {{ checklist(tasks) }}
 </div>
 {% endblock %}

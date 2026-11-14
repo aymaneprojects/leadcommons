@@ -1,0 +1,17 @@
+{% from "_macros.html" import icon %}
+{% for n in items %}
+<div class="notif-row" data-notif-id="{{ n.id }}">
+  <span class="notif-ic {{ 'ok' if n.status == 'done' else 'red' }}">{{ icon("circle-check" if n.status == "done" else "circle-alert") }}</span>
+  <div class="notif-body">
+    <div class="notif-title">{{ n.label }}</div>
+    <div class="notif-meta">{% if n.status == "done" %}Finished{% else %}Failed{% endif %} {{ ago(n.ts) }}{% if n.detail %} · {{ n.detail }}{% endif %}</div>
+    {% if n.href %}<a class="btn sm" href="{{ n.href }}">{{ n.href_label }}</a>{% endif %}
+  </div>
+  <span class="notif-dot" aria-hidden="true" title="Unread"></span>
+</div>
+{% else %}
+<div class="notif-empty" data-notif-empty>
+  <b>You are all caught up</b>
+  <span class="muted">Finished background jobs, such as finding people or enriching a CSV, show up here.</span>
+</div>
+{% endfor %}

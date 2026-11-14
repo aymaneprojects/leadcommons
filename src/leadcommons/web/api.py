@@ -336,3 +336,30 @@ def add_suppression(body: SuppressionBody, store: Any = Depends(get_store)) -> d
 def packs(search: Any = Depends(get_search)) -> dict[str, Any]:
     info = getattr(search, "pack_info", None)
     return {"items": to_jsonable(info() if callable(info) else [])}
+
+
+# -- AI search ---------------------------------------------------------------------------
+
+
+class AiParseBody(BaseModel):
+    text: str = Field(min_length=1, max_length=500)
+    kind: Literal["companies", "people"] = "companies"
+
+
+@router.post("/ai/parse")
+def ai_parse(body: AiParseBody) -> dict[str, Any]:
+    from leadcommons.ai import ignored_filters, parse_query, to_url
+
+    text = body.text.strip()
+    if not text:
+        raise HTTPException(422, "Text must not be blank")
+    parsed = parse_query(text, body.kind)
+    query, url = to_url(parsed, body.kind)
+    return {
+        "engine": parsed.engine,
+        "explanation": parsed.explanation,
+        "unparsed": parsed.unparsed,
+        "ignored": ignored_filters(parsed, body.kind),
+        "query": query,
+        "url": url,
+    }

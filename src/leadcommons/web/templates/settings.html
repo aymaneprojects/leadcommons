@@ -1,55 +1,61 @@
-{% extends "base.html" %}
+{% extends "shell_settings_base.html" %}
 {% from "_macros.html" import icon %}
+{% from "_shell_macros.html" import sicon %}
 {% block title %}Settings · LeadCommons{% endblock %}
-{% block content %}
-<div class="page-head"><div><h1>Settings</h1><p>Everything here is stored on this machine.</p></div></div>
-<div style="max-width:860px">
-  <section class="card">
-    <h2>Data packs</h2>
-    {% if packs %}
-    <div class="table-wrap"><table class="data compact">
-      <thead><tr><th scope="col">File</th><th scope="col">Companies</th><th scope="col">Sources</th><th scope="col">Built</th></tr></thead>
-      <tbody>{% for pk in packs %}<tr>
-        <td class="mono">{{ pk.file }}</td><td class="mono">{{ fmt_int(pk.rows) }}</td>
-        <td>{% for s in (pk.sources or []) %}<span class="chip src">{{ s }}</span> {% endfor %}</td>
-        <td class="mono">{{ pk.built_at or "n/a" }}</td></tr>{% endfor %}</tbody>
-    </table></div>
-    {% else %}<p class="muted">No data pack installed.</p>{% endif %}
-    <p class="hint mt">Get or update the open company data: <code>leadcommons pack download latest</code></p>
-  </section>
+{% block settings_body %}
+{% set pk = pack if pack is defined else {"packs": (packs if packs is defined else []), "rows": 0, "files": 0, "sources": [], "built_at": None} %}
+{% set cn = counts if counts is defined else {} %}
+<h1 class="set-h1">Workspace settings</h1>
+<div class="set-grid">
 
-  <section class="card" id="privacy">
-    <h2>Privacy &amp; opt-out</h2>
-    <p class="muted">Add an email address or a whole domain to the suppression list. Suppressed contacts are hidden and never exported. Only a hash is stored. Share the public page <a href="/opt-out">/opt-out</a> so people can ask for removal themselves.</p>
-    <form method="post" action="/settings/suppression" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
-      <div class="field" style="flex:1;min-width:220px"><label for="sv">Email or domain</label><input id="sv" type="text" name="value" required placeholder="jane@example.com or example.com"></div>
-      <button class="btn" type="submit">{{ icon("eye-off") }} Suppress</button>
-    </form>
-  </section>
-
-  <section class="card">
-    <h2>Email verification</h2>
-    <p>Live SMTP mailbox probe:
-      {% if settings.smtp_probe %}<span class="chip ok">On</span>{% else %}<span class="chip plain">Off</span>{% endif %}</p>
-    <p class="muted">When off, addresses are checked by syntax and DNS only, and never by contacting the mail server. Many networks block outgoing port 25. To turn the probe on, start LeadCommons with <code>LEADCOMMONS_SMTP_PROBE=1</code>.</p>
-  </section>
-
-  {% if settings.auth_required %}
-  <section class="card">
-    <h2>Account</h2>
-    <p class="muted">This instance is password protected.</p>
-    <form method="post" action="/logout"><button class="btn" type="submit">{{ icon("log-out") }} Log out</button></form>
-  </section>
-  {% endif %}
-
-  <section class="card about">
-    <h2>About</h2>
-    <dl>
-      <dt>Version</dt><dd class="mono">{{ version }}</dd>
-      <dt>Licence</dt><dd>AGPL-3.0-or-later</dd>
-      <dt>Data attribution</dt><dd>Company data from Wikidata (CC0) and GLEIF (CC0).</dd>
-      <dt>Fonts and icons</dt><dd>Inter, Space Grotesk, JetBrains Mono (SIL OFL) and Lucide icons (ISC), bundled locally.</dd>
+  <section class="set-card" aria-labelledby="sc-ws">
+    <div class="set-card-head"><h2 id="sc-ws">{{ sicon("layers") }} Your workspace</h2></div>
+    <p class="muted">What you have saved on this machine.</p>
+    <dl class="set-stats">
+      {% if cn.people is not none and cn.people is defined %}<div><dt>People</dt><dd class="mono">{{ fmt_int(cn.people) }}</dd></div>{% endif %}
+      {% if cn.companies_saved is not none and cn.companies_saved is defined %}<div><dt>Saved companies</dt><dd class="mono">{{ fmt_int(cn.companies_saved) }}</dd></div>{% endif %}
+      {% if cn.lists is not none and cn.lists is defined %}<div><dt>Lists</dt><dd class="mono">{{ fmt_int(cn.lists) }}</dd></div>{% endif %}
+      {% if cn.searches is not none and cn.searches is defined %}<div><dt>Saved searches</dt><dd class="mono">{{ fmt_int(cn.searches) }}</dd></div>{% endif %}
     </dl>
+    <div class="set-links"><a href="/lists">Lists</a><a href="/people">People</a><a href="/companies">Companies</a></div>
+  </section>
+
+  <section class="set-card" aria-labelledby="sc-packs">
+    <div class="set-card-head"><h2 id="sc-packs">{{ sicon("database") }} Data packs</h2>{% if pk.rows %}<span class="chip plain">{{ fmt_int(pk.rows) }} companies</span>{% endif %}</div>
+    {% if pk.packs %}
+    <p class="muted">{{ pk.files }} pack file{{ "s" if pk.files != 1 }} installed{% if pk.built_at %}, newest built {{ pk.built_at[:10] }}{% endif %}.</p>
+    <ul class="set-files">{% for p in pk.packs %}<li class="mono">{{ p.file.rsplit("/", 1)[-1] }}</li>{% endfor %}</ul>
+    <div class="chips">{% for s in pk.sources %}<span class="chip src">{{ s }}</span>{% endfor %}</div>
+    {% else %}<p class="muted">No data pack installed.</p>{% endif %}
+    <p class="hint">Get or update the open company data: <code>leadcommons pack download latest</code></p>
+    <div class="set-links"><a href="/settings/data-packs">Data packs</a></div>
+  </section>
+
+  <section class="set-card" aria-labelledby="sc-mail">
+    <div class="set-card-head"><h2 id="sc-mail">{{ sicon("mail-check") }} Email verification &amp; health</h2>
+      {% if settings.smtp_probe %}<span class="chip ok">SMTP probe on</span>{% else %}<span class="chip plain">SMTP probe off</span>{% endif %}</div>
+    <p class="muted">{% if settings.smtp_probe %}Addresses are also checked by contacting the mail server.{% else %}Addresses are checked by syntax and DNS only, never by contacting the mail server.{% endif %}</p>
+    <p class="hint">To change this, start LeadCommons with <code>LEADCOMMONS_SMTP_PROBE=1</code>.</p>
+    <div class="set-links"><a href="/settings/email-health">Check a domain's DNS</a><a href="/settings/email-health?tab=mailboxes">Mailboxes (v0.3)</a></div>
+  </section>
+
+  <section class="set-card" aria-labelledby="sc-priv">
+    <div class="set-card-head"><h2 id="sc-priv">{{ sicon("shield-check") }} Privacy &amp; opt-out</h2></div>
+    <p class="muted">Suppressed people are hidden and never exported. Only a hash of each address or domain is stored.</p>
+    <div class="set-links"><a href="/settings/privacy">Suppression list</a><a href="/opt-out">Public opt-out page</a></div>
+  </section>
+
+  <section class="set-card" aria-labelledby="sc-acc">
+    <div class="set-card-head"><h2 id="sc-acc">{{ sicon("user") }} Account</h2>
+      {% if settings.auth_required %}<span class="chip ok">Password protected</span>{% else %}<span class="chip plain">Local mode</span>{% endif %}</div>
+    <p class="muted">{% if settings.auth_required %}This instance asks for a password.{% else %}Runs on this machine without a login.{% endif %}</p>
+    <div class="set-links"><a href="/settings/account">Account</a></div>
+  </section>
+
+  <section class="set-card" aria-labelledby="sc-about">
+    <div class="set-card-head"><h2 id="sc-about">{{ sicon("info") }} About</h2><span class="chip plain mono">v{{ version }}</span></div>
+    <p class="muted">Free and open source, AGPL-3.0-or-later. Company data from Wikidata and GLEIF (both CC0).</p>
+    <div class="set-links"><a href="/settings/about">Licences and attribution</a></div>
   </section>
 </div>
 {% endblock %}

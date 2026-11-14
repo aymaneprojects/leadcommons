@@ -85,3 +85,51 @@ def isic_section(label: str | None = None, qid: str | None = None) -> str | None
         if any(w in low for w in words):
             return section
     return None
+
+
+# NACE Rev.2 / NAF rev.2 division ranges -> section (NACE sections share ISIC Rev.4 letters).
+_DIVISION_SECTIONS: tuple[tuple[int, int, str], ...] = (
+    (1, 3, "A"), (5, 9, "B"), (10, 33, "C"), (35, 35, "D"), (36, 39, "E"), (41, 43, "F"),
+    (45, 47, "G"), (49, 53, "H"), (55, 56, "I"), (58, 63, "J"), (64, 66, "K"), (68, 68, "L"),
+    (69, 75, "M"), (77, 82, "N"), (84, 84, "O"), (85, 85, "P"), (86, 88, "Q"), (90, 93, "R"),
+    (94, 96, "S"), (97, 98, "T"), (99, 99, "U"),
+)  # fmt: skip
+
+
+def naf_section(code: str | None) -> str | None:
+    """ISIC/NACE section letter from a NAF/NACE code such as "64.20Z" or "6420Z"."""
+    if not code:
+        return None
+    digits = "".join(ch for ch in code[:3] if ch.isdigit())[:2]
+    if len(digits) < 2:
+        return None
+    div = int(digits)
+    for lo, hi, letter in _DIVISION_SECTIONS:
+        if lo <= div <= hi:
+            return letter
+    return None
+
+
+# US SEC SIC code ranges (4-digit, inclusive) -> ISIC section; first match wins.
+_SIC_RANGES: tuple[tuple[int, int, str], ...] = (
+    (100, 999, "A"), (1000, 1499, "B"), (1500, 1799, "F"), (2000, 3999, "C"),
+    (4000, 4799, "H"), (4800, 4899, "J"), (4941, 4941, "E"), (4950, 4959, "E"),
+    (4900, 4999, "D"), (5000, 5799, "G"), (5800, 5899, "I"), (5900, 5999, "G"),
+    (6500, 6599, "L"), (6798, 6798, "L"), (6000, 6799, "K"), (7000, 7099, "I"),
+    (7200, 7299, "S"), (7310, 7319, "M"), (7370, 7379, "J"), (7300, 7399, "N"),
+    (7500, 7599, "G"), (7600, 7699, "S"), (7830, 7833, "R"), (7800, 7899, "J"),
+    (7900, 7999, "R"), (8000, 8099, "Q"), (8100, 8199, "M"), (8200, 8299, "P"),
+    (8300, 8399, "Q"), (8700, 8999, "M"), (9100, 9799, "O"),
+)  # fmt: skip
+
+
+def sic_section(sic: str | int | None) -> str | None:
+    """Best-effort ISIC section letter from a 4-digit SEC SIC code (None if unknown)."""
+    try:
+        n = int(str(sic).strip())
+    except (TypeError, ValueError):
+        return None
+    for lo, hi, letter in _SIC_RANGES:
+        if lo <= n <= hi:
+            return letter
+    return None

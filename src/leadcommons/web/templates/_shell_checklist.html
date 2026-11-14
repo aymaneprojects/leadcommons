@@ -1,0 +1,36 @@
+{# Grouped getting-started checklist. Used by home.html and shell_onboarding.html. #}
+{% from "_macros.html" import icon %}
+{% macro hub_progress(tasks, tasks_done) -%}
+<div class="hub-progress" role="progressbar" aria-label="Getting started progress" aria-valuemin="0" aria-valuemax="{{ tasks|length }}" aria-valuenow="{{ tasks_done }}"><i style="width: {{ (tasks_done * 100 // (tasks|length)) if tasks else 0 }}%"></i></div>
+{%- endmacro %}
+{% macro checklist(tasks) -%}
+{% set groups = [
+  ("Start reaching the right prospects", "Find companies and people that match your ideal customer.", ["save-company", "find-people", "find-email"]),
+  ("Keep your work organised", "Group prospects in lists, reuse searches and take them with you.", ["create-list", "save-search", "export-list"]),
+  ("Bring your own data", "Turn a file of names and companies into verified emails.", ["csv-enrich"]),
+] %}
+{% set known = groups|map(attribute=2)|sum(start=[]) %}
+{% set extra = tasks|rejectattr("key", "in", known)|list %}
+{% if extra %}{% set groups = groups + [("More steps", "Other things to try.", extra|map(attribute="key")|list)] %}{% endif %}
+{% for title, desc, keys in groups %}
+{% set items = tasks|selectattr("key", "in", keys)|list %}
+{% if items %}
+{% set n_done = items|selectattr("done")|list|length %}
+<details class="hub-group"{% if n_done < items|length or loop.first %} open{% endif %}>
+  <summary>
+    <span class="hg-text"><b>{{ title }}</b><span class="muted">{{ desc }}</span></span>
+    <span class="hg-count{% if n_done == items|length %} all{% endif %}">{{ n_done }} of {{ items|length }} completed {{ icon("chevron-down", "sm") }}</span>
+  </summary>
+  <ul class="hub-list">
+    {% for t in items %}
+    <li class="{% if t.done %}done{% endif %}">
+      <span class="check" aria-hidden="true">{% if t.done %}{{ icon("circle-check", "sm") }}{% endif %}</span>
+      <span class="txt"><b>{{ t.verb }}</b> {{ t.text }}<span class="sr-only">{% if t.done %} (done){% endif %}</span></span>
+      <a class="btn {% if t.primary %}primary{% endif %}" href="{{ t.href }}">{{ t.label }}</a>
+    </li>
+    {% endfor %}
+  </ul>
+</details>
+{% endif %}
+{% endfor %}
+{%- endmacro %}

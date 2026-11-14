@@ -134,3 +134,112 @@ def test_gives_up_after_repeated_errors():
     conn._http.max_retries = 2
     with pytest.raises(httpx.HTTPError):
         list(conn.iter_companies(country="GB"))
+
+
+def test_parse_binding_registry_ids():
+    from leadcommons.connectors.wikidata import parse_binding
+
+    row = {
+        "item": {"value": "http://www.wikidata.org/entity/Q9"},
+        "label": {"value": "La Poste"},
+        "sirenCode": {"value": "356 000 000"},
+        "cikCode": {"value": "320193"},
+    }
+    c = parse_binding(row, "FR")
+    assert c.registry_ids == {"wikidata": "Q9", "siren": "356000000", "cik": "0000320193"}
+    row["sirenCode"] = {"value": "12"}
+    assert "siren" not in parse_binding(row, "FR").registry_ids
+    assert "?sirenCode" in build_details_query(["Q9"]) and "P5531" in build_details_query(["Q9"])
+
+
+def _ids(qs):
+    return {"results": {"bindings": [
+        {"item": {"value": f"http://www.wikidata.org/entity/{q}"}} for q in qs]}}  # fmt: skip
+
+
+def _details(qs):
+    return {"results": {"bindings": [
+        {"item": {"value": f"http://www.wikidata.org/entity/{q}"},
+         "label": {"value": f"Co {q}"}, "country": {"value": "GB"}} for q in qs]}}  # fmt: skip
+
+
+def _qs(request) -> str:
+    return request.url.params["query"]
+
+
+@respx.mock
+def test_ids_are_paged_in_chunks():
+    seen_limits = []
+
+    def handler(request):
+        q = _qs(request)
+        if "SELECT DISTINCT ?item" in q:
+            import re
+
+            lim, off = map(int, re.search(r"LIMIT (\d+) OFFSET (\d+)", q).groups())
+            seen_limits.append((lim, off))
+            total = 5
+            return httpx.Response(
+                200, json=_ids([f"Q{i}" for i in range(off + 1, min(off + lim, total) + 1)])
+            )
+        import re
+
+        return httpx.Response(200, json=_details(re.findall(r"wd:(Q\d+)", q)))
+
+    respx.get(ENDPOINT).mock(side_effect=handler)
+    conn = WikidataConnector(page_size=2, detail_batch=10, min_interval=0, sleep=lambda s: None,
+                             prefer_website=False)  # fmt: skip
+    out = list(conn.iter_companies(country="GB"))
+    assert [c.name for c in out] == [f"Co Q{i}" for i in range(1, 6)]
+    assert seen_limits == [(2, 0), (2, 2), (2, 4)]  # never one heavy query
+
+
+@respx.mock
+def test_failed_chunk_is_skipped_not_fatal(caplog):
+    import logging
+    import re
+
+    caplog.set_level(logging.INFO, logger="leadcommons")
+    state = {"n": 0}
+
+    def handler(request):
+        q = _qs(request)
+        if "SELECT DISTINCT ?item" in q:
+            off = int(re.search(r"OFFSET (\d+)", q).group(1))
+            if off == 2:
+                return httpx.Response(504)  # this chunk is lost after retries
+            ids = {0: ["Q1", "Q2"], 4: ["Q5"]}.get(off, [])
+            return httpx.Response(200, json=_ids(ids))
+        state["n"] += 1
+        return httpx.Response(200, json=_details(re.findall(r"wd:(Q\d+)", q)))
+
+    respx.get(ENDPOINT).mock(side_effect=handler)
+    conn = WikidataConnector(
+        page_size=2, min_interval=0, sleep=lambda s: None, prefer_website=False
+    )
+    conn._http.max_retries = 1
+    out = list(conn.iter_companies(country="GB"))
+    assert [c.name for c in out] == ["Co Q1", "Co Q2", "Co Q5"]
+    assert conn.skipped_chunks == 1
+    assert "ids chunk at offset 2 failed" in caplog.text
+    assert "wikidata GB:" in caplog.text and "ids" in caplog.text  # progress line
+
+
+@respx.mock
+def test_repeated_chunk_failures_propagate():
+    respx.get(ENDPOINT).mock(return_value=httpx.Response(504))
+    conn = WikidataConnector(page_size=2, min_interval=0, sleep=lambda s: None)
+    conn._http.max_retries = 0
+    with pytest.raises(httpx.HTTPError):
+        list(conn.iter_companies(country="GB"))
+    assert conn.skipped_chunks == 3
+
+
+@respx.mock
+def test_total_backoff_is_capped():
+    sleeps: list[float] = []
+    respx.get(ENDPOINT).mock(return_value=httpx.Response(429, headers={"Retry-After": "500"}))
+    conn = WikidataConnector(min_interval=0, sleep=sleeps.append)
+    with pytest.raises(httpx.HTTPError):
+        conn._http.get_json(ENDPOINT, {}, "application/json")
+    assert max(sleeps) <= 60 and sum(sleeps) <= 240

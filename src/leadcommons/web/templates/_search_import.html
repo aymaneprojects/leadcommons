@@ -1,0 +1,8 @@
+{% from "_macros.html" import ic %}
+<details class="dd imp-dd">
+  <summary class="btn">{{ ic("upload") }}<span>Import</span>{{ ic("chevron-down", "sm") }}</summary>
+  <div class="menu">
+    <a class="menu-item" href="/enrich">{{ ic("file-up", "sm") }}<span>Upload a CSV</span></a>
+    <button type="button" class="menu-item" disabled aria-disabled="true" title="Coming in a later version">{{ ic("link", "sm") }}<span>From a list of URLs</span><span class="badge soon-badge">Soon</span></button>
+  </div>
+</details>

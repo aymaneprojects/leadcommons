@@ -1,31 +1,55 @@
 {% extends "base.html" %}
 {% from "_macros.html" import icon %}
+{% from "_shell_macros.html" import sicon %}
 {% block title %}Lists · LeadCommons{% endblock %}
 {% block content %}
+{% set people_lists = lists|selectattr("kind", "equalto", "people")|list %}
+{% set company_lists = lists|selectattr("kind", "equalto", "companies")|list %}
+{% set asked = request.query_params.get("kind") %}
+{% set tab = asked if asked in ["people", "companies"] else ("companies" if (lists and not people_lists) else "people") %}
+{% set shown = people_lists if tab == "people" else company_lists %}
 <div class="page-head">
-  <div><h1>Lists</h1><p>Group companies or people, then export them as CSV.</p></div>
+  <div><h1>My lists</h1><p>Group people or companies, then export them as CSV.</p></div>
+  {% if lists %}<button class="btn primary" type="button" data-create-list="{{ tab }}">{{ icon("plus") }} Create list</button>{% endif %}
 </div>
-<form class="card" method="post" action="/lists" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:16px">
-  <div class="field" style="flex:1;min-width:200px"><label for="ln">New list name</label><input id="ln" type="text" name="name" required maxlength="120" placeholder="e.g. French SaaS founders"></div>
-  <div class="field"><label for="lk">Contains</label><select id="lk" name="kind"><option value="companies">Companies</option><option value="people">People</option></select></div>
-  <button class="btn primary" type="submit">{{ icon("plus") }} Create list</button>
-</form>
-{% if lists %}
+<div class="tabs" role="tablist">
+  <a class="tab" role="tab" href="/lists?kind=people" {% if tab == "people" %}aria-selected="true"{% endif %}>{{ icon("users", "sm") }} People <span class="tab-n">{{ people_lists|length }}</span></a>
+  <a class="tab" role="tab" href="/lists?kind=companies" {% if tab == "companies" %}aria-selected="true"{% endif %}>{{ icon("building-2", "sm") }} Companies <span class="tab-n">{{ company_lists|length }}</span></a>
+</div>
+{% if shown %}
 <div class="table-wrap"><table class="data">
-  <thead><tr><th scope="col">Name</th><th scope="col">Type</th><th scope="col">Size</th><th scope="col">Created</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+  <thead><tr><th scope="col">Name</th><th scope="col">Type</th><th scope="col">Records</th><th scope="col">Created</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
   <tbody>
-  {% for li in lists %}
+  {% for li in shown %}
     <tr>
       <td><a class="co-name" href="/lists/{{ li.id }}">{{ li.name }}</a></td>
-      <td><span class="chip plain">{{ li.kind|capitalize }}</span></td>
+      <td><span class="chip plain">{{ "People" if li.kind == "people" else "Companies" }}</span></td>
       <td class="mono">{{ fmt_int(li.size) }}</td>
       <td class="mono">{{ fmt_date(li.created_at) }}</td>
-      <td><div class="cell-actions"><a class="btn sm" href="/lists/{{ li.id }}/export.csv">{{ icon("download", "sm") }} Export CSV</a></div></td>
+      <td><div class="cell-actions"><a class="btn sm" href="/lists/{{ li.id }}">Open</a><a class="btn sm" href="/lists/{{ li.id }}/export.csv">{{ icon("download", "sm") }} Export CSV</a></div></td>
     </tr>
   {% endfor %}
   </tbody>
 </table></div>
 {% else %}
-<div class="table-wrap"><div class="empty"><h3>No lists yet</h3><p>Create one above, or select companies on the Companies page and choose Save to list.</p><a class="btn" href="/companies">Go to Companies</a></div></div>
+<div class="empty-state">
+  <span class="es-ic">{{ icon("list", "lg") }}</span>
+  <h2>{% if lists %}No {{ "people" if tab == "people" else "company" }} lists yet{% else %}Welcome to your lists{% endif %}</h2>
+  <p>Lists help you organise prospects and take them elsewhere. Create one here, or select rows on the {{ "People" if tab == "people" else "Companies" }} page and choose Save to list.</p>
+  <div class="actions">
+    {% if not lists or tab == "people" %}<button class="btn primary" type="button" data-create-list="people">{{ icon("user") }} Create a people list</button>{% endif %}
+    {% if not lists or tab == "companies" %}<button class="btn {% if lists %}primary{% endif %}" type="button" data-create-list="companies">{{ icon("building-2") }} Create a company list</button>{% endif %}
+  </div>
+  <p class="hint">Exports never include people on your suppression list.</p>
+</div>
 {% endif %}
+
+<dialog id="create-list" aria-labelledby="cl-title">
+  <form class="dlg" method="post" action="/lists">
+    <h2 id="cl-title">Create a list</h2>
+    <div class="field"><label for="cl-name">Name</label><input id="cl-name" type="text" name="name" required maxlength="120" placeholder="e.g. French SaaS founders" autocomplete="off"></div>
+    <div class="field"><label for="cl-kind">Contains</label><select id="cl-kind" name="kind"><option value="people"{% if tab == "people" %} selected{% endif %}>People</option><option value="companies"{% if tab == "companies" %} selected{% endif %}>Companies</option></select></div>
+    <div class="foot"><button type="button" class="btn close-dlg">Cancel</button><button type="submit" class="btn primary">Create list</button></div>
+  </form>
+</dialog>
 {% endblock %}

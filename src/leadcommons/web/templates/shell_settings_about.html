@@ -1,0 +1,14 @@
+{% extends "shell_settings_base.html" %}
+{% block title %}About · LeadCommons{% endblock %}
+{% block settings_body %}
+<h1 class="set-h1">About</h1>
+<section class="card about">
+  <dl>
+    <dt>Version</dt><dd class="mono">{{ version }}</dd>
+    <dt>Licence</dt><dd>AGPL-3.0-or-later</dd>
+    <dt>Data attribution</dt><dd>Company data from Wikidata (CC0) and GLEIF (CC0).</dd>
+    <dt>Fonts and icons</dt><dd>Inter, Space Grotesk, JetBrains Mono (SIL OFL) and Lucide icons (ISC), bundled locally.</dd>
+    <dt>Source code</dt><dd><a href="https://github.com/aymaneprojects/leadcommons" rel="noopener noreferrer" target="_blank">github.com/aymaneprojects/leadcommons</a></dd>
+  </dl>
+</section>
+{% endblock %}

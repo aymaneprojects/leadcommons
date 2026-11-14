@@ -1,0 +1,136 @@
+{% from "_macros.html" import ic, hxf, status_dot, status_chip, src_chip, avatar %}
+
+{# Source chip of the provenance entry best matching a hint, falling back to the first. #}
+{% macro cprov(c, hint="") -%}
+  {%- set ns = namespace(p=None) -%}
+  {%- for src in c.sources %}{% if ns.p is none and hint and hint in src.source.lower() %}{% set ns.p = src %}{% endif %}{% endfor -%}
+  {%- if ns.p is none and c.sources %}{% set ns.p = c.sources[0] %}{% endif -%}
+  {{ src_chip(ns.p) }}
+{%- endmacro %}
+
+{# "Add to list" popover for one record (works as a plain form without JS). #}
+{% macro addlist(kind, rid, lists, back, uid) -%}
+<details class="dd addlist-dd">
+  <summary class="btn">{{ ic("list-plus") }}<span>Add to list</span></summary>
+  <form class="menu left pad addlist" method="post" action="/lists/save-to" hx-post="/lists/save-to" hx-swap="none" hx-push-url="false">
+    <input type="hidden" name="kind" value="{{ kind }}"><input type="hidden" name="ids" value="{{ rid }}"><input type="hidden" name="next" value="{{ back }}">
+    <label class="sr-only" for="{{ uid }}-list">List</label>
+    <select id="{{ uid }}-list" name="list_id"><option value="">Choose a list…</option>{% for li in lists %}<option value="{{ li.id }}">{{ li.name }} ({{ li.size }})</option>{% endfor %}</select>
+    <label class="sr-only" for="{{ uid }}-new">New list</label>
+    <input id="{{ uid }}-new" type="text" name="new_name" placeholder="…or a new list name" maxlength="120">
+    <button class="btn primary sm" type="submit">Add</button>
+  </form>
+</details>
+{%- endmacro %}
+
+{% macro score_block(score) -%}
+<div class="score">
+  <div class="score-label">Score <span class="tip" tabindex="0" data-tip="Our own confidence in this email address, from 0 to 100. It comes from the address pattern and the checks we ran.">{{ ic("info", "sm") }}</span></div>
+  {% if score.value is none %}
+    <p class="muted">No score yet. Find an email to get one.</p>
+  {% else %}
+    <div class="score-top"><span class="sc-num">{{ score.value }}</span><span class="sc-of">/ 100</span><span class="chip {{ score.tone }}">{{ score.label }}</span></div>
+    <div class="meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ score.value }}" aria-label="Email confidence"><i class="{{ score.tone }}" style="width: {{ score.value }}%"></i></div>
+    <details class="breakdown">
+      <summary>Show breakdown {{ ic("chevron-down", "sm") }}</summary>
+      <dl>{% for k, v in score.rows %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endfor %}</dl>
+    </details>
+  {% endif %}
+</div>
+{%- endmacro %}
+
+{% macro optout_notice() -%}
+<div class="optout-box" role="alert">
+  {{ ic("shield-alert") }}
+  <div><b>Opted out</b><span>This address or its domain is on your suppression list. It is never exported or contacted.</span></div>
+</div>
+{%- endmacro %}
+
+{# Contact information card, shared by the person page and the drawer. #}
+{% macro contact_card(person, best, candidates, suppressed, opted_out, score, lists) -%}
+<section class="card cinfo" aria-label="Contact information">
+  <h2>Contact information</h2>
+  <div class="crow">
+    <span class="ci">{{ ic("mail") }}</span>
+    <div class="cv">
+      {% if best %}
+        {% if best.address in suppressed %}
+          <span class="email">{{ status_dot("suppressed") }}<span class="optout">Opted out</span></span>
+        {% else %}
+          <span class="email">{{ status_dot(best.status) }}<span class="addr">{{ best.address }}</span></span>
+          <span class="cmeta">{{ status_chip(best.status) }}<span class="mono dim">{{ best.confidence }}% confidence</span></span>
+        {% endif %}
+      {% else %}
+        <span class="muted">No email found yet</span>
+      {% endif %}
+    </div>
+    <div class="ca">
+      {% if best and best.address not in suppressed %}<button class="btn ghost icon-only sm" type="button" data-copy="{{ best.address }}" title="Copy email" aria-label="Copy email address">{{ ic("copy", "sm") }}</button>{% endif %}
+      <form method="post" action="/people/{{ person.id }}/find-email" hx-post="/people/{{ person.id }}/find-email" hx-swap="none" hx-push-url="false">
+        <button class="btn sm" type="submit">{{ "Re-check" if best else "Find email" }}</button>
+      </form>
+    </div>
+  </div>
+  {% if candidates|length > 1 %}
+  <details class="others"><summary>Other addresses ({{ candidates|length - 1 }}) {{ ic("chevron-down", "sm") }}</summary>
+    <ul class="plain-list">{% for e in candidates if not best or e.address != best.address %}<li><span class="email">{{ status_dot("suppressed" if e.address in suppressed else e.status) }}{% if e.address in suppressed %}<span class="optout">Opted out</span>{% else %}{{ e.address }}{% endif %}</span><span class="mono dim">{{ e.confidence }}%</span></li>{% endfor %}</ul>
+  </details>
+  {% endif %}
+  <div class="crow">
+    <span class="ci">{{ ic("phone") }}</span>
+    <div class="cv"><span class="muted">No phone data</span><span class="cmeta"><span class="fnote">LeadCommons does not collect phone numbers.</span></span></div>
+  </div>
+  {% if person.source_urls %}
+  <div class="crow">
+    <span class="ci">{{ ic("link") }}</span>
+    <div class="cv"><span class="muted">Found on</span>
+      <ul class="plain-list tight">{% for u in person.source_urls %}<li><a class="mono" href="{{ u }}" target="_blank" rel="noopener noreferrer">{{ u.split('/')[2] if u.startswith('http') and u.split('/')|length > 2 else u }}{{ ic("external-link", "sm") }}</a></li>{% endfor %}</ul>
+    </div>
+  </div>
+  {% endif %}
+  <hr>
+  {{ score_block(score) }}
+  {% if opted_out %}{{ optout_notice() }}{% endif %}
+</section>
+{%- endmacro %}
+
+{# Company fields with source chips: used by the company panel and the person page. #}
+{% macro company_fields(c) -%}
+<div class="kv2">
+  {% if c.legal_name and c.legal_name != c.name %}<div class="k">Legal name</div><div class="v"><span>{{ c.legal_name }}</span>{{ cprov(c, "gleif") }}</div>{% endif %}
+  <div class="k">Domain</div><div class="v"><span class="mono">{{ c.domain or "Unknown" }}</span>{{ cprov(c) }}</div>
+  <div class="k">Industry</div><div class="v"><span>{% if c.industry_label or c.industry %}<span class="chip plain">{{ c.industry_label or c.industry }}</span>{% else %}Unknown{% endif %}{% if c.industry %} <span class="mono dim">ISIC {{ c.industry }}</span>{% endif %}</span>{{ cprov(c) }}</div>
+  <div class="k">Location</div><div class="v"><span>{% if c.city %}{{ c.city }}, {% endif %}{% if c.region %}{{ c.region }}, {% endif %}{{ country_name(c.country) or "Unknown" }}</span>{{ cprov(c) }}</div>
+  <div class="k">Employees</div><div class="v"><span class="mono">{{ c.size_range or "Unknown" }}</span>{{ cprov(c) }}</div>
+  <div class="k">Founded</div><div class="v"><span class="mono">{{ c.founded_year or "Unknown" }}</span>{{ cprov(c, "wikidata") }}</div>
+  <div class="k">LEI</div><div class="v"><span class="mono">{{ c.registry_ids.get("lei") or "Unknown" }}</span>{{ cprov(c, "gleif") }}</div>
+  <div class="k">Wikidata</div><div class="v"><span class="mono">{% if c.registry_ids.get("wikidata") %}<a href="https://www.wikidata.org/wiki/{{ c.registry_ids.get('wikidata') }}" target="_blank" rel="noopener noreferrer">{{ c.registry_ids.get("wikidata") }}</a>{% else %}Unknown{% endif %}</span>{{ cprov(c, "wikidata") }}</div>
+  <div class="k">Links</div><div class="v"><span class="linkrow">
+    {% if c.domain %}<a class="btn ghost icon-only sm" href="https://{{ c.domain }}" target="_blank" rel="noopener noreferrer" title="Website" aria-label="Website">{{ ic("globe", "sm") }}</a>{% endif %}
+    {% if c.registry_ids.get("wikidata") %}<a class="btn ghost icon-only sm" href="https://www.wikidata.org/wiki/{{ c.registry_ids.get('wikidata') }}" target="_blank" rel="noopener noreferrer" title="Wikidata" aria-label="Wikidata">{{ ic("link", "sm") }}</a>{% endif %}
+    {% if not c.domain and not c.registry_ids.get("wikidata") %}<span class="muted">None known</span>{% endif %}
+  </span></div>
+</div>
+{%- endmacro %}
+
+{# People of one company: rows with email status and a Find email action. #}
+{% macro people_list(people, emails, suppressed, empty_text) -%}
+{% if people %}
+<div class="plist">
+  {% for x in people %}
+  {% set e = emails.get(x.id) %}
+  <div class="person-line">
+    {{ avatar(x.full_name, "pe") }}
+    <div class="pl-main">
+      <a class="co-name" href="/people/{{ x.id }}" hx-get="/people/{{ x.id }}" hx-target="#drawer" hx-select="unset" hx-swap="innerHTML" hx-push-url="false">{{ x.full_name }}</a>
+      <span class="sub-ui">{{ x.title or "No title" }}</span>
+      {% if e %}<span class="email">{% if e.address in suppressed %}{{ status_dot("suppressed") }}<span class="optout">Opted out</span>{% else %}{{ status_dot(e.status) }}{{ e.address }}{% endif %}</span>{% endif %}
+    </div>
+    <form method="post" action="/people/{{ x.id }}/find-email" hx-post="/people/{{ x.id }}/find-email" hx-swap="none" hx-push-url="false">
+      <button class="btn sm" type="submit">{{ ic("mail", "sm") }}<span>{{ "Re-check" if e else "Find email" }}</span></button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% else %}<p class="muted">{{ empty_text }}</p>{% endif %}
+{%- endmacro %}

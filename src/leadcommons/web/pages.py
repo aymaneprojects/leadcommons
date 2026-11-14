@@ -10,6 +10,9 @@ from __future__ import annotations
 import csv
 import io
 import json
+import math
+import re
+from collections import Counter
 from datetime import datetime
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse
@@ -24,8 +27,11 @@ from leadcommons.web.deps import get_jobs, get_search, get_store, templates
 
 router = APIRouter()
 
-PER_PAGE = 25
-WIDE = 1000  # cap when a view needs the full result set (saved/new tabs, sorting)
+PAGE_SIZES = (25, 50, 100)  # results per page offered in Search settings
+DEFAULT_PER = 25
+SCAN_CAP = 5000  # most rows scanned when a view needs the full result set (tabs, sort, exclusions)
+SCAN_BATCH = 500
+NO_MATCH = "\u2205"  # impossible filter value: "everything excluded" matches nothing
 
 COUNTRIES = {
     "AT": "Austria",
@@ -122,17 +128,6 @@ ISIC_SECTIONS = {
     "T": "Households as employers",
     "U": "Extraterritorial bodies",
 }
-SOON_PAGES = {
-    "sequences": ("Sequences", "send", "Multi-step outreach sequences with automatic follow-ups."),
-    "emails": ("Emails", "mail", "A shared inbox for the emails you send from LeadCommons."),
-    "tasks": ("Tasks", "square-check-big", "Reminders and to-dos tied to the people you prospect."),
-    "deals": ("Deals", "handshake", "A simple pipeline to track opportunities to a close."),
-    "email-health": (
-        "Email health",
-        "heart-pulse",
-        "Domain warm-up, bounce and deliverability checks.",
-    ),
-}
 
 
 # ---------------------------------------------------------------- helpers
@@ -174,6 +169,23 @@ templates.env.globals.update(
     country_name=lambda c: COUNTRIES.get(c or "", c or ""),
     fmt_int=lambda n: f"{int(n or 0):,}",
 )
+
+
+def initials(name: str | None) -> str:
+    words = [w for w in re.split(r"[\s\-_.]+", (name or "").strip()) if w[:1].isalnum()]
+    if not words:
+        return "?"
+    if len(words) == 1:
+        return words[0][:2].upper()
+    return (words[0][0] + words[-1][0]).upper()
+
+
+def tone(name: str | None) -> int:
+    """Stable avatar colour slot (0-5) from a name."""
+    return sum(ord(ch) for ch in (name or "")) % 6
+
+
+templates.env.globals.update(initials=initials, tone=tone, page_sizes=PAGE_SIZES)
 
 
 def csrf(request: Request) -> None:
@@ -384,36 +396,43 @@ def qs(params: dict[str, Any], **over: Any) -> str:
 templates.env.globals["qs"] = qs
 
 
-def pager(base: str, params: dict[str, Any], page: int, total: int) -> dict[str, Any]:
-    pages = max(1, -(-total // PER_PAGE))
+def pager(
+    base: str,
+    params: dict[str, Any],
+    page: int,
+    total: int,
+    per: int = DEFAULT_PER,
+    capped: bool = False,
+) -> dict[str, Any]:
+    """Pagination model: page arrows, a page-number select and a "1 - 25 of N" range."""
+    per = per if per in PAGE_SIZES else DEFAULT_PER
+    pages = max(1, -(-total // per))
+    page = min(max(1, page), pages)
     lo, hi = max(1, page - 2), min(pages, page + 2)
 
     def url(n: int) -> str:
         q = qs(params, page=n if n > 1 else None)
         return f"{base}?{q}" if q else base
 
+    if pages <= 300:
+        numbers = list(range(1, pages + 1))
+    else:
+        numbers = sorted(
+            {*range(1, 101), *range(max(1, page - 8), min(pages, page + 8) + 1), pages}
+        )
     return {
         "page": page,
         "pages": pages,
         "total": total,
-        "start": (page - 1) * PER_PAGE + 1 if total else 0,
-        "end": min(total, page * PER_PAGE),
+        "per": per,
+        "capped": capped,
+        "start": (page - 1) * per + 1 if total else 0,
+        "end": min(total, page * per),
         "prev": url(page - 1) if page > 1 else None,
         "next": url(page + 1) if page < pages else None,
         "links": [(n, url(n)) for n in range(lo, hi + 1)],
+        "options": [(n, url(n)) for n in numbers],
     }
-
-
-def group_by_domain_name(search: Any, ids: set[str]) -> dict[str, Company]:
-    out: dict[str, Company] = {}
-    for cid in ids:
-        try:
-            c = search.get_company(cid)
-        except Exception:
-            c = None
-        if c:
-            out[cid] = c
-    return out
 
 
 # ---------------------------------------------------------------- home
@@ -435,75 +454,836 @@ def dismiss_banner(request: Request, _: None = Depends(csrf)) -> Response:
     return RedirectResponse("/", status_code=303)
 
 
-# ---------------------------------------------------------------- companies
+# ---------------------------------------------------------------- shared search engine
+#
+# Companies and people share one filter model: include lists, exclude lists, size buckets,
+# keywords. The company pack and the local store only know "include" filters, so exclusions are
+# turned into include lists (country, industry: from facet counts) or applied in Python on a
+# bounded scan (keywords, titles, company attributes of people). SCAN_CAP bounds the scan; when a
+# result set is larger the UI shows "5,000+" and says so.
 
 
-def parse_company_params(request: Request) -> dict[str, Any]:
-    g = request.query_params
-    keywords = [k.strip() for raw in g.getlist("keyword") for k in raw.split(",") if k.strip()]
+def _opt_int(value: Any) -> int | None:
     try:
-        page = max(1, int(g.get("page", "1")))
-    except ValueError:
-        page = 1
+        n = int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    return n if n > 0 else None
+
+
+def split_values(values: Any, upper: bool = False) -> list[str]:
+    """Flatten repeated and comma separated values, trimmed, de-duplicated, order kept."""
+    out: list[str] = []
+    for raw in values:
+        for part in str(raw).split(","):
+            v = part.strip().strip('"')
+            v = v.upper() if upper else v
+            if v and v not in out:
+                out.append(v)
+    return out
+
+
+def list_param(g: Any, key: str, upper: bool = False) -> list[str]:
+    """Values of a repeated param plus its no-JS companion field `<key>_add`."""
+    return split_values([*g.getlist(key), *g.getlist(f"{key}_add")], upper)
+
+
+def _bounds(label: str) -> tuple[int, float]:
+    if label.endswith("+"):
+        return int(label[:-1]), math.inf
+    lo, hi = label.split("-")
+    return int(lo), int(hi)
+
+
+SIZE_BOUNDS = {s: _bounds(s) for s in SIZE_RANGES}
+
+
+def buckets_for_range(lo: int | None, hi: int | None) -> list[str]:
+    """Size buckets overlapping a custom employee range [lo, hi] (either end may be open)."""
+    if lo is None and hi is None:
+        return []
+    if lo is not None and hi is not None and lo > hi:
+        lo, hi = hi, lo
+    return [
+        s
+        for s, (a, b) in SIZE_BOUNDS.items()
+        if (hi is None or a <= hi) and (lo is None or b >= lo)
+    ]
+
+
+def effective_sizes(p: dict[str, Any]) -> list[str]:
+    """Ticked buckets united with the buckets a custom min-max range maps to."""
+    chosen = set(p["size"]) | set(buckets_for_range(p["size_min"], p["size_max"]))
+    return [s for s in SIZE_RANGES if s in chosen]
+
+
+TITLE_SYNONYMS: tuple[tuple[str, ...], ...] = (
+    ("ceo", "chief executive officer", "chief executive"),
+    ("cto", "chief technology officer", "chief technical officer"),
+    ("cfo", "chief financial officer"),
+    ("coo", "chief operating officer"),
+    ("cmo", "chief marketing officer"),
+    ("cio", "chief information officer"),
+    ("founder", "co-founder", "cofounder", "co founder"),
+    ("vp", "vice president", "vice-president"),
+    ("owner", "proprietor"),
+)
+
+
+def expand_titles(titles: list[str]) -> list[str]:
+    """Titles plus their well-known equivalents ("ceo" also finds "chief executive officer")."""
+    out: list[str] = []
+    for t in titles:
+        tl = t.lower().strip()
+        group = next((g for g in TITLE_SYNONYMS if tl in g), (tl,))
+        out.extend(x for x in group if x and x not in out)
+    return out
+
+
+def title_regex(terms: list[str]) -> re.Pattern[str] | None:
+    """Word-start match: "market" finds "Marketing Lead", "cto" does not find "Director"."""
+    cleaned = [t.lower().strip() for t in terms if t.strip()]
+    if not cleaned:
+        return None
+    return re.compile("|".join(r"(?<![a-z0-9])" + re.escape(t) for t in cleaned))
+
+
+def parse_common(g: Any) -> dict[str, Any]:
+    """Params shared by both search pages."""
     sort = g.get("sort", "relevance")
     tab = g.get("tab", "all")
+    per = _opt_int(g.get("per"))
     return {
         "q": g.get("q", "").strip(),
-        "country": [c.upper() for c in g.getlist("country") if c],
-        "industry": [c for c in g.getlist("industry") if c],
-        "size": [s for s in g.getlist("size") if s in SIZE_RANGES],
-        "keyword": keywords,
+        "country": list_param(g, "country", upper=True),
+        "xcountry": list_param(g, "xcountry", upper=True),
+        "industry": list_param(g, "industry", upper=True),
+        "xindustry": list_param(g, "xindustry", upper=True),
+        "size": [s for s in list_param(g, "size") if s in SIZE_RANGES],
+        "size_min": _opt_int(g.get("size_min")),
+        "size_max": _opt_int(g.get("size_max")),
+        "keyword": list_param(g, "keyword"),
+        "xkeyword": list_param(g, "xkeyword"),
         "domain": g.get("domain", "").strip().lower(),
-        "sort": sort if sort in ("relevance", "name", "size") else "relevance",
+        "sort": sort,
         "tab": tab if tab in ("all", "new", "saved") else "all",
-        "page": page,
+        "page": _opt_int(g.get("page")) or 1,
+        "per": per if per in PAGE_SIZES else DEFAULT_PER,
     }
 
 
-def company_filters(p: dict[str, Any], **drop: bool) -> CompanyFilters:
+def url_params(p: dict[str, Any]) -> dict[str, Any]:
+    """The state worth keeping in a URL: no page, no defaults, no empties."""
+    out: dict[str, Any] = {}
+    for k, v in p.items():
+        if k == "page":
+            continue
+        if k == "similar":
+            if not v:
+                out["similar"] = "0"
+            continue
+        if (
+            (k == "per" and v == DEFAULT_PER)
+            or (k == "sort" and v == "relevance")
+            or (k == "tab" and v == "all")
+        ):
+            continue
+        if v in ("", [], None):
+            continue
+        out[k] = v
+    return out
+
+
+class CompanyLookup:
+    """Per-request memo of company records: the pack first, then locally saved copies."""
+
+    def __init__(self, search: Any, store: Any) -> None:
+        self.search, self.store = search, store
+        self._memo: dict[str, Company | None] = {}
+
+    def get(self, company_id: str | None) -> Company | None:
+        if not company_id:
+            return None
+        if company_id not in self._memo:
+            found = None
+            try:
+                found = self.search.get_company(company_id)
+            except Exception:
+                found = None
+            if found is None:
+                getter = getattr(self.store, "get_company", None)
+                if getter:
+                    try:
+                        found = getter(company_id)
+                    except Exception:
+                        found = None
+            self._memo[company_id] = found
+        return self._memo[company_id]
+
+
+def company_text(c: Company) -> str:
+    return " ".join(x for x in (c.name, c.legal_name, c.domain, c.industry_label) if x).lower()
+
+
+def has_company_conditions(p: dict[str, Any], skip: str | None = None) -> bool:
+    groups = {
+        "location": ("country", "xcountry"),
+        "industry": ("industry", "xindustry", "keyword", "xkeyword"),
+        "size": ("size", "size_min", "size_max"),
+    }
+    return any(p[k] for g, keys in groups.items() if g != skip for k in keys)
+
+
+def company_matches(
+    c: Company | None, p: dict[str, Any], skip: str | None = None, text: bool = True
+) -> bool:
+    """Does a company satisfy the filters in p? skip names a group to ignore (for facet counts);
+    text also applies the free-text and domain filters (companies page only).
+    Records with no value for an attribute never match a filter on that attribute."""
+    if c is None:
+        return not has_company_conditions(p, skip) and not (text and (p["q"] or p["domain"]))
+    if text:
+        if (
+            p["q"]
+            and p["q"].lower()
+            not in " ".join(x for x in (c.name, c.legal_name, c.domain) if x).lower()
+        ):
+            return False
+        if p["domain"] and (c.domain or "").lower() != p["domain"]:
+            return False
+    if skip != "location" and (p["country"] or p["xcountry"]):
+        cc = (c.country or "").upper()
+        if not cc or (p["country"] and cc not in p["country"]) or cc in p["xcountry"]:
+            return False
+    if skip != "industry":
+        if p["industry"] or p["xindustry"]:
+            ind = (c.industry or "").upper()
+            if not ind or (p["industry"] and ind not in p["industry"]) or ind in p["xindustry"]:
+                return False
+        hay = company_text(c)
+        if p["keyword"] and not any(k.lower() in hay for k in p["keyword"]):
+            return False
+        if any(k.lower() in hay for k in p["xkeyword"]):
+            return False
+    if skip != "size":
+        sizes = effective_sizes(p)
+        if sizes and c.size_range not in sizes:
+            return False
+    return True
+
+
+# ---- companies
+
+
+def parse_company_params(request: Request) -> dict[str, Any]:
+    p = parse_common(request.query_params)
+    p["sort"] = p["sort"] if p["sort"] in ("relevance", "name", "size") else "relevance"
+    return p
+
+
+def build_company_filters(
+    search: Any, p: dict[str, Any], skip: str | None = None
+) -> CompanyFilters:
+    """CompanyFilters for the pack. Excluded countries/industries become include lists derived
+    from facet counts; skip ("location" | "industry" | "size") ignores one group (facet counts)."""
+
+    def derive(
+        facet: str, include: list[str], exclude: list[str], other: CompanyFilters
+    ) -> list[str]:
+        if not exclude:
+            return list(include)
+        try:
+            known = [str(k).upper() for k in search.facet_counts(facet, other, 500)]
+        except Exception:
+            known = []
+        allowed = [v for v in (include or known) if v not in exclude]
+        return allowed or [NO_MATCH]
+
+    text = p["q"] or None
+    domains = [p["domain"]] if p["domain"] else []
+    sizes = [] if skip == "size" else effective_sizes(p)
+    keywords = [] if skip == "industry" else p["keyword"]
+    base = CompanyFilters(
+        text=text,
+        countries=[] if skip == "location" else list(p["country"]),
+        industries=[] if skip == "industry" else list(p["industry"]),
+        size_ranges=sizes,
+        keywords=keywords,
+        domains=domains,
+    )
+    countries: list[str] = []
+    industries: list[str] = []
+    if skip != "location":
+        other = CompanyFilters(**{**base.__dict__, "countries": []})
+        countries = derive("country", p["country"], p["xcountry"], other)
+    if skip != "industry":
+        other = CompanyFilters(**{**base.__dict__, "industries": []})
+        industries = derive("industry", p["industry"], p["xindustry"], other)
     return CompanyFilters(
-        text=p["q"] or None,
-        countries=[] if drop.get("country") else p["country"],
-        industries=[] if drop.get("industry") else p["industry"],
-        size_ranges=[] if drop.get("size") else p["size"],
-        keywords=p["keyword"],
-        domains=[p["domain"]] if p["domain"] else [],
+        text=text,
+        countries=countries,
+        industries=industries,
+        size_ranges=sizes,
+        keywords=keywords,
+        domains=domains,
     )
 
 
-def has_company_filters(p: dict[str, Any]) -> bool:
-    return any(p[k] for k in ("q", "country", "industry", "size", "keyword", "domain"))
+def scan_companies(search: Any, flt: CompanyFilters) -> tuple[list[Company], int, bool]:
+    """Up to SCAN_CAP matching companies in pack order: (items, pack total, truncated)."""
+    items: list[Company] = []
+    page, total = 1, 0
+    while True:
+        res = search.search_companies(flt, page=page, per_page=SCAN_BATCH)
+        items.extend(res.items)
+        total = res.total
+        if not res.items or len(items) >= total or len(items) >= SCAN_CAP:
+            break
+        page += 1
+    return items, total, total > len(items)
 
 
-def facet_options(search: Any, p: dict[str, Any], facet: str, key: str, limit: int) -> list:
-    """Facet values with counts (computed without the facet's own filter), selected first."""
-    flt = company_filters(p, **{key: True})
-    try:
-        counts = dict(search.facet_counts(facet, flt, limit))
-    except Exception:
-        counts = {}
-    for sel in p[key]:
-        counts.setdefault(sel, 0)
-    return sorted(counts.items(), key=lambda kv: (kv[0] not in p[key], -kv[1], kv[0]))
+def _relevance_key(c: Company) -> tuple[Any, ...]:
+    return (c.domain is None, c.size_range is None, c.name.lower(), c.id)
 
 
 def size_order(c: Company) -> int:
     return SIZE_RANGES.index(c.size_range) if c.size_range in SIZE_RANGES else -1
 
 
-def active_chips(p: dict[str, Any], base: str, labels: dict[str, str]) -> list[dict[str, str]]:
-    chips = []
-    if p["q"]:
-        chips.append({"label": f"“{p['q']}”", "url": f"{base}?{qs(p, q=None, page=None)}"})
-    for key in ("country", "industry", "size", "keyword", "status", "seniority"):
-        for v in p.get(key, []):
-            rest = [x for x in p[key] if x != v]
-            label = labels.get(f"{key}:{v}", v)
-            chips.append({"label": label, "url": f"{base}?{qs(p, **{key: rest, 'page': None})}"})
-    for key in ("domain", "title"):
+def sort_companies(items: list[Company], sort: str) -> list[Company]:
+    if sort == "name":
+        return sorted(items, key=lambda c: c.name.lower())
+    if sort == "size":
+        return sorted(items, key=size_order, reverse=True)
+    return sorted(items, key=_relevance_key)
+
+
+def run_companies(
+    search: Any, store: Any, p: dict[str, Any], *, facets: bool = True, count_only: bool = False
+) -> dict[str, Any]:
+    """Run the companies search for the page, the count endpoint and the facet panel."""
+    flt = build_company_filters(search, p)
+    xkw = [k.lower() for k in p["xkeyword"]]
+    saved_ids = store.saved_company_ids() if not count_only else set()
+    lookup = CompanyLookup(search, store)
+    pool: list[Company] | None = None
+    capped = False
+    if xkw:
+        scanned, _raw, capped = scan_companies(search, flt)
+        pool = [c for c in scanned if not any(k in company_text(c) for k in xkw)]
+        total_all = len(pool)
+    else:
+        total_all = search.search_companies(flt, page=1, per_page=1).total
+    out: dict[str, Any] = {
+        "total_all": total_all,
+        "capped": capped,
+        "saved_count": 0,
+        "items": [],
+        "total": total_all,
+        "ind_labels": {},
+    }
+    if count_only:
+        return out
+    saved_items = [
+        c
+        for cid in sorted(saved_ids)[:SCAN_BATCH]
+        if (c := lookup.get(cid)) is not None and company_matches(c, p)
+    ]
+    out["saved_count"] = len(saved_items)
+    per = p["per"]
+    rows: list[Company] | None
+    if p["tab"] == "saved":
+        rows = sort_companies(saved_items, p["sort"])
+    elif p["tab"] == "new" or p["sort"] != "relevance":
+        if pool is None:
+            pool, _raw, capped = scan_companies(search, flt)
+            out["capped"] = capped
+        rows = sort_companies(
+            [c for c in pool if p["tab"] != "new" or c.id not in saved_ids], p["sort"]
+        )
+    else:
+        rows = pool  # scanned in relevance order, or None: page straight from the pack
+    if rows is None:
+        total = total_all
+    else:
+        total = len(rows)
+        if capped and p["tab"] == "all":
+            total = total_all
+        elif capped and p["tab"] == "new":
+            total = max(total_all - len(saved_items), 0)
+    page = min(p["page"], max(1, -(-total // per)))
+    if rows is None:
+        out["items"] = list(search.search_companies(flt, page=page, per_page=per).items)
+    else:
+        out["items"] = rows[(page - 1) * per : page * per]
+    out["total"], out["page"] = total, page
+    if facets:
+        out["facets"] = company_facets(search, p)
+        labels = {}
+        for c in out["items"]:
+            if c.industry and c.industry_label:
+                labels[c.industry] = c.industry_label
+        out["ind_labels"] = labels
+    return out
+
+
+def company_facets(search: Any, p: dict[str, Any]) -> dict[str, list[tuple[str, int]]]:
+    """Counts for the location / industry / size lists, each ignoring its own group's filters."""
+    specs = (
+        ("country", "location", ("country", "xcountry"), 300),
+        ("industry", "industry", ("industry", "xindustry"), 200),
+        ("size_range", "size", ("size",), 20),
+    )
+    out: dict[str, list[tuple[str, int]]] = {}
+    for facet, skip, keys, limit in specs:
+        try:
+            counts = dict(search.facet_counts(facet, build_company_filters(search, p, skip), limit))
+        except Exception:
+            counts = {}
+        for k in keys:
+            for sel in p[k]:
+                counts.setdefault(sel, 0)
+        selected = {v for k in keys for v in p[k]}
+        out[facet] = sorted(counts.items(), key=lambda kv: (kv[0] not in selected, -kv[1], kv[0]))
+    return out
+
+
+# ---- people
+
+
+def parse_people_params(request: Request) -> dict[str, Any]:
+    g = request.query_params
+    p = parse_common(g)
+    valid_sen = {s.value for s in Seniority}
+    valid_status = {s.value for s in EmailStatus}
+    votes = g.getlist("similar")
+    p.update(
+        {
+            "title": list_param(g, "title"),
+            "xtitle": list_param(g, "xtitle"),
+            "similar": not ("0" in votes and "1" not in votes),
+            "seniority": [s for s in g.getlist("seniority") if s in valid_sen],
+            "status": [s for s in g.getlist("status") if s in valid_status],
+        }
+    )
+    p["sort"] = p["sort"] if p["sort"] in ("relevance", "name", "company") else "relevance"
+    return p
+
+
+def title_terms(p: dict[str, Any], key: str) -> list[str]:
+    return expand_titles(p[key]) if p["similar"] else [t.lower() for t in p[key]]
+
+
+def people_filters(p: dict[str, Any]) -> PeopleFilters:
+    """What the local store can filter itself; the rest is narrowed in run_people."""
+    return PeopleFilters(
+        text=p["q"] or None,
+        titles=title_terms(p, "title"),
+        seniorities=[Seniority(s) for s in p["seniority"]],
+        email_statuses=[EmailStatus(s) for s in p["status"]],
+        company=CompanyFilters(domains=[p["domain"]] if p["domain"] else []),
+    )
+
+
+def scan_people(store: Any, flt: PeopleFilters) -> tuple[list[Person], int, bool]:
+    items: list[Person] = []
+    page, total = 1, 0
+    while True:
+        res = store.search_people(flt, page=page, per_page=SCAN_BATCH)
+        items.extend(res.items)
+        total = res.total
+        if not res.items or len(items) >= total or len(items) >= SCAN_CAP:
+            break
+        page += 1
+    return items, total, total > len(items)
+
+
+def run_people(
+    search: Any, store: Any, p: dict[str, Any], *, facets: bool = True, count_only: bool = False
+) -> dict[str, Any]:
+    cands, total_raw, capped = scan_people(store, people_filters(p))
+    inc, exc = title_regex(title_terms(p, "title")), title_regex(title_terms(p, "xtitle"))
+    if inc:
+        cands = [x for x in cands if x.title and inc.search(x.title.lower())]
+    if exc:
+        cands = [x for x in cands if not (x.title and exc.search(x.title.lower()))]
+    lookup = CompanyLookup(search, store)
+    filtered = cands
+    if has_company_conditions(p):
+        filtered = [x for x in cands if company_matches(lookup.get(x.company_id), p, text=False)]
+    out: dict[str, Any] = {
+        "total_all": len(filtered),
+        "total": len(filtered),
+        "capped": capped,
+        "saved_count": 0,
+        "items": [],
+        "lookup": lookup,
+    }
+    if count_only:
+        return out
+    if facets:
+        counts: dict[str, Counter[str]] = {
+            "country": Counter(),
+            "industry": Counter(),
+            "size": Counter(),
+        }
+        for x in cands:
+            c = lookup.get(x.company_id)
+            if c is None:
+                continue
+            if c.country and company_matches(c, p, skip="location", text=False):
+                counts["country"][c.country.upper()] += 1
+            if c.industry and company_matches(c, p, skip="industry", text=False):
+                counts["industry"][c.industry.upper()] += 1
+            if c.size_range and company_matches(c, p, skip="size", text=False):
+                counts["size"][c.size_range] += 1
+        facet_lists = {}
+        for facet, keys in (
+            ("country", ("country", "xcountry")),
+            ("industry", ("industry", "xindustry")),
+            ("size", ("size",)),
+        ):
+            merged = dict(counts[facet])
+            for k in keys:
+                for sel in p[k]:
+                    merged.setdefault(sel, 0)
+            selected = {v for k in keys for v in p[k]}
+            facet_lists[facet] = sorted(
+                merged.items(), key=lambda kv: (kv[0] not in selected, -kv[1], kv[0])
+            )
+        out["facets"] = {
+            "country": facet_lists["country"],
+            "industry": facet_lists["industry"],
+            "size_range": facet_lists["size"],
+        }
+    saved_ids = store.saved_person_ids()
+    out["saved_count"] = sum(1 for x in filtered if x.id in saved_ids)
+    rows = filtered
+    if p["tab"] == "saved":
+        rows = [x for x in rows if x.id in saved_ids]
+    elif p["tab"] == "new":
+        rows = [x for x in rows if x.id not in saved_ids]
+    if p["sort"] == "name":
+        rows = sorted(rows, key=lambda x: x.full_name.lower())
+    elif p["sort"] == "company":
+
+        def company_key(x: Person) -> str:
+            c = lookup.get(x.company_id)
+            return (c.name if c else x.company_domain or "￿").lower()
+
+        rows = sorted(rows, key=company_key)
+    out["total"] = len(rows)
+    per = p["per"]
+    page = min(p["page"], max(1, -(-len(rows) // per)))
+    out["page"] = page
+    out["items"] = rows[(page - 1) * per : page * per]
+    return out
+
+
+# ---------------------------------------------------------------- filter groups (panel + modal)
+
+GROUPS: tuple[dict[str, Any], ...] = (
+    {
+        "key": "titles",
+        "label": "Job titles",
+        "icon": "briefcase",
+        "col": "person",
+        "kinds": ("people",),
+        "keys": ("title", "xtitle"),
+    },
+    {
+        "key": "seniority",
+        "label": "Management level",
+        "icon": "layers",
+        "col": "person",
+        "kinds": ("people",),
+        "keys": ("seniority",),
+    },
+    {
+        "key": "email",
+        "label": "Email status",
+        "icon": "mail",
+        "col": "person",
+        "kinds": ("people",),
+        "keys": ("status",),
+    },
+    {
+        "key": "name",
+        "label": "Name or title",
+        "icon": "user-round",
+        "col": "person",
+        "kinds": ("people",),
+        "keys": ("q",),
+        "panel": False,
+    },
+    {
+        "key": "company",
+        "label": "Company",
+        "icon": "building-2",
+        "col": "company",
+        "kinds": ("companies", "people"),
+        "keys": ("domain", "q"),
+    },
+    {
+        "key": "location",
+        "label": "Location",
+        "icon": "map-pin",
+        "col": "company",
+        "kinds": ("companies", "people"),
+        "keys": ("country", "xcountry"),
+    },
+    {
+        "key": "size",
+        "label": "# Employees",
+        "icon": "users",
+        "col": "company",
+        "kinds": ("companies", "people"),
+        "keys": ("size", "size_min", "size_max"),
+    },
+    {
+        "key": "industry",
+        "label": "Industry & keywords",
+        "icon": "factory",
+        "col": "company",
+        "kinds": ("companies", "people"),
+        "keys": ("industry", "xindustry", "keyword", "xkeyword"),
+    },
+)
+PIN_DEFAULTS = {
+    "companies": ["company", "location", "size", "industry"],
+    "people": ["titles", "seniority", "email", "company", "location"],
+}
+SOON_FILTERS: tuple[dict[str, str], ...] = (
+    {"label": "Persona", "icon": "user-round", "col": "person"},
+    {"label": "People lookalikes", "icon": "user-search", "col": "person"},
+    {"label": "Education", "icon": "graduation-cap", "col": "person"},
+    {"label": "Time zone", "icon": "clock", "col": "person"},
+    {"label": "Phone", "icon": "phone", "col": "person"},
+    {"label": "Work URLs", "icon": "link", "col": "person"},
+    {"label": "Company lookalikes", "icon": "building-2", "col": "company"},
+    {"label": "Technologies", "icon": "layers", "col": "company"},
+    {"label": "Funding", "icon": "dollar-sign", "col": "company"},
+    {"label": "Headcount growth", "icon": "trending-up", "col": "company"},
+    {"label": "Buying intent", "icon": "zap", "col": "company"},
+    {"label": "Revenue", "icon": "dollar-sign", "col": "company"},
+)
+
+COMPANY_COLUMNS: tuple[dict[str, Any], ...] = (
+    {"key": "name", "label": "Company", "locked": True, "default": True},
+    {"key": "domain", "label": "Domain"},
+    {"key": "location", "label": "Location", "default": True},
+    {"key": "industry", "label": "Industry", "default": True},
+    {"key": "size", "label": "Employees", "default": True},
+    {"key": "sources", "label": "Source", "default": True},
+    {"key": "country", "label": "Country"},
+    {"key": "city", "label": "City"},
+    {"key": "region", "label": "Region"},
+    {"key": "legal_name", "label": "Legal name"},
+    {"key": "founded", "label": "Founded"},
+    {"key": "lei", "label": "LEI"},
+    {"key": "wikidata", "label": "Wikidata"},
+)
+PEOPLE_COLUMNS: tuple[dict[str, Any], ...] = (
+    {"key": "name", "label": "Name", "locked": True, "default": True},
+    {"key": "title", "label": "Job title", "default": True},
+    {"key": "company", "label": "Company", "default": True},
+    {"key": "email", "label": "Email", "default": True},
+    {"key": "source", "label": "Source", "default": True},
+    {"key": "seniority", "label": "Seniority"},
+    {"key": "department", "label": "Department"},
+    {"key": "domain", "label": "Company domain"},
+    {"key": "location", "label": "Location"},
+    {"key": "industry", "label": "Industry"},
+    {"key": "size", "label": "Employees"},
+    {"key": "status", "label": "Email status"},
+    {"key": "last_seen", "label": "Last seen"},
+)
+SORTS = {
+    "companies": (("relevance", "Relevance"), ("name", "Name A to Z"), ("size", "Size, largest")),
+    "people": (
+        ("relevance", "Recently found"),
+        ("name", "Name A to Z"),
+        ("company", "Company A to Z"),
+    ),
+}
+
+
+def _remove_url(
+    base: str, params: dict[str, Any], key: str | tuple[str, ...], value: Any = None
+) -> str:
+    keys = (key,) if isinstance(key, str) else key
+    over: dict[str, Any] = {"page": None}
+    for k in keys:
+        current = params.get(k)
+        over[k] = [x for x in current if x != value] if isinstance(current, list) else None
+    q = qs(params, **over)
+    return f"{base}?{q}" if q else base
+
+
+templates.env.globals["remove_url"] = lambda ui, key, value: _remove_url(
+    ui["base"], ui["params"], key, value
+)
+
+
+def group_state(
+    kind: str,
+    g: dict[str, Any],
+    p: dict[str, Any],
+    base: str,
+    params: dict[str, Any],
+    labels: dict[str, str],
+) -> dict[str, Any]:
+    """Active-value count, removable chips and the clear-group link of one filter group."""
+    chips: list[dict[str, Any]] = []
+
+    def listed(
+        title: str, key: str, exclude: bool = False, shown: dict[str, str] | None = None
+    ) -> None:
         if p.get(key):
-            chips.append({"label": p[key], "url": f"{base}?{qs(p, **{key: None, 'page': None})}"})
-    return chips
+            chips.append(
+                {
+                    "title": title,
+                    "exclude": exclude,
+                    "vals": [
+                        {"text": (shown or {}).get(v, v), "url": _remove_url(base, params, key, v)}
+                        for v in p[key]
+                    ],
+                }
+            )
+
+    def single(title: str, key: str, text: str | None = None) -> None:
+        if p.get(key):
+            chips.append(
+                {
+                    "title": title,
+                    "exclude": False,
+                    "vals": [{"text": text or p[key], "url": _remove_url(base, params, key)}],
+                }
+            )
+
+    key = g["key"]
+    if key == "titles":
+        listed("Include titles", "title")
+        listed("Exclude titles", "xtitle", True)
+    elif key == "seniority":
+        listed("Level", "seniority", shown={s.value: _seniority_label(s) for s in Seniority})
+    elif key == "email":
+        listed("Email status", "status", shown={s.value: _status_label(s) for s in EmailStatus})
+    elif key == "name":
+        single("Search", "q")
+    elif key == "company":
+        single("Domain", "domain")
+        if kind == "companies":
+            single("Search", "q")
+    elif key == "location":
+        listed("Include", "country", shown=labels)
+        listed("Exclude", "xcountry", True, shown=labels)
+    elif key == "size":
+        listed("Employees", "size")
+        if p["size_min"] or p["size_max"]:
+            text = f"{p['size_min'] or 'any'} to {p['size_max'] or 'any'}"
+            chips.append(
+                {
+                    "title": "Custom range",
+                    "exclude": False,
+                    "vals": [
+                        {"text": text, "url": _remove_url(base, params, ("size_min", "size_max"))}
+                    ],
+                }
+            )
+    elif key == "industry":
+        listed("Include industries", "industry", shown=labels)
+        listed("Exclude industries", "xindustry", True, shown=labels)
+        listed("Include keywords", "keyword")
+        listed("Exclude keywords", "xkeyword", True)
+    count = sum(len(c["vals"]) for c in chips)
+    clear = {k: None for k in g["keys"]}
+    q = qs(params, page=None, **clear)
+    return {"count": count, "chips": chips, "clear_url": f"{base}?{q}" if q else base}
+
+
+def search_ui(
+    kind: str,
+    p: dict[str, Any],
+    store: Any,
+    opts: dict[str, list[tuple[str, int]]],
+    ind_labels: dict[str, str],
+) -> dict[str, Any]:
+    """Everything the shared search templates need beyond the result rows."""
+    base = "/companies" if kind == "companies" else "/people"
+    params = url_params(p)
+    country_opts = [(c, COUNTRIES.get(c, c), n) for c, n in opts.get("country", [])]
+    industry_opts = [
+        (c, ISIC_SECTIONS.get(c) or ind_labels.get(c) or f"Division {c}", n)
+        for c, n in opts.get("industry", [])
+    ]
+    labels = {c: name for c, name, _ in country_opts}
+    labels.update({c: name for c, name, _ in industry_opts})
+    size_map = dict(opts.get("size_range", []))
+    groups = []
+    for g in GROUPS:
+        st = group_state(kind, g, p, base, params, labels)
+        groups.append(
+            {
+                **g,
+                "supported": kind in g["kinds"],
+                "panel": g.get("panel", True) and kind in g["kinds"],
+                "pinned": g["key"] in PIN_DEFAULTS[kind],
+                "state": st,
+            }
+        )
+    active_total = sum(g["state"]["count"] for g in groups if g["supported"])
+    views = []
+    current = sorted(parse_qsl(qs(params)))
+    current_view = ""
+    for s in store.saved_searches(kind):
+        try:
+            raw = json.loads(s.filters_json)
+            query = raw.get("query", "") if isinstance(raw, dict) else str(raw)
+        except ValueError:
+            query = s.filters_json
+        active = bool(query) and sorted(parse_qsl(query)) == current
+        if active:
+            current_view = s.name
+        views.append(
+            {"name": s.name, "url": f"{base}?{query}" if query else base, "active": active}
+        )
+    return {
+        "kind": kind,
+        "base": base,
+        "p": p,
+        "params": params,
+        "base_qs": qs(params),
+        "groups": groups,
+        "soon_filters": SOON_FILTERS,
+        "active_total": active_total,
+        "clear_all_url": base,
+        "countries": country_opts,
+        "industries": industry_opts,
+        "sizes": [(s, size_map.get(s, 0)) for s in SIZE_RANGES],
+        "range_buckets": buckets_for_range(p["size_min"], p["size_max"]),
+        "pin_defaults": PIN_DEFAULTS[kind],
+        "columns": COMPANY_COLUMNS if kind == "companies" else PEOPLE_COLUMNS,
+        "sorts": SORTS[kind],
+        "views": views,
+        "current_view": current_view or "Default view",
+        "page_sizes": PAGE_SIZES,
+        "seniorities": list(Seniority),
+        "statuses": list(EmailStatus),
+        "tab_urls": {
+            key: f"{base}?{qs(params, tab=(key if key != 'all' else None), page=None)}".rstrip("?")
+            for key in ("all", "new", "saved")
+        },
+    }
+
+
+templates.env.globals["remove_url"] = lambda ui, key, value: _remove_url(
+    ui["base"], ui["params"], key, value
+)
+
+
+# ---------------------------------------------------------------- companies
 
 
 @router.get("/companies", response_class=HTMLResponse)
@@ -511,87 +1291,46 @@ def companies(
     request: Request, search: Any = Depends(get_search), store: Any = Depends(get_store)
 ) -> Response:
     p = parse_company_params(request)
-    flt = company_filters(p)
-    saved_ids = store.saved_company_ids()
-    wide = p["tab"] != "all" or p["sort"] != "relevance"
-    all_res = search.search_companies(
-        flt, page=1 if wide else p["page"], per_page=WIDE if wide else PER_PAGE
-    )
-    total_all = all_res.total
-    if wide:
-        items = list(all_res.items)
-        saved_count = sum(1 for c in items if c.id in saved_ids)
-        if p["tab"] == "saved":
-            items = [c for c in items if c.id in saved_ids]
-        elif p["tab"] == "new":
-            items = [c for c in items if c.id not in saved_ids]
-        if p["sort"] == "name":
-            items.sort(key=lambda c: c.name.lower())
-        elif p["sort"] == "size":
-            items.sort(key=size_order, reverse=True)
-        total = len(items)
-        start = (p["page"] - 1) * PER_PAGE
-        items = items[start : start + PER_PAGE]
-    else:
-        items, total = list(all_res.items), all_res.total
-        saved_count = 0
-        if saved_ids:
-            saved_count = sum(
-                1
-                for c in search.search_companies(flt, page=1, per_page=WIDE).items
-                if c.id in saved_ids
-            )
-
-    countries = facet_options(search, p, "country", "country", 12)
-    industries = facet_options(search, p, "industry", "industry", 12)
-    sizes_counts = facet_options(search, p, "size_range", "size", 12)
-    size_map = dict(sizes_counts)
-    sizes = [(s, size_map.get(s, 0)) for s in SIZE_RANGES]
-    ind_labels = {c.industry: c.industry_label for c in items if c.industry and c.industry_label}
-    labels = {f"country:{c}": COUNTRIES.get(c, c) for c, _ in countries}
-    labels.update(
-        {f"industry:{c}": ISIC_SECTIONS.get(c) or ind_labels.get(c) or c for c, _ in industries}
-    )
-    labels.update({f"keyword:{k}": k for k in p["keyword"]})
-    labels.update({f"size:{s}": f"{s} employees" for s in SIZE_RANGES})
-
-    params = {
-        k: v for k, v in p.items() if k not in ("page",) and v not in ("", [], "relevance", "all")
+    res = run_companies(search, store, p)
+    ui = search_ui("companies", p, store, res["facets"], res["ind_labels"])
+    p["page"] = res["page"]
+    counts = {
+        "all": res["total_all"],
+        "saved": res["saved_count"],
+        "new": max(res["total_all"] - res["saved_count"], 0),
     }
-    saved_searches = store.saved_searches("companies")
-    views = []
-    for s in saved_searches:
-        try:
-            raw = json.loads(s.filters_json)
-            query = raw.get("query", "") if isinstance(raw, dict) else str(raw)
-        except ValueError:
-            query = s.filters_json
-        views.append({"name": s.name, "url": f"/companies?{query}" if query else "/companies"})
-    base_qs = qs(params)
     return render(
         request,
         "companies.html",
         active="companies",
         p=p,
-        items=items,
-        total=total,
-        saved_ids=saved_ids,
-        counts={"all": total_all, "saved": saved_count, "new": max(total_all - saved_count, 0)},
-        countries=countries,
-        industries=industries,
-        sizes=sizes,
+        s=ui,
+        items=res["items"],
+        total=res["total"],
+        saved_ids=store.saved_company_ids(),
+        counts=counts,
         isic=ISIC_SECTIONS,
-        ind_labels=ind_labels,
-        countries_names=COUNTRIES,
-        has_filters=has_company_filters(p),
-        chips=active_chips(p, "/companies", labels),
-        pg=pager("/companies", params, p["page"], total),
-        views=views,
-        tab_params=params,
+        has_filters=ui["active_total"] > 0,
+        pg=pager("/companies", ui["params"], p["page"], res["total"], p["per"], res["capped"]),
         lists=store.lists("companies"),
-        base_qs=base_qs,
-        size_ranges=SIZE_RANGES,
-        keyword_text=", ".join(p["keyword"]),
+    )
+
+
+@router.get("/search/count", response_class=HTMLResponse)
+def search_count(
+    request: Request, search: Any = Depends(get_search), store: Any = Depends(get_store)
+) -> Response:
+    """Live "N records found" for the All filters window (ignores tab, sort and paging)."""
+    if request.query_params.get("kind") == "people":
+        res = run_people(search, store, parse_people_params(request), facets=False, count_only=True)
+    else:
+        res = run_companies(
+            search, store, parse_company_params(request), facets=False, count_only=True
+        )
+    return templates.TemplateResponse(
+        request,
+        "_search_count.html",
+        {"request": request, "total": res["total_all"], "capped": res["capped"]},
     )
 
 
@@ -695,95 +1434,61 @@ def company_save(
 # ---------------------------------------------------------------- people
 
 
-def parse_people_params(request: Request) -> dict[str, Any]:
-    g = request.query_params
-    valid_sen = {s.value for s in Seniority}
-    valid_status = {s.value for s in EmailStatus}
-    try:
-        page = max(1, int(g.get("page", "1")))
-    except ValueError:
-        page = 1
-    tab = g.get("tab", "all")
-    return {
-        "q": g.get("q", "").strip(),
-        "title": g.get("title", "").strip(),
-        "seniority": [s for s in g.getlist("seniority") if s in valid_sen],
-        "status": [s for s in g.getlist("status") if s in valid_status],
-        "country": [c.upper() for c in g.getlist("country") if c],
-        "domain": g.get("domain", "").strip().lower(),
-        "tab": tab if tab in ("all", "new", "saved") else "all",
-        "page": page,
-    }
-
-
-def people_filters(p: dict[str, Any]) -> PeopleFilters:
-    return PeopleFilters(
-        text=p["q"] or None,
-        titles=[t.strip() for t in p["title"].split(",") if t.strip()],
-        seniorities=[Seniority(s) for s in p["seniority"]],
-        email_statuses=[EmailStatus(s) for s in p["status"]],
-        company=CompanyFilters(
-            countries=p["country"], domains=[p["domain"]] if p["domain"] else []
-        ),
-    )
-
-
 @router.get("/people", response_class=HTMLResponse)
 def people(
     request: Request, search: Any = Depends(get_search), store: Any = Depends(get_store)
 ) -> Response:
     p = parse_people_params(request)
-    flt = people_filters(p)
-    saved_ids = store.saved_person_ids()
-    wide = p["tab"] != "all"
-    res = store.search_people(
-        flt, page=1 if wide else p["page"], per_page=WIDE if wide else PER_PAGE
-    )
-    total_all = res.total
-    items = list(res.items)
-    if wide:
-        saved_count = sum(1 for x in items if x.id in saved_ids)
-        items = [x for x in items if (x.id in saved_ids) == (p["tab"] == "saved")]
-        total = len(items)
-        start = (p["page"] - 1) * PER_PAGE
-        items = items[start : start + PER_PAGE]
-    else:
-        total = total_all
-        saved_count = 0
-        if saved_ids:
-            saved_count = sum(
-                1
-                for x in store.search_people(flt, page=1, per_page=WIDE).items
-                if x.id in saved_ids
-            )
+    res = run_people(search, store, p)
+    ui = search_ui("people", p, store, res["facets"], {})
+    p["page"] = res["page"]
+    items = res["items"]
     emails = {x.id: store.best_email(x.id) for x in items}
     suppressed = {e.address for e in emails.values() if e and store.is_suppressed(e.address)}
-    companies_by_id = group_by_domain_name(search, {x.company_id for x in items if x.company_id})
-    params = {k: v for k, v in p.items() if k != "page" and v not in ("", [], "all")}
-    labels = {f"seniority:{s.value}": _seniority_label(s) for s in Seniority}
-    labels.update({f"status:{s.value}": _status_label(s) for s in EmailStatus})
-    labels.update({f"country:{c}": COUNTRIES.get(c, c) for c in p["country"]})
+    lookup = res["lookup"]
+    companies_by_id = {
+        x.company_id: c for x in items if x.company_id and (c := lookup.get(x.company_id))
+    }
+    counts = {
+        "all": res["total_all"],
+        "saved": res["saved_count"],
+        "new": max(res["total_all"] - res["saved_count"], 0),
+    }
     return render(
         request,
         "people.html",
         active="people",
         p=p,
+        s=ui,
         items=items,
-        total=total,
+        total=res["total"],
         emails=emails,
         suppressed=suppressed,
         companies=companies_by_id,
-        saved_ids=saved_ids,
-        counts={"all": total_all, "saved": saved_count, "new": max(total_all - saved_count, 0)},
-        has_filters=any(p[k] for k in ("q", "title", "seniority", "status", "country", "domain")),
-        chips=active_chips(p, "/people", labels),
-        pg=pager("/people", params, p["page"], total),
-        tab_params=params,
+        saved_ids=store.saved_person_ids(),
+        counts=counts,
+        isic=ISIC_SECTIONS,
+        has_filters=ui["active_total"] > 0,
+        pg=pager("/people", ui["params"], p["page"], res["total"], p["per"], res["capped"]),
         lists=store.lists("people"),
-        seniorities=list(Seniority),
-        statuses=list(EmailStatus),
-        countries_names=COUNTRIES,
     )
+
+
+def score_summary(best: Any) -> dict[str, Any]:
+    """Our email confidence as a score block: number, label and a short breakdown."""
+    if best is None:
+        return {"value": None, "label": "No score", "tone": "plain", "rows": []}
+    value = int(best.confidence or 0)
+    label, tone = (
+        ("Strong", "ok") if value >= 80 else ("Fair", "amber") if value >= 50 else ("Low", "red")
+    )
+    rows = [("Verification status", _status_label(best.status))]
+    if best.pattern:
+        rows.append(("Address pattern", best.pattern))
+    rows.extend((k.replace("_", " ").capitalize(), str(v)) for k, v in (best.checks or {}).items())
+    if best.checked_at:
+        rows.append(("Last checked", _fmt_date(best.checked_at)))
+    return {"value": value, "label": label, "tone": tone, "rows": rows}
 
 
 def person_context(request: Request, person: Person) -> dict[str, Any]:
@@ -794,13 +1499,33 @@ def person_context(request: Request, person: Person) -> dict[str, Any]:
         candidates = list(getter(person.id)) if getter else ([best] if best else [])
     except Exception:
         candidates = [best] if best else []
-    company = search.get_company(person.company_id) if person.company_id else None
+    company = CompanyLookup(search, store).get(person.company_id)
+    colleagues: list[Person] = []
+    emails: dict[str, Any] = {}
+    if person.company_domain:
+        res = store.search_people(
+            PeopleFilters(company=CompanyFilters(domains=[person.company_domain])),
+            page=1,
+            per_page=50,
+        )
+        colleagues = [
+            x for x in res.items if x.company_domain == person.company_domain and x.id != person.id
+        ]
+        emails = {x.id: store.best_email(x.id) for x in colleagues}
+    suppressed = {c.address for c in candidates if c and store.is_suppressed(c.address)}
+    opted_out = bool(suppressed) or bool(
+        person.company_domain and store.is_suppressed(person.company_domain)
+    )
     return {
         "person": person,
         "best": best,
         "candidates": candidates,
         "company": company,
-        "suppressed": {c.address for c in candidates if c and store.is_suppressed(c.address)},
+        "suppressed": suppressed,
+        "opted_out": opted_out,
+        "score": score_summary(best),
+        "colleagues": colleagues,
+        "emails": emails,
         "lists": store.lists("people"),
         "is_saved": person.id in store.saved_person_ids(),
     }
@@ -1155,16 +1880,6 @@ def enrich_page(request: Request) -> Response:
 # ---------------------------------------------------------------- settings + opt-out
 
 
-@router.get("/settings", response_class=HTMLResponse)
-def settings_page(request: Request, search: Any = Depends(get_search)) -> Response:
-    info = getattr(search, "pack_info", None)
-    try:
-        packs = list(info()) if info else []
-    except Exception:
-        packs = []
-    return render(request, "settings.html", active="settings", packs=packs)
-
-
 def clean_suppression(value: str) -> str | None:
     v = value.strip().lower()
     if not v or len(v) > 254 or " " in v:
@@ -1173,18 +1888,6 @@ def clean_suppression(value: str) -> str | None:
         local, _, domain = v.rpartition("@")
         return v if local and "." in domain else None
     return v if "." in v else None
-
-
-@router.post("/settings/suppression")
-async def settings_suppress(
-    request: Request, _: None = Depends(csrf), store: Any = Depends(get_store)
-) -> Response:
-    form = await form_values(request)
-    value = clean_suppression(str(form.get("value") or ""))
-    if not value:
-        return done(request, "Enter a valid email address or domain.", "/settings", "error")
-    store.add_suppression(value, "manual")
-    return done(request, f"{value} will never be contacted or exported.", "/settings")
 
 
 @router.get("/opt-out", response_class=HTMLResponse)
@@ -1225,20 +1928,6 @@ async def opt_out_submit(
 @router.get("/assistant", response_class=HTMLResponse)
 def assistant(request: Request) -> Response:
     return render(request, "assistant.html", active="assistant")
-
-
-def _soon_route(slug: str) -> None:
-    title, ico, blurb = SOON_PAGES[slug]
-
-    @router.get(f"/{slug}", response_class=HTMLResponse, name=f"soon_{slug}")
-    def soon(request: Request) -> Response:
-        return render(
-            request, "soon.html", active=slug, title=title, ico=ico, blurb=blurb, soon=True
-        )
-
-
-for _slug in SOON_PAGES:
-    _soon_route(_slug)
 
 
 @router.get("/partials/jobs-pill", response_class=HTMLResponse)

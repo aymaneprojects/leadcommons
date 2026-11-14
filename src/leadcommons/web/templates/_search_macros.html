@@ -1,0 +1,124 @@
+{# Building blocks shared by the Companies and People search screens (side panel + All filters window). #}
+{% from "_macros.html" import ic, hxf, status_dot %}
+
+{# Multi-value text field: chips with hidden inputs + a text box. JS adds on Enter; without JS the
+   typed text posts as <name>_add and the server merges it. #}
+{% macro tagbox(ui, name, placeholder, label, exclude=False) -%}
+<div class="tagbox{% if exclude %} excl{% endif %}" data-tagbox>
+  <span class="flabel">{{ label }}</span>
+  <div class="tagbox-in">
+    {% for v in ui.p[name] %}<span class="tag"><input type="hidden" name="{{ name }}" value="{{ v }}"><span class="tt">{{ v }}</span><a class="tx" data-tag-remove href="{{ remove_url(ui, name, v) }}" aria-label="Remove {{ v }}">{{ ic("x", "sm") }}</a></span>{% endfor %}
+    <input type="text" class="tag-input" name="{{ name }}_add" placeholder="{{ placeholder }}" autocomplete="off" aria-label="{{ label }}">
+  </div>
+</div>
+{%- endmacro %}
+
+{# Searchable checkbox list. options = [(value, label, count)] #}
+{% macro checklist(name, options, selected, ph, counts=True) -%}
+<div class="checklist" data-checklist>
+  <label class="searchbox sm">{{ ic("search", "sm") }}<input type="search" data-list-search placeholder="{{ ph }}" aria-label="{{ ph }}" form="ui-only" autocomplete="off"></label>
+  <div class="opts">
+    {% for code, label, n in options %}
+    <label class="opt" data-text="{{ label|lower }} {{ code|lower }}"><input type="checkbox" name="{{ name }}" value="{{ code }}" {% if code in selected %}checked{% endif %}><span class="ol">{{ label }}</span>{% if counts %}<span class="n">{{ fmt_int(n) }}</span>{% endif %}</label>
+    {% else %}<span class="fnote">Nothing to choose from yet.</span>{% endfor %}
+  </div>
+</div>
+{%- endmacro %}
+
+{# The controls of one filter group. mode is "panel" (side panel) or "modal" (All filters). #}
+{% macro fbody(key, ui, mode) -%}
+{% set p = ui.p %}
+{% if key == "titles" %}
+  {{ tagbox(ui, "title", "Enter titles, e.g. Founder", "Include titles") }}
+  <label class="opt similar"><input type="hidden" name="similar" value="0"><input type="checkbox" name="similar" value="1" {% if p.similar %}checked{% endif %}><span class="ol">Include people with similar titles</span><span class="tip" tabindex="0" data-tip="Also matches common equivalents, for example CEO and chief executive officer.">{{ ic("info", "sm") }}</span></label>
+  {{ tagbox(ui, "xtitle", "Enter titles to exclude", "Exclude titles", True) }}
+{% elif key == "seniority" %}
+  <div class="opts">{% for sv in ui.seniorities %}<label class="opt"><input type="checkbox" name="seniority" value="{{ sv.value }}" {% if sv.value in p.seniority %}checked{% endif %}><span class="ol">{{ seniority_label(sv) }}</span></label>{% endfor %}</div>
+{% elif key == "email" %}
+  <div class="opts">{% for st in ui.statuses %}<label class="opt"><input type="checkbox" name="status" value="{{ st.value }}" {% if st.value in p.status %}checked{% endif %}>{{ status_dot(st) }}<span class="ol">{{ status_label(st) }}</span></label>{% endfor %}</div>
+{% elif key == "name" %}
+  <input type="search" name="q" value="{{ p.q }}" placeholder="Name or job title" aria-label="Name or job title">
+{% elif key == "company" %}
+  {% if mode == "modal" and ui.kind == "companies" %}<label class="flabel" for="m-q">Name or domain</label><input id="m-q" type="search" name="q" value="{{ p.q }}" placeholder="Search by company name or domain">{% endif %}
+  <label class="flabel" for="{{ mode }}-domain">Domain</label>
+  <input id="{{ mode }}-domain" type="text" name="domain" value="{{ p.domain }}" placeholder="Exact domain, e.g. acme.com">
+  {% if mode == "panel" and ui.kind == "companies" %}<span class="fnote">Use the search box above for names.</span>{% endif %}
+{% elif key == "location" %}
+  <span class="flabel">Include countries</span>
+  {{ checklist("country", ui.countries, p.country, "Search countries") }}
+  <details class="xsub"{% if p.xcountry %} open{% endif %}>
+    <summary>Exclude locations {{ ic("chevron-down", "sm") }}</summary>
+    {{ checklist("xcountry", ui.countries, p.xcountry, "Search countries to exclude", False) }}
+    <span class="fnote">Records with no country are left out when you exclude a location.</span>
+  </details>
+{% elif key == "size" %}
+  <div class="opts">{% for sz, n in ui.sizes %}<label class="opt"><input type="checkbox" name="size" value="{{ sz }}" {% if sz in p.size %}checked{% endif %}><span class="ol mono">{{ sz }}</span><span class="n">{{ fmt_int(n) }}</span></label>{% endfor %}</div>
+  <span class="flabel">Custom range</span>
+  <div class="range-row"><input type="number" min="1" name="size_min" value="{{ p.size_min or '' }}" placeholder="Min" aria-label="Minimum employees"><span>to</span><input type="number" min="1" name="size_max" value="{{ p.size_max or '' }}" placeholder="Max" aria-label="Maximum employees"></div>
+  {% if ui.range_buckets %}<span class="fnote">Matches sizes: <b class="mono">{{ ui.range_buckets|join(", ") }}</b></span>{% else %}<span class="fnote">A range matches every size bucket it overlaps.</span>{% endif %}
+{% elif key == "industry" %}
+  <span class="flabel">Include industries</span>
+  {{ checklist("industry", ui.industries, p.industry, "Search industries") }}
+  <details class="xsub"{% if p.xindustry %} open{% endif %}>
+    <summary>Exclude industries {{ ic("chevron-down", "sm") }}</summary>
+    {{ checklist("xindustry", ui.industries, p.xindustry, "Search industries to exclude", False) }}
+  </details>
+  {{ tagbox(ui, "keyword", "e.g. software, logistics", "Include keywords") }}
+  {{ tagbox(ui, "xkeyword", "Keywords to exclude", "Exclude keywords", True) }}
+  <span class="fnote">Keywords match name, domain and industry label. Any of the included keywords matches.</span>
+{% endif %}
+{%- endmacro %}
+
+{# One filter group as a collapsible row: icon, label, count badge with clear x, caret. #}
+{% macro fgroup(g, ui, mode) -%}
+{% set st = g.state %}
+<details class="fgroup" data-fgroup="{{ g.key }}" data-fcol="{{ g.col }}" data-count="{{ st.count }}" data-default-pin="{{ 1 if g.pinned else 0 }}" data-label="{{ g.label|lower }}"{% if mode == "modal" and st.count %} open{% endif %}>
+  <summary>
+    <span class="gi">{{ ic(g.icon) }}</span><span class="gl">{{ g.label }}</span>
+    {% if st.count %}<span class="gbadge">{{ st.count }}{% if mode == "panel" %}<a class="gx" href="{{ st.clear_url }}" {{ hxf(st.clear_url) }} title="Clear {{ g.label }}" aria-label="Clear {{ g.label }}">{{ ic("x", "sm") }}</a>{% endif %}</span>{% endif %}
+    {% if mode == "modal" and g.panel %}<button type="button" class="pin" data-pin="{{ g.key }}" aria-pressed="false" title="Pin to the side panel" aria-label="Pin {{ g.label }}">{{ ic("pin", "sm") }}</button>{% endif %}
+    <span class="caret">{{ ic("chevron-down", "sm") }}</span>
+  </summary>
+  {% if mode == "panel" and st.chips %}
+  <div class="gchips">
+    {% for ch in st.chips %}<div class="gchip-row"><span class="gchip-title">{{ ch.title }}</span>{% for v in ch.vals %}<a class="fchip{% if ch.exclude %} excl{% endif %}" href="{{ v.url }}" {{ hxf(v.url) }} title="Remove {{ v.text }}">{{ v.text }}{{ ic("x", "sm") }}</a>{% endfor %}</div>{% endfor %}
+  </div>
+  {% endif %}
+  <div class="gbody">{{ fbody(g.key, ui, mode) }}</div>
+</details>
+{%- endmacro %}
+
+{# A filter we cannot honour yet (or one that belongs to the other screen): visible but disabled. #}
+{% macro locked_row(label, icon, col, badge="Soon", tip="Coming in a later version") -%}
+<div class="fgroup locked" data-fcol="{{ col }}" data-label="{{ label|lower }}" aria-disabled="true" data-tip="{{ tip }}" tabindex="0">
+  <div class="lrow"><span class="gi">{{ ic(icon) }}</span><span class="gl">{{ label }}</span><span class="badge soon-badge">{{ badge }}</span></div>
+</div>
+{%- endmacro %}
+
+{# AI menu. With `kind`, the top box turns plain words into filters (POST /api/ai/parse; works
+   offline with rules, optionally a local model). The other items are labelled previews. #}
+{% macro ai_menu(label="Research with AI", up=False, kind=None) -%}
+<details class="dd ai-dd">
+  <summary class="btn ai-btn" title="{{ label }}">{{ ic("wand-sparkles") }}<span>{{ label }}</span>{{ ic("chevron-down", "sm") }}</summary>
+  <div class="menu left aimenu{% if up %} right{% endif %}">
+    {% if kind %}
+    <div class="ai-box" data-ai-box data-kind="{{ kind }}">
+      <label class="menu-note" for="ai-q-{{ kind }}">Describe who you want, in plain words</label>
+      {# form= points nowhere so typing here never submits or refreshes the filter form #}
+      <input id="ai-q-{{ kind }}" type="text" form="lc-ai-detached" maxlength="500" autocomplete="off" data-ai-input
+             placeholder="{{ 'e.g. French fintech startups' if kind == 'companies' else 'e.g. CTOs at German SaaS companies, 50-200' }}">
+      <button type="button" class="btn primary sm" data-ai-go>{{ ic("wand-sparkles", "sm") }}<span>Apply as filters</span></button>
+      <p class="ai-out muted" data-ai-out aria-live="polite"></p>
+    </div>
+    <div class="menu-sep"></div>
+    {% else %}
+    <div class="menu-note">More AI research tools are planned for v0.2. These are previews only.</div>
+    {% endif %}
+    <button type="button" class="menu-item" disabled aria-disabled="true">{{ ic("wand-sparkles", "sm") }}<span>Run a custom prompt</span><span class="badge soon-badge">v0.2</span></button>
+    <button type="button" class="menu-item" disabled aria-disabled="true">{{ ic("hash", "sm") }}<span>Generate a formula column</span><span class="badge soon-badge">v0.2</span></button>
+    <div class="menu-sep"></div>
+    <button type="button" class="menu-item" disabled aria-disabled="true">{{ ic("sparkles", "sm") }}<span>Ask the Assistant about these rows</span><span class="badge soon-badge">v0.2</span></button>
+    <button type="button" class="menu-item" disabled aria-disabled="true">{{ ic("list", "sm") }}<span>Start from a template</span><span class="badge soon-badge">v0.2</span></button>
+  </div>
+</details>
+{%- endmacro %}
