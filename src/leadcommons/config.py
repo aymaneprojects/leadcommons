@@ -38,7 +38,12 @@ class Settings:
     )
     # "local" (single user on a laptop, no login), "server" (login required) or "demo"
     # (public showcase: no login, enrichment jobs disabled so the host is never used to crawl).
-    mode: str = field(default_factory=lambda: os.environ.get("LEADCOMMONS_MODE", "local"))
+    # Serverless hosts default to "demo": a public URL must never crawl for anonymous users.
+    mode: str = field(
+        default_factory=lambda: os.environ.get(
+            "LEADCOMMONS_MODE", "demo" if _on_serverless() else "local"
+        )
+    )
     # Server mode: plain password or a hash made with `leadcommons hash-password`.
     password: str | None = field(default_factory=lambda: os.environ.get("LEADCOMMONS_PASSWORD"))
     password_hash: str | None = field(

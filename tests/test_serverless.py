@@ -25,6 +25,14 @@ def test_vercel_defaults_to_tmp_home_and_sync_jobs(clean_env: pytest.MonkeyPatch
     assert s.home == Path("/tmp/leadcommons")
     assert s.database_url.startswith("sqlite:////tmp/leadcommons/")
     assert s.sync_jobs is True
+    assert s.mode == "demo" and s.enrichment_enabled is False and s.auth_required is False
+
+
+def test_vercel_mode_can_be_set_explicitly(clean_env: pytest.MonkeyPatch) -> None:
+    clean_env.setenv("VERCEL", "1")
+    clean_env.setenv("LEADCOMMONS_MODE", "server")
+    s = Settings()
+    assert s.mode == "server" and s.auth_required is True and s.enrichment_enabled is True
 
 
 def test_local_defaults_unchanged(clean_env: pytest.MonkeyPatch) -> None:
