@@ -1,0 +1,102 @@
+{%- from "_macros.html" import icon -%}
+{% macro nav(href, key, label, ico, soon=False) -%}
+<a class="nav-link" href="{{ href }}" title="{{ label }}"{% if active == key %} aria-current="page"{% endif %}>
+  {{ icon(ico) }}<span class="nav-label">{{ label }}</span>{% if soon %}<span class="badge">Soon</span>{% endif %}
+</a>
+{%- endmacro -%}
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  {% include "_head.html" %}
+  <title>{% block title %}LeadCommons{% endblock %}</title>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="app">
+  <aside class="sidebar" aria-label="Sidebar">
+    <a class="brand" href="/" aria-label="LeadCommons home"><span class="logo" aria-hidden="true">LC</span><span class="brand-name">LeadCommons</span></a>
+    <nav aria-label="Main">
+      {{ nav("/", "home", "Home", "house") }}
+      {{ nav("/assistant", "assistant", "Assistant", "sparkles") }}
+      <div class="nav-group">
+        <button class="nav-group-btn" type="button" data-group="prospect" aria-expanded="true">{{ icon("chevron-down", "sm") }}<span>Prospect</span></button>
+        <div class="nav-items">
+          {{ nav("/people", "people", "People", "users") }}
+          {{ nav("/companies", "companies", "Companies", "building-2") }}
+          {{ nav("/lists", "lists", "Lists", "list") }}
+          {{ nav("/enrich", "enrich", "Enrichment", "file-up") }}
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn" type="button" data-group="engage" aria-expanded="true">{{ icon("chevron-down", "sm") }}<span>Engage</span></button>
+        <div class="nav-items">
+          {{ nav("/sequences", "sequences", "Sequences", "send", True) }}
+          {{ nav("/emails", "emails", "Emails", "mail", True) }}
+          {{ nav("/tasks", "tasks", "Tasks", "square-check-big", True) }}
+        </div>
+      </div>
+      <div class="nav-group">
+        <button class="nav-group-btn" type="button" data-group="pipeline" aria-expanded="true">{{ icon("chevron-down", "sm") }}<span>Pipeline</span></button>
+        <div class="nav-items">
+          {{ nav("/deals", "deals", "Deals", "handshake", True) }}
+        </div>
+      </div>
+    </nav>
+    <div class="nav-spacer"></div>
+    <a class="gs-card" href="/" title="Getting started">
+      <div class="t"><b>{{ icon("rocket", "sm") }}<span class="gs-extra"> Getting started</span></b><span>{{ tasks_done }}/{{ tasks|length }}</span></div>
+      <div class="progress" role="progressbar" aria-label="Getting started progress" aria-valuemin="0" aria-valuemax="{{ tasks|length }}" aria-valuenow="{{ tasks_done }}"><i style="width: {{ (tasks_done * 100 // (tasks|length)) }}%"></i></div>
+    </a>
+    {{ nav("/email-health", "email-health", "Email health", "heart-pulse", True) }}
+    {{ nav("/settings", "settings", "Settings", "settings") }}
+    <button class="collapse-btn" type="button" data-collapse aria-expanded="true" title="Collapse sidebar">{{ icon("panel-left") }}<span>Collapse</span></button>
+  </aside>
+
+  <div class="main-col">
+    <header class="topbar">
+      <form class="topsearch" action="/companies" method="get" role="search">
+        {{ icon("search") }}
+        <label class="sr-only" for="topsearch-input">Search companies or jump to a page</label>
+        <input id="topsearch-input" type="search" name="q" placeholder="Search companies, or ask…" autocomplete="off">
+        <span class="kbd" aria-hidden="true">Ctrl K</span>
+      </form>
+      <div class="top-right">
+        <div class="jobs">
+          <button class="btn jobs-btn" type="button" data-jobs-toggle aria-expanded="false" aria-controls="jobs-menu" aria-label="Background jobs">
+            <span id="jobs-pill" class="stat" hx-get="/partials/jobs-pill" hx-trigger="every 3s" hx-swap="innerHTML">{% with n = jobs_running %}{% include "_jobs_pill.html" %}{% endwith %}</span>
+          </button>
+          <div class="menu" id="jobs-menu" hidden role="region" aria-label="Recent jobs" data-quiet
+               hx-get="/partials/jobs" hx-trigger="load-jobs, every 3s [!document.getElementById('jobs-menu').hidden]" hx-swap="innerHTML"></div>
+        </div>
+        <a class="btn accent" href="/assistant">{{ icon("sparkles") }} Assistant</a>
+        <details class="dd">
+          <summary class="avatar" aria-label="Account menu">U</summary>
+          <div class="menu">
+            <a class="menu-item" href="/settings">{{ icon("settings") }} Settings</a>
+            <button class="menu-item" type="button" data-theme-toggle>{{ icon("sun") }} Switch light / dark theme</button>
+            <a class="menu-item" href="/opt-out">{{ icon("eye-off") }} Opt-out page</a>
+            {% if settings.auth_required %}
+            <form action="/logout" method="post"><button class="menu-item" type="submit">{{ icon("log-out") }} Log out</button></form>
+            {% endif %}
+          </div>
+        </details>
+      </div>
+    </header>
+    <main id="main" class="content">
+      {% if notice %}<div class="notice" role="status">{{ notice }}</div>{% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+<div id="drawer" aria-live="polite"></div>
+<div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+<dialog id="palette" aria-label="Command palette">
+  <input id="palette-input" type="text" placeholder="Jump to a page, or type to search companies…" autocomplete="off" aria-label="Command palette">
+  <ul id="palette-list"></ul>
+</dialog>
+{% block dialogs %}{% endblock %}
+<script src="/static/vendor/htmx.min.js"></script>
+<script src="/static/js/app.js"></script>
+</body>
+</html>

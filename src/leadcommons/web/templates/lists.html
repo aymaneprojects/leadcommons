@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{% block title %}Lists · LeadCommons{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Lists</h1><p>Group companies or people, then export them as CSV.</p></div>
+</div>
+<form class="card" method="post" action="/lists" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:16px">
+  <div class="field" style="flex:1;min-width:200px"><label for="ln">New list name</label><input id="ln" type="text" name="name" required maxlength="120" placeholder="e.g. French SaaS founders"></div>
+  <div class="field"><label for="lk">Contains</label><select id="lk" name="kind"><option value="companies">Companies</option><option value="people">People</option></select></div>
+  <button class="btn primary" type="submit">{{ icon("plus") }} Create list</button>
+</form>
+{% if lists %}
+<div class="table-wrap"><table class="data">
+  <thead><tr><th scope="col">Name</th><th scope="col">Type</th><th scope="col">Size</th><th scope="col">Created</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+  <tbody>
+  {% for li in lists %}
+    <tr>
+      <td><a class="co-name" href="/lists/{{ li.id }}">{{ li.name }}</a></td>
+      <td><span class="chip plain">{{ li.kind|capitalize }}</span></td>
+      <td class="mono">{{ fmt_int(li.size) }}</td>
+      <td class="mono">{{ fmt_date(li.created_at) }}</td>
+      <td><div class="cell-actions"><a class="btn sm" href="/lists/{{ li.id }}/export.csv">{{ icon("download", "sm") }} Export CSV</a></div></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}
+<div class="table-wrap"><div class="empty"><h3>No lists yet</h3><p>Create one above, or select companies on the Companies page and choose Save to list.</p><a class="btn" href="/companies">Go to Companies</a></div></div>
+{% endif %}
+{% endblock %}

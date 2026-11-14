@@ -1,0 +1,11 @@
+{"meta": {"pagination": {"currentPage": 1, "lastPage": 2}},
+ "data": [
+  {"type": "lei-records", "id": "5493001KJTIIGC8Y1R12",
+   "attributes": {"lei": "5493001KJTIIGC8Y1R12", "entity": {
+     "legalName": {"name": "ACME INDUSTRIES LIMITED"},
+     "legalAddress": {"city": "Leeds", "region": "GB-WYK", "country": "GB"}}}},
+  {"type": "lei-records", "id": "529900ZZZZZZZZZZZZ99",
+   "attributes": {"lei": "529900ZZZZZZZZZZZZ99", "entity": {
+     "legalName": {"name": "Gamma Holdings plc"},
+     "legalAddress": {"city": "London", "region": null, "country": "GB"}}}}
+ ]}

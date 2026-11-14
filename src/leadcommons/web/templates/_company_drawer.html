@@ -1,0 +1,87 @@
+{% from "_macros.html" import icon, status_dot, src_chip %}
+{% set back = "/companies/" ~ c.id %}
+{% macro prov(hint) -%}
+  {%- set ns = namespace(p=None) -%}
+  {%- for s in c.sources %}{% if ns.p is none and hint and hint in s.source.lower() %}{% set ns.p = s %}{% endif %}{% endfor -%}
+  {%- if ns.p is none and c.sources %}{% set ns.p = c.sources[0] %}{% endif -%}
+  {{ src_chip(ns.p) }}
+{%- endmacro %}
+{% if page_mode is not defined %}<div class="drawer-scrim" data-close-drawer></div>{% endif %}
+<article class="{% if page_mode is defined %}profile-page{% else %}drawer-inner{% endif %}" aria-label="Company profile">
+  <div class="drawer-head">
+    <div>
+      <h2 style="font-size:20px">{{ c.name }}</h2>
+      {% if c.domain %}<a class="mono" href="https://{{ c.domain }}" target="_blank" rel="noopener noreferrer">{{ c.domain }} {{ icon("external-link", "sm") }}</a>{% endif %}
+    </div>
+    {% if page_mode is not defined %}<button class="btn ghost icon-only" type="button" data-close-drawer aria-label="Close">{{ icon("x") }}</button>
+    {% else %}<a class="btn ghost" href="/companies">Back to companies</a>{% endif %}
+  </div>
+  <div class="drawer-body">
+    <div class="actions">
+      <form method="post" action="/companies/{{ c.id }}/find-people" hx-post="/companies/{{ c.id }}/find-people" hx-target="#drawer" hx-swap="innerHTML" hx-push-url="false">
+        <button class="btn primary" type="submit" {% if not c.domain %}disabled title="No known domain"{% endif %}>{{ icon("user-search") }} Find people</button>
+      </form>
+      <form method="post" action="/companies/{{ c.id }}/save" hx-post="/companies/{{ c.id }}/save" hx-target="#drawer" hx-swap="innerHTML" hx-push-url="false">
+        <button class="btn" type="submit" {% if is_saved %}disabled{% endif %}>{{ icon("bookmark") }} {{ "Saved" if is_saved else "Save" }}</button>
+      </form>
+      <details class="dd">
+        <summary class="btn">{{ icon("plus") }} Add to list</summary>
+        <form class="menu left pad" method="post" action="/lists/save-to" hx-post="/lists/save-to" hx-swap="none" hx-push-url="false">
+          <input type="hidden" name="kind" value="companies"><input type="hidden" name="ids" value="{{ c.id }}"><input type="hidden" name="next" value="{{ back }}">
+          <label class="sr-only" for="dl-list">List</label>
+          <select id="dl-list" name="list_id"><option value="">Choose a list…</option>{% for li in lists %}<option value="{{ li.id }}">{{ li.name }}</option>{% endfor %}</select>
+          <label class="sr-only" for="dl-new">New list</label>
+          <input id="dl-new" type="text" name="new_name" placeholder="…or a new list name" maxlength="120">
+          <button class="btn sm" type="submit">Add</button>
+        </form>
+      </details>
+    </div>
+
+    <section>
+      <h3 class="mt-0" style="margin-bottom:8px">Profile</h3>
+      <div class="kv">
+        <div class="k">Name</div><div class="v"><span>{{ c.name }}</span>{{ prov("") }}</div>
+        {% if c.legal_name and c.legal_name != c.name %}<div class="k">Legal name</div><div class="v"><span>{{ c.legal_name }}</span>{{ prov("gleif") }}</div>{% endif %}
+        <div class="k">Domain</div><div class="v"><span class="mono">{{ c.domain or "Unknown" }}</span>{{ prov("") }}</div>
+        <div class="k">Location</div><div class="v"><span>{% if c.city %}{{ c.city }}, {% endif %}{% if c.region %}{{ c.region }}, {% endif %}{{ country_name(c.country) or "Unknown" }}</span>{{ prov("") }}</div>
+        <div class="k">Industry</div><div class="v"><span>{{ c.industry_label or c.industry or "Unknown" }}{% if c.industry %} <span class="mono muted">ISIC {{ c.industry }}</span>{% endif %}</span>{{ prov("") }}</div>
+        <div class="k">Employees</div><div class="v"><span class="mono">{{ c.size_range or "Unknown" }}</span>{{ prov("") }}</div>
+        <div class="k">Founded</div><div class="v"><span class="mono">{{ c.founded_year or "Unknown" }}</span>{{ prov("wikidata") }}</div>
+        <div class="k">LEI</div><div class="v"><span class="mono">{{ c.registry_ids.get("lei") or "Unknown" }}</span>{{ prov("gleif") }}</div>
+        <div class="k">Wikidata</div><div class="v"><span class="mono">{% if c.registry_ids.get("wikidata") %}<a href="https://www.wikidata.org/wiki/{{ c.registry_ids.get('wikidata') }}" target="_blank" rel="noopener noreferrer">{{ c.registry_ids.get("wikidata") }}</a>{% else %}Unknown{% endif %}</span>{{ prov("wikidata") }}</div>
+      </div>
+    </section>
+
+    <section>
+      <h3 style="margin-bottom:8px">People at this company</h3>
+      {% if people %}
+      <div>
+        {% for x in people %}
+        {% set e = emails.get(x.id) %}
+        <div class="person-line">
+          <div>
+            <a class="co-name" href="/people/{{ x.id }}" hx-get="/people/{{ x.id }}" hx-target="#drawer" hx-swap="innerHTML" hx-push-url="false">{{ x.full_name }}</a>
+            <span class="sub" style="font-family:var(--font-ui)">{{ x.title or "" }}</span>
+            {% if e %}<span class="email">{% if e.address in suppressed %}{{ status_dot("suppressed") }} suppressed{% else %}{{ status_dot(e.status) }}{{ e.address }}{% endif %}</span>{% endif %}
+          </div>
+          <form method="post" action="/people/{{ x.id }}/find-email" hx-post="/people/{{ x.id }}/find-email" hx-swap="none" hx-push-url="false">
+            <button class="btn sm" type="submit">{{ icon("mail", "sm") }} {{ "Re-check" if e else "Find email" }}</button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="muted">No people found yet. Click Find people to look for them on the company website.</p>
+      {% endif %}
+    </section>
+
+    {% if c.sources %}
+    <section>
+      <h3 style="margin-bottom:8px">Sources</h3>
+      <ul class="src-list">
+        {% for s in c.sources %}<li><span class="chip src">{{ s.source }}</span> <span class="muted">licence {{ s.licence }} · fetched {{ fmt_date(s.fetched_at) }}</span>{% if s.url %} <a href="{{ s.url }}" target="_blank" rel="noopener noreferrer">link</a>{% endif %}</li>{% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+  </div>
+</article>

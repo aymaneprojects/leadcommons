@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, hxf, pager, save_dialog %}
+{% block title %}Find companies · LeadCommons{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Find companies</h1><p>Search open company data on this machine. Nothing leaves your computer.</p></div>
+  <a class="btn" href="/enrich">{{ icon("file-up") }} Import</a>
+</div>
+
+<form id="f" method="get" action="/companies" {{ hxf("/companies") }} hx-trigger="submit, change[target.form && target.form.id=='f'], input[target.id=='q'] delay:400ms">
+<div id="workspace">
+  <div class="toolbar">
+    <details class="dd">
+      <summary class="btn">View {{ icon("chevron-down", "sm") }}</summary>
+      <div class="menu left">
+        <a class="menu-item" href="/companies" {{ hxf("/companies") }}>All companies</a>
+        <div class="menu-sep"></div>
+        {% for v in views %}<a class="menu-item" href="{{ v.url }}" {{ hxf(v.url) }}>{{ icon("bookmark", "sm") }} {{ v.name }}</a>
+        {% else %}<div class="menu-empty">No saved searches yet.</div>{% endfor %}
+      </div>
+    </details>
+    <button class="btn" type="button" data-toggle-filters>{{ icon("sliders-horizontal") }} Hide filters</button>
+    <div class="grow">
+      {{ icon("search") }}
+      <label class="sr-only" for="q">Search companies</label>
+      <input id="q" type="search" name="q" value="{{ p.q }}" placeholder="Search by company name or domain" autocomplete="off"
+            >
+    </div>
+    <button class="btn" type="button" disabled title="Coming in v0.2" aria-disabled="true">{{ icon("wand-sparkles") }} AI search</button>
+    <details class="dd">
+      <summary class="btn">{{ icon("bookmark") }} Save search</summary>
+      <div class="menu left pad">
+        <label for="ss-name"><b>Name this search</b></label>
+        <input id="ss-name" type="text" name="name" form="savesearch" required maxlength="120" placeholder="e.g. German SaaS, 11-50">
+        <button class="btn sm" type="submit" form="savesearch">Save search</button>
+        <span class="hint">Saved searches appear in the View menu.</span>
+      </div>
+    </details>
+    <label class="sr-only" for="sort">Sort by</label>
+    <select id="sort" name="sort">
+      <option value="relevance" {% if p.sort == 'relevance' %}selected{% endif %}>Sort: Relevance</option>
+      <option value="name" {% if p.sort == 'name' %}selected{% endif %}>Sort: Name</option>
+      <option value="size" {% if p.sort == 'size' %}selected{% endif %}>Sort: Size</option>
+    </select>
+  </div>
+
+  <div class="ws">
+    <aside class="fpanel" aria-label="Filters">
+      <input type="hidden" name="tab" value="{{ p.tab }}">
+      <nav class="seg" aria-label="Show">
+        {% for key, label in (("all","All"),("new","New"),("saved","Saved")) %}
+        <a href="{{ '/companies?' ~ qs(tab_params, tab=(key if key != 'all' else None)) }}" {{ hxf('/companies?' ~ qs(tab_params, tab=(key if key != 'all' else None))) }}
+           {% if p.tab == key %}aria-current="true"{% endif %}>{{ label }}<span class="n">{{ fmt_int(counts[key]) }}</span></a>
+        {% endfor %}
+      </nav>
+
+      <details class="fgroup" open>
+        <summary>Company {{ icon("chevron-right", "sm") }}</summary>
+        <div class="body">
+          <label class="sr-only" for="f-domain">Domain</label>
+          <input id="f-domain" type="text" name="domain" value="{{ p.domain }}" placeholder="Exact domain, e.g. acme.com">
+          <span class="fnote">Use the search box above for names.</span>
+        </div>
+      </details>
+      <details class="fgroup" open>
+        <summary>Location {{ icon("chevron-right", "sm") }}</summary>
+        <div class="body">
+          {% for code, n in countries %}
+          <label class="opt"><input type="checkbox" name="country" value="{{ code }}" {% if code in p.country %}checked{% endif %}> {{ country_name(code) }} <span class="n">{{ fmt_int(n) }}</span></label>
+          {% else %}<span class="fnote">No locations in the current results.</span>{% endfor %}
+        </div>
+      </details>
+      <details class="fgroup" open>
+        <summary># Employees {{ icon("chevron-right", "sm") }}</summary>
+        <div class="body chips">
+          {% for s, n in sizes %}
+          <label class="chip size-chip"><input type="checkbox" name="size" value="{{ s }}" {% if s in p.size %}checked{% endif %}> {{ s }} <span class="n">{{ fmt_int(n) }}</span></label>
+          {% endfor %}
+        </div>
+      </details>
+      <details class="fgroup" open>
+        <summary>Industry &amp; keywords {{ icon("chevron-right", "sm") }}</summary>
+        <div class="body">
+          {% for code, n in industries %}
+          <label class="opt"><input type="checkbox" name="industry" value="{{ code }}" {% if code in p.industry %}checked{% endif %}> {{ isic.get(code) or ind_labels.get(code) or ("Division " ~ code) }} <span class="n">{{ fmt_int(n) }}</span></label>
+          {% else %}<span class="fnote">No industries in the current results.</span>{% endfor %}
+          <label class="sr-only" for="f-keyword">Keywords</label>
+          <input id="f-keyword" type="text" name="keyword" value="{{ keyword_text }}" placeholder="Keywords, comma separated">
+        </div>
+      </details>
+      <div class="fgroup">
+        <button class="btn sm nojs-only" type="submit">Apply filters</button>
+        {% if has_filters %}<a class="btn sm ghost" href="/companies" {{ hxf("/companies") }}>{{ icon("funnel-x", "sm") }} Clear all</a>{% endif %}
+        <button class="btn sm ghost" type="button" disabled title="Coming in v0.2" aria-disabled="true">More filters</button>
+      </div>
+    </aside>
+
+    <section aria-label="Results">
+      {% if chips %}
+      <div class="active-filters">
+        {% for c in chips %}<a class="chip" href="{{ c.url }}" {{ hxf(c.url) }} title="Remove filter">{{ c.label }} {{ icon("x", "sm") }}</a>{% endfor %}
+      </div>
+      {% endif %}
+
+      {% if not has_filters and p.tab == 'all' and total %}
+      <div class="card qf">
+        <div class="row"><b>Top countries</b><span class="chips">
+          {% for code, n in countries[:6] %}<a class="chip" href="/companies?country={{ code }}" {{ hxf("/companies?country=" ~ code) }}>{{ country_name(code) }} <span class="n">{{ fmt_int(n) }}</span></a>{% endfor %}
+        </span></div>
+        <div class="row"><b>Company size</b><span class="chips">
+          {% for s, n in sizes if n %}<a class="chip" href="/companies?size={{ s }}" {{ hxf("/companies?size=" ~ s) }}>{{ s }} <span class="n">{{ fmt_int(n) }}</span></a>{% endfor %}
+        </span></div>
+        <div class="row"><b>Top industries</b><span class="chips">
+          {% for code, n in industries[:6] %}<a class="chip" href="/companies?industry={{ code }}" {{ hxf("/companies?industry=" ~ code) }}>{{ isic.get(code) or ind_labels.get(code) or code }} <span class="n">{{ fmt_int(n) }}</span></a>{% endfor %}
+        </span></div>
+      </div>
+      {% endif %}
+
+      <div class="bulk" role="region" aria-label="Bulk actions">
+        <span class="count">0 selected</span>
+        <button type="button" class="btn primary sm" data-open-dialog="save-dialog">{{ icon("plus", "sm") }} Save to list</button>
+        <button type="submit" form="bulk" formaction="/bulk/find-people" class="btn sm" hx-post="/bulk/find-people" hx-include="#bulk" hx-swap="none" hx-push-url="false">{{ icon("user-search", "sm") }} Find people</button>
+        <button type="submit" form="bulk" formaction="/bulk/export.csv" class="btn sm">{{ icon("download", "sm") }} Export CSV</button>
+      </div>
+
+      {% if items %}
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr>
+            <th class="cb"><input type="checkbox" class="allcb" form="bulk" aria-label="Select all on this page"></th>
+            <th scope="col">Company</th><th scope="col">Location</th><th scope="col">Industry</th><th scope="col">Employees</th><th scope="col">Source</th>
+          </tr></thead>
+          <tbody>
+          {% for c in items %}
+            <tr>
+              <td class="cb"><input type="checkbox" class="rowcb" name="ids" value="{{ c.id }}" form="bulk" aria-label="Select {{ c.name }}"></td>
+              <td>
+                <a class="co-name" href="/companies/{{ c.id }}" hx-get="/companies/{{ c.id }}" hx-target="#drawer" hx-select="unset" hx-swap="innerHTML" hx-push-url="false">{{ c.name }}</a>
+                {% if c.id in saved_ids %}<span class="chip ok" style="margin-left:6px">Saved</span>{% endif %}
+                {% if c.domain %}<span class="sub">{{ c.domain }}</span>{% endif %}
+              </td>
+              <td>{% if c.city %}{{ c.city }}, {% endif %}{{ country_name(c.country) }}</td>
+              <td>{{ c.industry_label or isic.get(c.industry) or c.industry or "" }}</td>
+              <td class="mono">{{ c.size_range or "" }}</td>
+              <td><span class="chips">{% for s in (c.sources | map(attribute="source") | unique) %}<span class="chip src">{{ s }}</span>{% endfor %}</span></td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {{ pager(pg) }}
+      {% else %}
+      <div class="table-wrap"><div class="empty">
+        {% if has_filters or p.tab != 'all' %}
+          <h3>No companies match</h3><p>Try removing a filter or searching by a different name.</p>
+          <a class="btn" href="/companies" {{ hxf("/companies") }}>Clear all filters</a>
+        {% else %}
+          <h3>No company data yet</h3><p>Download a data pack to search companies locally.</p>
+          <p><code>leadcommons pack download latest</code></p>
+        {% endif %}
+      </div></div>
+      {% endif %}
+    </section>
+  </div>
+</div>
+</form>
+{% endblock %}
+{% block dialogs %}
+<form id="bulk" method="post" action="/lists/save-to">
+  <input type="hidden" name="kind" value="companies">
+  <input type="hidden" name="next" value="{{ current_url }}">
+  {{ save_dialog("companies", lists) }}
+</form>
+<form id="savesearch" method="post" action="/searches" data-save-search-form>
+  <input type="hidden" name="kind" value="companies">
+  <input type="hidden" name="query" value="{{ base_qs }}">
+  <input type="hidden" name="next" value="{{ current_url }}">
+</form>
+{% endblock %}

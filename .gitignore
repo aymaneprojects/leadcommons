@@ -1,0 +1,29 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Secrets and local config
+.env
+deploy/.env
+
+# Local data (databases, packs, uploads, exports)
+*.db
+*.sqlite3
+data/*
+!data/.gitkeep
+uploads/
+exports/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store

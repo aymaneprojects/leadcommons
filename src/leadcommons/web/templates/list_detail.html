@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, status_dot %}
+{% block title %}{{ info.name }} · LeadCommons{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ info.name }}</h1><p><span class="chip plain">{{ info.kind|capitalize }}</span> <span class="mono">{{ fmt_int(members|length) }}</span> members · created {{ fmt_date(info.created_at) }} · <a href="/lists">All lists</a></p></div>
+  <a class="btn" href="/lists/{{ info.id }}/export.csv">{{ icon("download") }} Export CSV</a>
+</div>
+{% if members %}
+<form method="post" action="/lists/{{ info.id }}/remove">
+  <div class="bulk active" style="margin-bottom:10px">
+    <span class="muted">Select members to remove them from this list.</span>
+    <button class="btn sm btn-danger" type="submit">{{ icon("trash-2", "sm") }} Remove selected</button>
+  </div>
+  <div class="table-wrap"><table class="data">
+    <thead><tr>
+      <th class="cb"><input type="checkbox" class="allcb" aria-label="Select all"></th>
+      {% if info.kind == "people" %}<th scope="col">Name</th><th scope="col">Title</th><th scope="col">Company</th><th scope="col">Email</th>
+      {% else %}<th scope="col">Company</th><th scope="col">Location</th><th scope="col">Industry</th><th scope="col">Employees</th>{% endif %}
+    </tr></thead>
+    <tbody>
+    {% for m in members %}
+      <tr>
+        <td class="cb"><input type="checkbox" class="rowcb" name="ids" value="{{ m.id }}" aria-label="Select {{ m.full_name if info.kind == 'people' else m.name }}"></td>
+        {% if info.kind == "people" %}
+          {% set e = emails.get(m.id) %}
+          <td><a class="co-name" href="/people/{{ m.id }}">{{ m.full_name }}</a></td>
+          <td>{{ m.title or "" }}</td>
+          <td class="mono">{{ m.company_domain or "" }}</td>
+          <td>{% if e %}<span class="email">{% if e.address in suppressed %}{{ status_dot("suppressed") }} suppressed{% else %}{{ status_dot(e.status) }}{{ e.address }}{% endif %}</span>{% endif %}</td>
+        {% else %}
+          <td><a class="co-name" href="/companies/{{ m.id }}">{{ m.name }}</a>{% if m.domain %}<span class="sub">{{ m.domain }}</span>{% endif %}</td>
+          <td>{% if m.city %}{{ m.city }}, {% endif %}{{ country_name(m.country) }}</td>
+          <td>{{ m.industry_label or m.industry or "" }}</td>
+          <td class="mono">{{ m.size_range or "" }}</td>
+        {% endif %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</form>
+{% else %}
+<div class="table-wrap"><div class="empty"><h3>This list is empty</h3><p>Add {{ info.kind }} from the {{ info.kind }} page using Save to list.</p>
+<a class="btn" href="/{{ info.kind }}">Go to {{ info.kind|capitalize }}</a></div></div>
+{% endif %}
+{% endblock %}

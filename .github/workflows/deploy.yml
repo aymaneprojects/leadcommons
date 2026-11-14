@@ -1,0 +1,90 @@
+name: Deploy to my server
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+      DOMAIN: ${{ secrets.DOMAIN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check required secrets
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          LEADCOMMONS_PASSWORD_HASH: ${{ secrets.LEADCOMMONS_PASSWORD_HASH }}
+          LEADCOMMONS_SECRET_KEY: ${{ secrets.LEADCOMMONS_SECRET_KEY }}
+        run: |
+          missing=0
+          for name in SSH_HOST SSH_USER SSH_PRIVATE_KEY DOMAIN POSTGRES_PASSWORD LEADCOMMONS_PASSWORD_HASH LEADCOMMONS_SECRET_KEY; do
+            if [ -z "${!name}" ]; then echo "::error::Missing secret $name"; missing=1; fi
+          done
+          exit "$missing"
+
+      - name: Start ssh-agent and trust host
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          eval "$(ssh-agent -s)" >/dev/null
+          printf '%s\n' "$SSH_PRIVATE_KEY" | ssh-add -
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
+          ssh-keyscan -p "$SSH_PORT" -H "$SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Write .env
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          LEADCOMMONS_PASSWORD_HASH: ${{ secrets.LEADCOMMONS_PASSWORD_HASH }}
+          LEADCOMMONS_SECRET_KEY: ${{ secrets.LEADCOMMONS_SECRET_KEY }}
+        run: |
+          umask 077
+          {
+            printf 'DOMAIN=%s\n' "$DOMAIN"
+            printf 'POSTGRES_PASSWORD=%s\n' "$POSTGRES_PASSWORD"
+            printf "LEADCOMMONS_PASSWORD_HASH='%s'\n" "$LEADCOMMONS_PASSWORD_HASH"
+            printf 'LEADCOMMONS_SECRET_KEY=%s\n' "$LEADCOMMONS_SECRET_KEY"
+          } > "$RUNNER_TEMP/server.env"
+
+      - name: Copy files to the server
+        run: |
+          target="$SSH_USER@$SSH_HOST"
+          ssh -p "$SSH_PORT" "$target" 'mkdir -p ~/leadcommons'
+          scp -P "$SSH_PORT" deploy/docker-compose.server.yml "$target:leadcommons/docker-compose.yml"
+          scp -P "$SSH_PORT" deploy/Caddyfile "$target:leadcommons/Caddyfile"
+          scp -P "$SSH_PORT" "$RUNNER_TEMP/server.env" "$target:leadcommons/.env"
+          ssh -p "$SSH_PORT" "$target" 'chmod 600 ~/leadcommons/.env'
+
+      - name: Pull and restart
+        run: |
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            'cd ~/leadcommons && docker compose pull && docker compose up -d --remove-orphans'
+
+      - name: Health check
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS "https://$DOMAIN/healthz"; then echo; exit 0; fi
+            echo "waiting ($i/30)..."; sleep 10
+          done
+          echo "::error::https://$DOMAIN/healthz did not become healthy"
+          exit 1
+
+      - name: Clean up
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/server.env"
+          ssh-agent -k >/dev/null 2>&1 || true

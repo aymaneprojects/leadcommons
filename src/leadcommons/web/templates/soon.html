@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{% block title %}{{ title }} · LeadCommons{% endblock %}
+{% block content %}
+<div class="soon">
+  <div class="ic">{{ icon(ico, "lg") }}</div>
+  <h1>{{ title }}</h1>
+  {% if soon %}<p><span class="badge">Coming soon</span></p>{% endif %}
+  <p class="muted">{{ blurb }}</p>
+  <a class="btn primary" href="/">Back to Home</a>
+</div>
+{% endblock %}

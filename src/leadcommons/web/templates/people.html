@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, hxf, pager, save_dialog, status_dot %}
+{% block title %}Find people · LeadCommons{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Find people</h1><p>People found so far, with their best email. Stored only in your local database.</p></div>
+  <a class="btn" href="/companies">{{ icon("building-2") }} Find companies</a>
+</div>
+
+<form id="f" method="get" action="/people" {{ hxf("/people") }} hx-trigger="submit, change[target.form && target.form.id=='f'], input[target.id=='q'] delay:400ms">
+<div id="workspace">
+  <div class="toolbar">
+    <button class="btn" type="button" data-toggle-filters>{{ icon("sliders-horizontal") }} Hide filters</button>
+    <div class="grow">
+      {{ icon("search") }}
+      <label class="sr-only" for="q">Search people</label>
+      <input id="q" type="search" name="q" value="{{ p.q }}" placeholder="Search by name or job title" autocomplete="off"
+            >
+    </div>
+    <button class="btn" type="button" disabled title="Coming in v0.2" aria-disabled="true">{{ icon("wand-sparkles") }} AI search</button>
+  </div>
+
+  <div class="ws">
+    <aside class="fpanel" aria-label="Filters">
+      <input type="hidden" name="tab" value="{{ p.tab }}">
+      <nav class="seg" aria-label="Show">
+        {% for key, label in (("all","All"),("new","New"),("saved","Saved")) %}
+        <a href="{{ '/people?' ~ qs(tab_params, tab=(key if key != 'all' else None)) }}" {{ hxf('/people?' ~ qs(tab_params, tab=(key if key != 'all' else None))) }}
+           {% if p.tab == key %}aria-current="true"{% endif %}>{{ label }}<span class="n">{{ fmt_int(counts[key]) }}</span></a>
+        {% endfor %}
+      </nav>
+      <details class="fgroup" open>
+        <summary>Job titles {{ icon("chevron-right", "sm") }}</summary>
+        <div class="body">
+          <label class="sr-only" for="f-title">Job titles</label>
+          <input id="f-title" type="text" name="title" value="{{ p.title }}" placeholder="e.g. CEO, Head of Sales">
+          {% for s in seniorities %}
+          <label class="opt"><input type="checkbox" name="seniority" value="{{ s.value }}" {% if s.value in p.seniority %}checked{% endif %}> {{ seniority_label(s) }}</label>
+          {% endfor %}
+        </div>
+      </details>
+      <details class="fgroup" open>
+        <summary>Email status {{ icon("chevron-right", "sm") }}</summary>
+        <div class="body">
+          {% for s in statuses %}
+          <label class="opt"><input type="checkbox" name="status" value="{{ s.value }}" {% if s.value in p.status %}checked{% endif %}> {{ status_dot(s) }} {{ status_label(s) }}</label>
+          {% endfor %}
+        </div>
+      </details>
+      <details class="fgroup" open>
+        <summary>Company {{ icon("chevron-right", "sm") }}</summary>
+        <div class="body">
+          <label class="sr-only" for="f-country">Country</label>
+          <input id="f-country" type="text" name="country" value="{{ p.country | join(',') }}" maxlength="2" placeholder="Country code, e.g. FR">
+          <label class="sr-only" for="f-domain">Domain</label>
+          <input id="f-domain" type="text" name="domain" value="{{ p.domain }}" placeholder="Exact domain, e.g. acme.com">
+        </div>
+      </details>
+      <div class="fgroup">
+        <button class="btn sm nojs-only" type="submit">Apply filters</button>
+        {% if has_filters %}<a class="btn sm ghost" href="/people" {{ hxf("/people") }}>{{ icon("funnel-x", "sm") }} Clear all</a>{% endif %}
+        <button class="btn sm ghost" type="button" disabled title="Coming in v0.2" aria-disabled="true">More filters</button>
+      </div>
+    </aside>
+
+    <section aria-label="Results">
+      {% if chips %}
+      <div class="active-filters">
+        {% for c in chips %}<a class="chip" href="{{ c.url }}" {{ hxf(c.url) }} title="Remove filter">{{ c.label }} {{ icon("x", "sm") }}</a>{% endfor %}
+      </div>
+      {% endif %}
+
+      <div class="bulk" role="region" aria-label="Bulk actions">
+        <span class="count">0 selected</span>
+        <button type="button" class="btn primary sm" data-open-dialog="save-dialog">{{ icon("plus", "sm") }} Save to list</button>
+        <button type="submit" form="bulk" formaction="/bulk/find-emails" class="btn sm" hx-post="/bulk/find-emails" hx-include="#bulk" hx-swap="none" hx-push-url="false">{{ icon("mail", "sm") }} Find emails</button>
+        <button type="submit" form="bulk" formaction="/bulk/export.csv" class="btn sm">{{ icon("download", "sm") }} Export CSV</button>
+      </div>
+
+      {% if items %}
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr>
+            <th class="cb"><input type="checkbox" class="allcb" form="bulk" aria-label="Select all on this page"></th>
+            <th scope="col">Name</th><th scope="col">Title</th><th scope="col">Company</th><th scope="col">Email</th><th scope="col">Source</th>
+          </tr></thead>
+          <tbody>
+          {% for x in items %}
+            {% set e = emails.get(x.id) %}
+            {% set co = companies.get(x.company_id) if x.company_id else none %}
+            <tr>
+              <td class="cb"><input type="checkbox" class="rowcb" name="ids" value="{{ x.id }}" form="bulk" aria-label="Select {{ x.full_name }}"></td>
+              <td>
+                <a class="co-name" href="/people/{{ x.id }}" hx-get="/people/{{ x.id }}" hx-target="#drawer" hx-select="unset" hx-swap="innerHTML" hx-push-url="false">{{ x.full_name }}</a>
+                {% if x.id in saved_ids %}<span class="chip ok" style="margin-left:6px">Saved</span>{% endif %}
+              </td>
+              <td>{{ x.title or "" }}</td>
+              <td>{% if co %}{{ co.name }}{% endif %}{% if x.company_domain %}<span class="sub">{{ x.company_domain }}</span>{% endif %}</td>
+              <td>
+                {% if e %}
+                  <span class="email">{% if e.address in suppressed %}{{ status_dot("suppressed") }} suppressed{% else %}{{ status_dot(e.status) }}{{ e.address }}{% endif %}</span>
+                {% else %}
+                  <button class="btn sm" type="submit" formmethod="post" formaction="/people/{{ x.id }}/find-email" hx-post="/people/{{ x.id }}/find-email" hx-swap="none" hx-push-url="false">{{ icon("mail", "sm") }} Find email</button>
+                {% endif %}
+              </td>
+              <td><span class="chips">{% for u in x.source_urls[:2] %}<span class="chip src">{{ u.split('/')[2] if u.startswith('http') and u.split('/')|length > 2 else u }}</span>{% endfor %}</span></td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {{ pager(pg) }}
+      {% else %}
+      <div class="table-wrap"><div class="empty">
+        {% if has_filters or p.tab != 'all' %}
+          <h3>No people match</h3><p>Try removing a filter.</p>
+          <a class="btn" href="/people" {{ hxf("/people") }}>Clear all filters</a>
+        {% else %}
+          <h3>No people yet</h3><p>No people yet — start from Companies: open a company and click Find people.</p>
+          <a class="btn primary" href="/companies">{{ icon("building-2") }} Go to Companies</a>
+        {% endif %}
+      </div></div>
+      {% endif %}
+    </section>
+  </div>
+</div>
+</form>
+{% endblock %}
+{% block dialogs %}
+<form id="bulk" method="post" action="/lists/save-to">
+  <input type="hidden" name="kind" value="people">
+  <input type="hidden" name="next" value="{{ current_url }}">
+  {{ save_dialog("people", lists) }}
+</form>
+{% endblock %}

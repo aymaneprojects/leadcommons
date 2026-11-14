@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{% block title %}Assistant · LeadCommons{% endblock %}
+{% block content %}
+<div class="assistant">
+  <span class="chip">v0.2 preview</span>
+  <h1>Hi there. What would you like to do?</h1>
+  <p class="muted">The Assistant will turn a sentence into searches, lists and outreach. Until it arrives, these shortcuts get you going.</p>
+  <div class="cards3">
+    <a class="opt-card" href="/companies"><span class="ic">{{ icon("building-2", "lg") }}</span><b>Find companies to sell to</b><span class="muted">Filter open company data by country, size and industry.</span></a>
+    <a class="opt-card" href="/people"><span class="ic">{{ icon("users", "lg") }}</span><b>Find leads in my market</b><span class="muted">Browse the people you have found, with verified emails.</span></a>
+    <a class="opt-card" href="/settings"><span class="ic">{{ icon("settings", "lg") }}</span><b>Set up my profile</b><span class="muted">Data packs, privacy and email verification settings.</span></a>
+  </div>
+  <form class="composer" onsubmit="return false">
+    <label class="sr-only" for="ask">Message</label>
+    <input id="ask" type="text" disabled placeholder="The AI assistant arrives in v0.2" aria-disabled="true">
+    <button class="btn" type="button" disabled>{{ icon("send") }} Send</button>
+  </form>
+</div>
+{% endblock %}

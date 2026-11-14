@@ -1,0 +1,56 @@
+name: Build data packs
+
+on:
+  schedule:
+    - cron: "17 3 1 * *"
+  workflow_dispatch:
+    inputs:
+      countries:
+        description: "Space-separated ISO country codes (empty = all)"
+        required: false
+        default: "FR DE GB US ES IT NL BE"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: packs
+  cancel-in-progress: false
+
+jobs:
+  build-pack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Install
+        run: uv sync --python 3.13
+      - name: Build pack
+        env:
+          COUNTRIES: ${{ inputs.countries || 'FR DE GB US ES IT NL BE' }}
+        run: |
+          args=()
+          for c in $COUNTRIES; do args+=(--country "$c"); done
+          uv run leadcommons pack build "${args[@]}" --out packs-out
+          ls -l packs-out
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="packs-$(date -u +%Y-%m)"
+          parquet=$(ls packs-out/companies-*.parquet | head -n 1)
+          attribution=$(ls packs-out/*ATTRIBUTION*.md 2>/dev/null | head -n 1 || true)
+          if [ -z "$attribution" ]; then
+            attribution=packs-out/ATTRIBUTION.md
+            printf '# Attribution\n\nBuilt from Wikidata (CC0-1.0) and GLEIF (CC0-1.0).\n' > "$attribution"
+          fi
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "$parquet" "$attribution" --clobber
+          else
+            gh release create "$tag" "$parquet" "$attribution" \
+              --title "Company pack $tag" \
+              --notes "Monthly company pack built from open data. See ATTRIBUTION.md for sources and licences."
+          fi

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{% block title %}Settings · LeadCommons{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Settings</h1><p>Everything here is stored on this machine.</p></div></div>
+<div style="max-width:860px">
+  <section class="card">
+    <h2>Data packs</h2>
+    {% if packs %}
+    <div class="table-wrap"><table class="data compact">
+      <thead><tr><th scope="col">File</th><th scope="col">Companies</th><th scope="col">Sources</th><th scope="col">Built</th></tr></thead>
+      <tbody>{% for pk in packs %}<tr>
+        <td class="mono">{{ pk.file }}</td><td class="mono">{{ fmt_int(pk.rows) }}</td>
+        <td>{% for s in (pk.sources or []) %}<span class="chip src">{{ s }}</span> {% endfor %}</td>
+        <td class="mono">{{ pk.built_at or "n/a" }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% else %}<p class="muted">No data pack installed.</p>{% endif %}
+    <p class="hint mt">Get or update the open company data: <code>leadcommons pack download latest</code></p>
+  </section>
+
+  <section class="card" id="privacy">
+    <h2>Privacy &amp; opt-out</h2>
+    <p class="muted">Add an email address or a whole domain to the suppression list. Suppressed contacts are hidden and never exported. Only a hash is stored. Share the public page <a href="/opt-out">/opt-out</a> so people can ask for removal themselves.</p>
+    <form method="post" action="/settings/suppression" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+      <div class="field" style="flex:1;min-width:220px"><label for="sv">Email or domain</label><input id="sv" type="text" name="value" required placeholder="jane@example.com or example.com"></div>
+      <button class="btn" type="submit">{{ icon("eye-off") }} Suppress</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Email verification</h2>
+    <p>Live SMTP mailbox probe:
+      {% if settings.smtp_probe %}<span class="chip ok">On</span>{% else %}<span class="chip plain">Off</span>{% endif %}</p>
+    <p class="muted">When off, addresses are checked by syntax and DNS only, and never by contacting the mail server. Many networks block outgoing port 25. To turn the probe on, start LeadCommons with <code>LEADCOMMONS_SMTP_PROBE=1</code>.</p>
+  </section>
+
+  {% if settings.auth_required %}
+  <section class="card">
+    <h2>Account</h2>
+    <p class="muted">This instance is password protected.</p>
+    <form method="post" action="/logout"><button class="btn" type="submit">{{ icon("log-out") }} Log out</button></form>
+  </section>
+  {% endif %}
+
+  <section class="card about">
+    <h2>About</h2>
+    <dl>
+      <dt>Version</dt><dd class="mono">{{ version }}</dd>
+      <dt>Licence</dt><dd>AGPL-3.0-or-later</dd>
+      <dt>Data attribution</dt><dd>Company data from Wikidata (CC0) and GLEIF (CC0).</dd>
+      <dt>Fonts and icons</dt><dd>Inter, Space Grotesk, JetBrains Mono (SIL OFL) and Lucide icons (ISC), bundled locally.</dd>
+    </dl>
+  </section>
+</div>
+{% endblock %}

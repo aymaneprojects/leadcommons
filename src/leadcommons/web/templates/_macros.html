@@ -1,0 +1,61 @@
+{% macro icon(name, cls="") -%}
+<svg class="icon {{ cls }}" aria-hidden="true" focusable="false"><use href="/static/icons/sprite.svg#i-{{ name }}"></use></svg>
+{%- endmacro %}
+
+{% macro status_dot(status) -%}
+{%- set s = status.value if status.value is defined else status -%}
+<span class="dot {{ {'valid':'ok','catch_all':'amber','unknown':'amber','invalid':'red','suppressed':'red'}.get(s, '') }}" title="{{ status_label(s) }}" role="img" aria-label="{{ status_label(s) }}"></span>
+{%- endmacro %}
+
+{% macro status_chip(status) -%}
+{%- set s = status.value if status.value is defined else status -%}
+<span class="chip {{ {'valid':'ok','catch_all':'amber','unknown':'amber','invalid':'red','suppressed':'red'}.get(s, 'plain') }}">{{ status_label(s) }}</span>
+{%- endmacro %}
+
+{# Attributes that turn a link/input inside the filter form into an in-place results swap #}
+{% macro hxf(url="") -%}
+{%- if url %}hx-get="{{ url }}" {% endif %}hx-target="#workspace" hx-select="#workspace" hx-swap="outerHTML" hx-push-url="true"
+{%- endmacro %}
+
+{% macro src_chip(prov) -%}
+{%- if prov %}<span class="chip src" title="{{ prov.licence }}{% if prov.url %} · {{ prov.url }}{% endif %}">{{ prov.source }} · {{ fmt_date(prov.fetched_at) }}</span>{% endif -%}
+{%- endmacro %}
+
+{% macro pager(pg) -%}
+{% if pg.total %}
+<nav class="pager" aria-label="Pagination">
+  <span>{{ fmt_int(pg.start) }}–{{ fmt_int(pg.end) }} of <span class="mono">{{ fmt_int(pg.total) }}</span></span>
+  {% if pg.pages > 1 %}
+  <span class="pages">
+    {% if pg.prev %}<a class="btn sm" href="{{ pg.prev }}" {{ hxf(pg.prev) }}>Previous</a>{% endif %}
+    {% for n, u in pg.links %}<a class="btn sm {% if n == pg.page %}primary{% endif %}" href="{{ u }}" {{ hxf(u) }}{% if n == pg.page %} aria-current="page"{% endif %}>{{ n }}</a>{% endfor %}
+    {% if pg.next %}<a class="btn sm" href="{{ pg.next }}" {{ hxf(pg.next) }}>Next</a>{% endif %}
+  </span>
+  {% endif %}
+</nav>
+{% endif %}
+{%- endmacro %}
+
+{# Save-to-list dialog living inside the #bulk form (works without JS: shown inline) #}
+{% macro save_dialog(kind, lists) -%}
+<dialog id="save-dialog" aria-labelledby="sd-title">
+  <div class="dlg">
+    <h2 id="sd-title">Save to list</h2>
+    <div class="field">
+      <label for="sd-list">Add selected {{ kind }} to an existing list</label>
+      <select id="sd-list" name="list_id" form="bulk">
+        <option value="">Choose a list…</option>
+        {% for li in lists %}<option value="{{ li.id }}">{{ li.name }} ({{ li.size }})</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="sd-new">…or create a new list</label>
+      <input type="text" id="sd-new" name="new_name" form="bulk" placeholder="New list name" maxlength="120">
+    </div>
+    <div class="foot">
+      <button type="button" class="btn close-dlg">Cancel</button>
+      <button type="submit" class="btn primary" form="bulk" formaction="/lists/save-to" hx-post="/lists/save-to" hx-swap="none" hx-push-url="false">Save</button>
+    </div>
+  </div>
+</dialog>
+{%- endmacro %}

@@ -1,0 +1,7 @@
+{"meta": {"pagination": {"currentPage": 2, "lastPage": 2}},
+ "data": [
+  {"type": "lei-records", "id": "529900YYYYYYYYYYYY88",
+   "attributes": {"lei": "529900YYYYYYYYYYYY88", "entity": {
+     "legalName": {"name": "Delta Ltd"},
+     "legalAddress": {"city": "Bristol", "region": "GB-BST", "country": "GB"}}}}
+ ]}

@@ -1,0 +1,65 @@
+{% from "_macros.html" import icon, status_dot, status_chip %}
+{% set back = "/people/" ~ person.id %}
+{% if page_mode is not defined %}<div class="drawer-scrim" data-close-drawer></div>{% endif %}
+<article class="{% if page_mode is defined %}profile-page{% endif %}" aria-label="Person profile">
+  <div class="drawer-head">
+    <div>
+      <h2 style="font-size:20px">{{ person.full_name }}</h2>
+      <span class="muted">{{ person.title or "No title" }}{% if person.company_domain %} at {% if company %}<a href="/companies/{{ company.id }}" hx-get="/companies/{{ company.id }}" hx-target="#drawer" hx-swap="innerHTML" hx-push-url="false">{{ company.name }}</a>{% else %}<span class="mono">{{ person.company_domain }}</span>{% endif %}{% endif %}</span>
+    </div>
+    {% if page_mode is not defined %}<button class="btn ghost icon-only" type="button" data-close-drawer aria-label="Close">{{ icon("x") }}</button>
+    {% else %}<a class="btn ghost" href="/people">Back to people</a>{% endif %}
+  </div>
+  <div class="drawer-body">
+    <div class="actions">
+      <form method="post" action="/people/{{ person.id }}/find-email" hx-post="/people/{{ person.id }}/find-email" hx-swap="none" hx-push-url="false">
+        <button class="btn primary" type="submit">{{ icon("mail") }} Find email</button>
+      </form>
+      <details class="dd">
+        <summary class="btn">{{ icon("plus") }} Add to list</summary>
+        <form class="menu left pad" method="post" action="/lists/save-to" hx-post="/lists/save-to" hx-swap="none" hx-push-url="false">
+          <input type="hidden" name="kind" value="people"><input type="hidden" name="ids" value="{{ person.id }}"><input type="hidden" name="next" value="{{ back }}">
+          <label class="sr-only" for="pl-list">List</label>
+          <select id="pl-list" name="list_id"><option value="">Choose a list…</option>{% for li in lists %}<option value="{{ li.id }}">{{ li.name }}</option>{% endfor %}</select>
+          <label class="sr-only" for="pl-new">New list</label>
+          <input id="pl-new" type="text" name="new_name" placeholder="…or a new list name" maxlength="120">
+          <button class="btn sm" type="submit">Add</button>
+        </form>
+      </details>
+    </div>
+    <section>
+      <h3 style="margin-bottom:8px">Profile</h3>
+      <div class="kv">
+        <div class="k">Title</div><div class="v">{{ person.title or "Unknown" }}</div>
+        <div class="k">Seniority</div><div class="v">{{ seniority_label(person.seniority) if person.seniority else "Unknown" }}</div>
+        <div class="k">Department</div><div class="v">{{ person.department or "Unknown" }}</div>
+        <div class="k">Company</div><div class="v"><span class="mono">{{ person.company_domain or "Unknown" }}</span></div>
+        <div class="k">First seen</div><div class="v mono">{{ fmt_date(person.first_seen) }}</div>
+        <div class="k">Last seen</div><div class="v mono">{{ fmt_date(person.last_seen) }}</div>
+      </div>
+    </section>
+    <section>
+      <h3 style="margin-bottom:8px">Email candidates</h3>
+      {% if candidates %}
+      <div class="table-wrap"><table class="data compact">
+        <thead><tr><th scope="col">Address</th><th scope="col">Status</th><th scope="col">Confidence</th></tr></thead>
+        <tbody>
+        {% for e in candidates %}
+          <tr>
+            <td><span class="email">{% if e.address in suppressed %}suppressed{% else %}{{ e.address }}{% endif %}</span>{% if e.pattern %}<span class="sub">{{ e.pattern }}</span>{% endif %}</td>
+            <td>{{ status_chip("suppressed" if e.address in suppressed else e.status) }}</td>
+            <td class="mono">{{ e.confidence }}%</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+      {% else %}<p class="muted">No email yet. Click Find email to guess and verify the most likely addresses.</p>{% endif %}
+    </section>
+    <section>
+      <h3 style="margin-bottom:8px">Sources</h3>
+      {% if person.source_urls %}
+      <ul class="src-list">{% for u in person.source_urls %}<li><a class="mono" href="{{ u }}" target="_blank" rel="noopener noreferrer">{{ u }}</a></li>{% endfor %}</ul>
+      {% else %}<p class="muted">No source pages recorded.</p>{% endif %}
+    </section>
+  </div>
+</article>

@@ -1,0 +1,23 @@
+<div class="menu-head"><span>Jobs</span><span class="muted">{{ n }} running</span></div>
+{% for j in jobs %}
+<div class="job-row">
+  <div class="l">
+    <span>{{ j.label }}</span>
+    {% if j.status == 'done' %}<span class="chip ok">Done</span>
+    {% elif j.status == 'failed' %}<span class="chip red">Failed</span>
+    {% elif j.status == 'running' %}<span class="chip amber">Running</span>
+    {% else %}<span class="chip plain">Queued</span>{% endif %}
+  </div>
+  <div class="s">
+    {{ ago(j.finished_at or j.created_at) }}
+    {% if j.status == 'failed' and j.error %} · {{ j.error[:140] }}{% endif %}
+    {% if j.status == 'done' and j.result %}
+      {% if j.result.people is defined %} · {{ j.result.people }} people found{% endif %}
+      {% if j.result.emails is defined %} · {{ j.result.emails }} emails{% endif %}
+      {% if j.kind == 'enrich_csv' %} · <a href="/api/enrich/{{ j.id }}/result.csv">Download CSV</a>{% endif %}
+    {% endif %}
+  </div>
+</div>
+{% else %}
+<div class="job-row"><span class="muted">No jobs yet. Start one from a company or a CSV upload.</span></div>
+{% endfor %}

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{% block title %}Home · LeadCommons{% endblock %}
+{% block content %}
+<div class="home">
+  {% if show_banner %}
+  <div class="banner" id="banner">
+    <span class="logo" aria-hidden="true">{{ icon("sparkles", "lg") }}</span>
+    <div class="t"><b>Continue with the Assistant</b><span class="muted">Describe who you sell to and let it set up your first search. Arrives in v0.2.</span></div>
+    <a class="btn" href="/assistant">Preview</a>
+    <form method="post" action="/dismiss-banner" hx-post="/dismiss-banner" hx-target="#banner" hx-swap="outerHTML">
+      <button class="btn ghost icon-only" type="submit" aria-label="Dismiss">{{ icon("x") }}</button>
+    </form>
+  </div>
+  {% endif %}
+  <h1>Get started with LeadCommons</h1>
+  <p class="muted">{{ tasks_done }} of {{ tasks|length }} steps done. Everything stays on this machine.</p>
+  <div class="progress" role="progressbar" aria-label="Progress" aria-valuemin="0" aria-valuemax="{{ tasks|length }}" aria-valuenow="{{ tasks_done }}"><i style="width: {{ (tasks_done * 100 // (tasks|length)) }}%"></i></div>
+  <ul class="checklist">
+    {% for t in tasks %}
+    <li class="{% if t.done %}done{% endif %}">
+      <span class="check" aria-hidden="true">{% if t.done %}{{ icon("circle-check", "sm") }}{% endif %}</span>
+      <span class="txt"><b>{{ t.verb }}</b> {{ t.text }}<span class="sr-only">{% if t.done %} (done){% endif %}</span></span>
+      <a class="btn {% if t.primary %}primary{% endif %}" href="{{ t.href }}">{{ t.label }}</a>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endblock %}

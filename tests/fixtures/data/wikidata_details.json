@@ -1,0 +1,19 @@
+{"head": {"vars": []}, "results": {"bindings": [
+ {"item": {"type": "uri", "value": "http://www.wikidata.org/entity/Q100"},
+  "label": {"type": "literal", "value": "Acme Industries"},
+  "website": {"type": "uri", "value": "https://www.acme-industries.co.uk/about"},
+  "country": {"type": "literal", "value": "GB"},
+  "city": {"type": "literal", "value": "Leeds"},
+  "industry": {"type": "uri", "value": "http://www.wikidata.org/entity/Q8148"},
+  "industryLabel": {"type": "literal", "value": "manufacturing"},
+  "employees": {"type": "literal", "value": "320"},
+  "founded": {"type": "literal", "value": "1957"},
+  "leiCode": {"type": "literal", "value": "5493001KJTIIGC8Y1R12"}},
+ {"item": {"type": "uri", "value": "http://www.wikidata.org/entity/Q200"},
+  "label": {"type": "literal", "value": "Beta Bank"},
+  "website": {"type": "uri", "value": "http://Beta-Bank.com"},
+  "country": {"type": "literal", "value": "GB"},
+  "industryLabel": {"type": "literal", "value": "retail banking"}},
+ {"item": {"type": "uri", "value": "http://www.wikidata.org/entity/Q300"},
+  "label": {"type": "literal", "value": "Q300"}}
+]}}
