@@ -193,3 +193,6 @@ dialog.palette { width: min(640px, 94vw); margin: 9vh auto auto; border-radius: 
   .settings-side .set-title, .settings-side .set-foot { display: none; }
   .notif-menu { width: min(400px, 92vw); position: fixed; right: 8px; top: calc(var(--top-h) + 4px); }
 }
+
+/* disabled primary actions (features that arrive later) must not look clickable */
+.btn.primary[disabled], .btn.primary[aria-disabled="true"] { background: var(--raised); border-color: var(--line); color: var(--muted); opacity: .8; }
