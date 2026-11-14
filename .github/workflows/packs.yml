@@ -41,8 +41,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="packs-$(date -u +%Y-%m)"
-          parquet=$(ls packs-out/companies-*.parquet | head -n 1)
-          attribution=$(ls packs-out/*ATTRIBUTION*.md 2>/dev/null | head -n 1 || true)
+          parquet=$(find packs-out -maxdepth 1 -name 'companies-*.parquet' | sort | tail -n 1)
+          attribution=$(find packs-out -maxdepth 1 -name '*ATTRIBUTION*.md' | head -n 1)
           if [ -z "$attribution" ]; then
             attribution=packs-out/ATTRIBUTION.md
             printf '# Attribution\n\nBuilt from Wikidata (CC0-1.0) and GLEIF (CC0-1.0).\n' > "$attribution"
