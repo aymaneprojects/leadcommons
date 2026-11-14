@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable
 from email.utils import parsedate_to_datetime
@@ -9,6 +10,8 @@ from email.utils import parsedate_to_datetime
 import httpx
 
 from leadcommons.connectors.base import USER_AGENT
+
+log = logging.getLogger(__name__)
 
 RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 
@@ -36,10 +39,11 @@ class PoliteClient:
         client: httpx.Client | None = None,
         *,
         min_interval: float = 1.0,
-        max_retries: int = 8,
+        max_retries: int = 5,
         timeout: float = 90.0,
         sleep: Callable[[float], None] = time.sleep,
-        max_wait: float = 120.0,
+        max_wait: float = 60.0,
+        max_total_wait: float = 240.0,
         wait_429: float = 30.0,
         user_agent: str = USER_AGENT,
     ) -> None:
@@ -48,6 +52,7 @@ class PoliteClient:
         self.max_retries = max_retries
         self._sleep = sleep
         self.max_wait = max_wait
+        self.max_total_wait = max_total_wait
         self.wait_429 = wait_429
         self.user_agent = user_agent
         self._last = 0.0
@@ -56,6 +61,7 @@ class PoliteClient:
         """GET and decode JSON, retrying transient failures; raises httpx errors when exhausted."""
         headers = {"User-Agent": self.user_agent, "Accept": accept}
         attempt = 0
+        waited = 0.0
         while True:
             wait = self.min_interval - (time.monotonic() - self._last)
             if wait > 0:
@@ -73,7 +79,11 @@ class PoliteClient:
                 self._last = time.monotonic()
                 delay = None
             attempt += 1
-            if attempt > self.max_retries:
+            pause = (
+                min(self.max_wait, delay) if delay is not None else min(self.max_wait, 2.0**attempt)
+            )
+            if attempt > self.max_retries or waited + pause > self.max_total_wait:
                 raise httpx.HTTPError(f"giving up on {url} after {attempt} attempts")
-            backoff = min(self.max_wait, 2.0**attempt)
-            self._sleep(min(self.max_wait, delay) if delay is not None else backoff)
+            log.warning("retrying %s in %.0fs (attempt %d)", url.split("?")[0], pause, attempt)
+            waited += pause
+            self._sleep(pause)

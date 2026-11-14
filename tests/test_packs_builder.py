@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import httpx
@@ -103,7 +104,8 @@ def test_build_pack_writes_schema_metadata_attribution(tmp_path: Path):
     assert tuple(pf.schema_arrow.names) == PACK_COLUMNS
     assert pf.metadata.row_group(0).column(0).compression == "ZSTD"
     meta = {k.decode(): v.decode() for k, v in pf.schema_arrow.metadata.items()}
-    assert meta["sources"] == "wikidata,gleif,sirene"  # FR adds sirene by default
+    assert meta["sources"] == "wikidata,gleif"  # sirene ran for FR but added no rows
+    assert "skipped" not in meta
     assert meta["built_at"].endswith("+00:00")
     rows = {r["name"]: r for r in pf.read().to_pylist()}
     assert set(rows) == {"Acme", "Beta", "Frenchie"}
@@ -259,7 +261,7 @@ def test_default_sources_add_registry_per_country(tmp_path: Path):
     assert sirene.asked == ["652014051"] and edgar.asked == ["0000320193"]
     pf = pq.ParquetFile(path)
     meta = {k.decode(): v.decode() for k, v in pf.schema_arrow.metadata.items()}
-    assert meta["sources"] == "wikidata,gleif,sirene,edgar"
+    assert meta["sources"] == "wikidata,sirene,edgar"  # gleif had no rows to add
     rows = {r["name"]: r for r in pf.read().to_pylist()}
     assert set(rows) == {"Carrefour", "ZETA", "Apple", "SAP"}  # extra SIRENE row added
     assert (
@@ -287,10 +289,14 @@ def test_explicit_sources_and_failure_handling(tmp_path: Path):
     # implicit registry failing is logged and skipped
     path = build(tmp_path / "a", countries=["US"], connectors={**base, "edgar": boom})
     assert pq.ParquetFile(path).metadata.num_rows == 1
-    # explicitly requested registry failing is an error
-    with pytest.raises(RuntimeError):
-        build(tmp_path / "b", sources=("wikidata", "edgar"), countries=["US"],
-              connectors={**base, "edgar": boom})  # fmt: skip
+    # explicitly requested registry failing is skipped too, and recorded
+    path = build(
+        tmp_path / "b", sources=("wikidata", "edgar"), countries=["US"],
+        connectors={**base, "edgar": boom},
+    )  # fmt: skip
+    meta = {k.decode(): v.decode() for k, v in pq.ParquetFile(path).schema_arrow.metadata.items()}
+    assert json.loads(meta["skipped"])[0]["source"] == "edgar"
+    assert meta["sources"] == "wikidata"
     # explicit sirene only: skipped outside France
     sir = Registry("sirene", [sirene_row("1", "Z", "Z")], ("FR",), "siren", [])
     path = build(
@@ -309,3 +315,89 @@ def test_build_needs_pyarrow_message(tmp_path: Path, monkeypatch):
             tmp_path,
             connectors={"wikidata": FakeConn("wikidata", []), "gleif": FakeConn("gleif", [])},
         )
+
+
+class Flaky(FakeConn):
+    """Source that raises for the listed countries."""
+
+    def __init__(self, name, rows, bad):
+        super().__init__(name, rows)
+        self.bad = bad
+
+    def iter_companies(self, *, country=None, limit=None):
+        if country in self.bad:
+            raise httpx.HTTPError("giving up on https://query.wikidata.org/sparql after 5 attempts")
+        yield from super().iter_companies(country=country, limit=limit)
+
+
+def test_one_country_failing_still_builds_pack(tmp_path: Path, caplog):
+    import logging
+
+    caplog.set_level(logging.INFO, logger="leadcommons")
+    wdc = Flaky("wikidata", [wd("A", "Q1", country="GB"), wd("B", "Q2", country="DE")], {"FR"})
+    path = build(
+        tmp_path,
+        sources=("wikidata",),
+        countries=["FR", "GB", "DE"],
+        connectors={"wikidata": wdc},
+    )
+    pf = pq.ParquetFile(path)
+    assert pf.metadata.num_rows == 2
+    meta = {k.decode(): v.decode() for k, v in pf.schema_arrow.metadata.items()}
+    skipped = json.loads(meta["skipped"])
+    assert skipped == [{"country": "FR", "source": "wikidata", "reason": skipped[0]["reason"]}]
+    assert "giving up" in skipped[0]["reason"]
+    attr = (path.parent / "ATTRIBUTION.md").read_text()
+    assert "Skipped" in attr and "wikidata / FR" in attr
+    assert "wikidata FR skipped" in caplog.text  # warning, not exception
+
+
+def test_all_failing_raises_and_writes_nothing(tmp_path: Path):
+    wdc = Flaky("wikidata", [], {"FR", "GB"})
+    with pytest.raises(RuntimeError, match="no companies"):
+        build(tmp_path, sources=("wikidata",), countries=["FR", "GB"], connectors={"wikidata": wdc})
+    assert not list(tmp_path.glob("companies-*"))
+    assert not (tmp_path / "ATTRIBUTION.md").exists()
+    assert [p.name for p in tmp_path.iterdir()] == []  # temp work dir cleaned up
+
+
+def test_sources_metadata_lists_only_contributors(tmp_path: Path):
+    wdc = FakeConn("wikidata", [wd("A", "Q1", lei=LEI, country="GB")])
+    path = build(
+        tmp_path,
+        countries=["GB"],
+        connectors={"wikidata": wdc, "gleif": FakeConn("gleif", [], by_lei=[gl(LEI, "A LTD")])},
+    )
+    meta = {k.decode(): v.decode() for k, v in pq.ParquetFile(path).schema_arrow.metadata.items()}
+    assert meta["sources"] == "wikidata,gleif"
+    path2 = build(
+        tmp_path / "2",
+        countries=["GB"],
+        connectors={"wikidata": FakeConn("wikidata", [wd("A", "Q1", country="GB")]),
+                    "gleif": FakeConn("gleif", [])},
+    )  # fmt: skip
+    meta2 = {k.decode(): v.decode() for k, v in pq.ParquetFile(path2).schema_arrow.metadata.items()}
+    assert meta2["sources"] == "wikidata"
+    assert "gleif" not in (path2.parent / "ATTRIBUTION.md").read_text().split("## Counts")[0]
+
+
+def test_build_logs_progress(tmp_path: Path, caplog):
+    import logging
+
+    caplog.set_level(logging.INFO, logger="leadcommons")
+    sirene = Registry("sirene", [sirene_row("300000001", "ZETA", "ZETA SA")], ("FR",), "siren", [])
+    build(
+        tmp_path,
+        countries=["FR"],
+        connectors={
+            "wikidata": FakeConn("wikidata", [wd("A", "Q1", country="FR")]),
+            "gleif": FakeConn("gleif", []),
+            "sirene": sirene,
+        },
+    )
+    text = caplog.text
+    assert "wikidata FR: 1 companies" in text
+    assert "sirene FR: 1 rows" in text
+    assert "country FR done: 2 rows" in text
+    assert "pack built:" in text and "2 rows" in text
+    assert all(r.name.startswith("leadcommons") for r in caplog.records)

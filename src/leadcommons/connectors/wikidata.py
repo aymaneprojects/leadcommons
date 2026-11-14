@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import re
+import time
 from collections.abc import Iterator
 
 import httpx
@@ -12,6 +14,8 @@ from leadcommons.models import Company, Provenance, make_id
 from leadcommons.packs.domains import normalize_domain
 from leadcommons.packs.isic import isic_section
 from leadcommons.packs.normalize import size_bucket
+
+log = logging.getLogger(__name__)
 
 ENDPOINT = "https://query.wikidata.org/sparql"
 COMPANY_CLASSES = (
@@ -154,8 +158,9 @@ class WikidataConnector:
         self,
         client: httpx.Client | None = None,
         *,
-        page_size: int = 500,
+        page_size: int = 250,
         detail_batch: int = 150,
+        max_failed_chunks: int = 3,
         min_interval: float = 2.0,
         prefer_website: bool = True,
         sleep=None,
@@ -164,25 +169,52 @@ class WikidataConnector:
         self._http = PoliteClient(client, min_interval=min_interval, **kwargs)
         self.page_size = page_size
         self.detail_batch = detail_batch
+        self.max_failed_chunks = max_failed_chunks
+        self.skipped_chunks = 0
         # True: companies with a website first, then the rest. False: websites only.
         self.prefer_website = prefer_website
 
     def iter_companies(
         self, *, country: str | None = None, limit: int | None = None
     ) -> Iterator[Company]:
-        """Yield companies, paging with LIMIT/OFFSET until exhausted or `limit` reached."""
+        """Yield companies in chunks of `page_size` ids until exhausted or `limit` reached.
+
+        A chunk that still fails after the client's retries is skipped with a warning; after
+        `max_failed_chunks` consecutive failures the error propagates (the caller skips the
+        country).
+        """
+        tag = f"wikidata {country or '*'}"
         seen: set[str] = set()
         emitted = 0
+        started = time.monotonic()
         for website in (True, False) if self.prefer_website else (True,):
             offset = 0
+            failed = 0
             while limit is None or emitted < limit:
                 size = self.page_size
-                ids_q = build_ids_query(country, size, offset, website)
-                uris = [r["item"]["value"] for r in self._query(ids_q) if "item" in r]
+                try:
+                    ids_q = build_ids_query(country, size, offset, website)
+                    uris = [r["item"]["value"] for r in self._query(ids_q) if "item" in r]
+                except httpx.HTTPError as exc:
+                    failed += 1
+                    self.skipped_chunks += 1
+                    log.warning("%s: ids chunk at offset %d failed (%s)", tag, offset, exc)
+                    if failed >= self.max_failed_chunks:
+                        raise
+                    offset += size
+                    continue
+                failed = 0
                 qids = [u.rsplit("/", 1)[-1] for u in uris]
                 qids = [q for q in dict.fromkeys(qids) if _QID.match(q) and q not in seen]
                 for i in range(0, len(qids), self.detail_batch):
-                    for row in self._query(build_details_query(qids[i : i + self.detail_batch])):
+                    batch = qids[i : i + self.detail_batch]
+                    try:
+                        rows = self._query(build_details_query(batch))
+                    except httpx.HTTPError as exc:
+                        self.skipped_chunks += 1
+                        log.warning("%s: details batch of %d failed (%s)", tag, len(batch), exc)
+                        continue
+                    for row in rows:
                         company = parse_binding(row, country)
                         if company is None:
                             continue
@@ -190,7 +222,11 @@ class WikidataConnector:
                         emitted += 1
                         yield company
                         if limit is not None and emitted >= limit:
+                            log.info("%s: %d/%d ids (limit reached)", tag, emitted, limit)
                             return
+                log.info(
+                    "%s: %d/%s ids (%.0fs)", tag, emitted, limit or "?", time.monotonic() - started
+                )
                 if len(uris) < size:
                     break
                 offset += size

@@ -30,7 +30,7 @@
       <section class="card company-card" aria-label="Company">
         <header class="cc-head">
           {{ avatar(company.name, "co") }}
-          <div class="cc-id"><a class="cc-name" href="/companies/{{ company.id }}">{{ company.name }}</a><span class="muted">{{ company.industry_label or company.industry or "" }}{% if company.size_range %} · {{ company.size_range }} employees{% endif %}</span></div>
+          <div class="cc-id"><a class="cc-name" href="/companies/{{ company.id }}">{{ company.name }}</a><span class="muted">{{ [company.industry_label or company.industry, (company.size_range ~ " employees") if company.size_range else none] | select | join(" · ") }}</span></div>
           <a class="btn sm" href="/companies/{{ company.id }}">Open company</a>
         </header>
         <div class="tabs" role="tablist" data-tabs aria-label="Company sections">

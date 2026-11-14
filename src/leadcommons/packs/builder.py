@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from collections.abc import Callable, Iterable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -209,7 +210,11 @@ def write_parquet(path: Path, rows: list[dict], metadata: dict[str, str]) -> Non
 
 
 def write_attribution(
-    path: Path, sources: Sequence[str], built_at: str, counts: dict[str, int]
+    path: Path,
+    sources: Sequence[str],
+    built_at: str,
+    counts: dict[str, int],
+    skipped: Sequence[dict[str, str]] = (),
 ) -> None:
     """Write ATTRIBUTION.md describing sources, licences, build date and counts."""
     lines = [
@@ -241,6 +246,10 @@ def write_attribution(
         "Company-level data only; no personal data is included.",
         "",
     ]
+    if skipped:
+        lines += ["## Skipped (source failed for this country)", ""]
+        lines += [f"- {k['source']} / {k['country']}: {k['reason']}" for k in skipped]
+        lines.append("")
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
@@ -264,52 +273,70 @@ def _run_country(
     active: list[str],
     conns: dict[str, object],
     limit: int | None,
-    implicit: bool,
+    skipped: list[dict[str, str]],
     progress: Callable[[str], None] | None,
 ) -> Deduper:
+    """Run every active source for one country; a failing source is recorded and skipped."""
     dd = Deduper()
 
-    def guarded(name: str, fn: Callable[[], None]) -> None:
-        # Implicitly added registries must not sink the whole build.
+    def step(name: str, fn: Callable[[], None]) -> None:
         try:
             fn()
         except Exception as exc:
-            if not implicit or name not in COUNTRY_SOURCES.values():
-                raise
-            log.warning("%s: %s skipped (%s)", country, name, exc)
+            reason = f"{type(exc).__name__}: {exc}"[:300]
+            log.warning("%s %s skipped: %s", name, country, reason)
+            skipped.append({"country": country, "source": name, "reason": reason})
 
-    if "wikidata" in active:
+    def wikidata() -> None:
         for c in conns["wikidata"].iter_companies(country=country, limit=limit):
             dd.add(c)
             if progress and len(dd.items) % 500 == 0:
                 progress(f"{country}: {len(dd.items)} wikidata companies")
-    has_wd = "wikidata" in active
-    if "gleif" in active:
+        log.info("wikidata %s: %d companies", country, len(dd.items))
+
+    def gleif() -> None:
         gl = conns["gleif"]
-        if has_wd:
-            if leis := dd.leis():
-                for c in gl.fetch_by_lei(leis):
-                    dd.add(c)
+        before = len(dd.items)
+        if "wikidata" in active:
+            leis = dd.leis()
+            merged = 0
+            for c in gl.fetch_by_lei(leis) if leis else ():
+                dd.add(c)
+                merged += 1
+            log.info("gleif %s: merged %d LEIs", country, merged)
         else:
             for c in gl.iter_companies(country=country, limit=limit):
                 dd.add(c)
-    for name, kind, fetch in (
-        ("sirene", "siren", "fetch_by_siren"),
-        ("edgar", "cik", "fetch_by_cik"),
-    ):
-        if name not in active:
-            continue
-        conn = conns[name]
+            log.info("gleif %s: %d rows", country, len(dd.items) - before)
 
-        def run(conn=conn, kind=kind, fetch=fetch) -> None:
+    def registry(name: str, kind: str, fetch: str) -> Callable[[], None]:
+        def run() -> None:
+            conn = conns[name]
+            merged = extra = 0
             if ids := dd.ids(kind):
                 for c in getattr(conn, fetch)(ids):
                     dd.add(c)
+                    merged += 1
             for c in conn.iter_companies(country=country, limit=limit):  # extra rows
                 dd.add(c)
+                extra += 1
+            log.info("%s %s: %d rows (%d merged by id)", name, country, extra + merged, merged)
 
-        guarded(name, run)
+        return run
+
+    if "wikidata" in active:
+        step("wikidata", wikidata)
+    if "gleif" in active:
+        step("gleif", gleif)
+    if "sirene" in active:
+        step("sirene", registry("sirene", "siren", "fetch_by_siren"))
+    if "edgar" in active:
+        step("edgar", registry("edgar", "cik", "fetch_by_cik"))
     return dd
+
+
+def _skipped_text(skipped: Sequence[dict[str, str]]) -> str:
+    return json.dumps(list(skipped), ensure_ascii=False)
 
 
 def build_pack(
@@ -325,8 +352,14 @@ def build_pack(
     """Fetch, normalise, dedupe and write out_dir/companies-YYYYMMDD.parquet + ATTRIBUTION.md.
 
     With the default `sources`, the national registry for a country is added automatically
-    (FR -> sirene, US -> edgar); explicit sources are used as given.
+    (FR -> sirene, US -> edgar); explicit sources are used as given. A source that fails for a
+    country (after the clients' retries) is logged and skipped; the build only fails when the
+    final pack would be empty. Skipped (country, source, reason) entries are recorded in the
+    parquet metadata ("skipped") and in ATTRIBUTION.md; only sources that contributed rows are
+    listed as sources.
     """
+    import tempfile
+
     from leadcommons.connectors import CONNECTORS
 
     out_dir = Path(out_dir)
@@ -340,43 +373,70 @@ def build_pack(
         if connectors and s in connectors:
             conns[s] = connectors[s]
         elif s in CONNECTORS:
-            if s in sources or implicit:
-                conns[s] = CONNECTORS[s]()
+            conns[s] = CONNECTORS[s]()
         else:
             raise ValueError(f"unknown source: {s!r}")
     cs = [c.upper() for c in (countries or DEFAULT_COUNTRIES)]
     plan = {c: _active_sources(c, sources, conns, implicit) for c in cs}
-    used = [s for s in dict.fromkeys(wanted) if any(s in a for a in plan.values())]
     path = out_dir / (filename or f"companies-{now:%Y%m%d}.parquet")
-    metadata = {"built_at": built_at, "sources": ",".join(used)}
-    counts: dict[str, int] = {}
-    seen_ids: set[str] = set()
-    tmp = path.with_suffix(".parquet.tmp")
     pa, pq = _pa()
     schema = pack_schema()
-    writer = pq.ParquetWriter(
-        tmp, schema.with_metadata({k: v.encode() for k, v in metadata.items()}), compression="zstd"
-    )
-    try:
-        for country in cs:  # stream one country at a time
-            dd = _run_country(country, plan[country], conns, limit_per_source, implicit, progress)
+    counts: dict[str, int] = {}
+    contributed: set[str] = set()
+    skipped: list[dict[str, str]] = []
+    seen_ids: set[str] = set()
+    started = time.monotonic()
+    log.info("building pack: countries=%s sources=%s limit=%s", cs, list(dict.fromkeys(wanted)),
+             limit_per_source)  # fmt: skip
+    with tempfile.TemporaryDirectory(dir=out_dir, prefix=".build-") as work:
+        parts: list[Path] = []
+        for country in cs:  # stream one country at a time, spilled to a part file
+            t0 = time.monotonic()
+            dd = _run_country(country, plan[country], conns, limit_per_source, skipped, progress)
             rows = []
             for c in dd.items:
                 if c.id in seen_ids:
                     continue
                 seen_ids.add(c.id)
+                contributed.update(p.source for p in c.sources)
                 rows.append(company_to_row(c))
             if rows:
-                writer.write_table(pa.Table.from_pylist(rows, schema=schema))
+                part = Path(work) / f"{len(parts):03d}.parquet"
+                pq.write_table(pa.Table.from_pylist(rows, schema=schema), part, compression="zstd")
+                parts.append(part)
             counts[country] = len(rows)
-            log.info("built %s: %d rows", country, len(rows))
+            log.info("country %s done: %d rows (%.1f s)", country, len(rows), time.monotonic() - t0)
             if progress:
                 progress(f"{country}: {len(rows)} rows")
-    except BaseException:
+        total = sum(counts.values())
+        if total == 0:
+            detail = "; ".join(f"{k['source']} {k['country']}: {k['reason']}" for k in skipped)
+            raise RuntimeError(
+                f"no companies were collected, pack not written ({detail or 'no data'})"
+            )
+        used = [s for s in dict.fromkeys(wanted) if s in contributed]
+        metadata = {"built_at": built_at, "sources": ",".join(used)}
+        if skipped:
+            metadata["skipped"] = _skipped_text(skipped)
+        tmp = path.with_suffix(".parquet.tmp")
+        writer = pq.ParquetWriter(
+            tmp,
+            schema.with_metadata({k: v.encode() for k, v in metadata.items()}),
+            compression="zstd",
+        )
+        try:
+            for part in parts:
+                for batch in pq.ParquetFile(part).iter_batches():
+                    writer.write_batch(batch)
+        except BaseException:
+            writer.close()
+            tmp.unlink(missing_ok=True)
+            raise
         writer.close()
-        tmp.unlink(missing_ok=True)
-        raise
-    writer.close()
-    tmp.replace(path)
-    write_attribution(out_dir / "ATTRIBUTION.md", used, built_at, counts)
+        tmp.replace(path)
+    write_attribution(out_dir / "ATTRIBUTION.md", used, built_at, counts, skipped)
+    log.info(
+        "pack built: %s, %d rows, sources=%s, %d skipped, %.1f s",
+        path, total, ",".join(used), len(skipped), time.monotonic() - started,
+    )  # fmt: skip
     return path

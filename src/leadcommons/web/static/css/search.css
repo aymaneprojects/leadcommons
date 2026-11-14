@@ -204,6 +204,7 @@ tr:hover .ract-in, tr.sel .ract-in, .ract-in:focus-within { opacity: 1; }
 .email .addr { overflow: hidden; text-overflow: ellipsis; }
 table.data td .email { max-width: 100%; }
 table.data td .chips { flex-wrap: nowrap; }
+table.data td[data-col="email"] { max-width: 270px; }
 html.compact table.data td { height: 32px; padding-top: 2px; padding-bottom: 2px; }
 html.compact table.data td .av { display: none; }
 html.no-src td[data-col="sources"] .chips, html.no-src td[data-col="source"] .chips { display: none; }
@@ -336,11 +337,13 @@ html:not(.js) .tabs { display: none; }
 .pp-right { display: grid; gap: 16px; }
 .cinfo h2 { font-size: 15px; margin-bottom: 6px; }
 .cinfo hr { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
-.crow { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; padding: 10px 0; align-items: start; }
+.crow { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 4px 10px; padding: 10px 0; align-items: start; }
 .crow .ci { color: var(--muted); display: inline-flex; padding-top: 2px; }
 .crow .cv { display: grid; gap: 4px; min-width: 0; }
 .crow .cv .email { word-break: break-all; }
-.crow .ca { display: flex; gap: 6px; align-items: center; }
+.plain-list a .icon { margin-left: 4px; }
+.crow .ca { grid-column: 2; display: flex; gap: 6px; align-items: center; }
+.crow .cv .email { flex-wrap: wrap; }
 .crow .ca form { margin: 0; }
 .cmeta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .plain-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }

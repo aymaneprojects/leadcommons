@@ -7,6 +7,7 @@ names; those are personal data and are never read, stored or emitted here.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator
 
 import httpx
@@ -14,6 +15,8 @@ import httpx
 from leadcommons.connectors._http import PoliteClient
 from leadcommons.models import Company, Provenance, make_id
 from leadcommons.packs.isic import SECTION_NAMES, naf_section
+
+log = logging.getLogger(__name__)
 
 ENDPOINT = "https://recherche-entreprises.api.gouv.fr/search"
 
@@ -155,8 +158,17 @@ class SireneConnector:
 
     def fetch_by_siren(self, sirens: list[str]) -> Iterator[Company]:
         """Yield the record of each SIREN (one request per number)."""
+        failed = 0
         for siren in dict.fromkeys(s for s in sirens if s):
-            data = self._search({"q": siren, "per_page": 1, "page": 1})
+            try:
+                data = self._search({"q": siren, "per_page": 1, "page": 1})
+            except httpx.HTTPError as exc:
+                failed += 1
+                log.warning("sirene: lookup of %s failed, skipped (%s)", siren, exc)
+                if failed >= 5:
+                    raise
+                continue
+            failed = 0
             for res in data.get("results") or []:
                 if str(res.get("siren")) == siren:
                     company = parse_result(res)

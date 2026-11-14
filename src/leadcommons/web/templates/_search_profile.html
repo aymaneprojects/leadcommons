@@ -12,7 +12,7 @@
 {% macro addlist(kind, rid, lists, back, uid) -%}
 <details class="dd addlist-dd">
   <summary class="btn">{{ ic("list-plus") }}<span>Add to list</span></summary>
-  <form class="menu pad addlist" method="post" action="/lists/save-to" hx-post="/lists/save-to" hx-swap="none" hx-push-url="false">
+  <form class="menu left pad addlist" method="post" action="/lists/save-to" hx-post="/lists/save-to" hx-swap="none" hx-push-url="false">
     <input type="hidden" name="kind" value="{{ kind }}"><input type="hidden" name="ids" value="{{ rid }}"><input type="hidden" name="next" value="{{ back }}">
     <label class="sr-only" for="{{ uid }}-list">List</label>
     <select id="{{ uid }}-list" name="list_id"><option value="">Choose a list…</option>{% for li in lists %}<option value="{{ li.id }}">{{ li.name }} ({{ li.size }})</option>{% endfor %}</select>
@@ -57,7 +57,7 @@
         {% if best.address in suppressed %}
           <span class="email">{{ status_dot("suppressed") }}<span class="optout">Opted out</span></span>
         {% else %}
-          <span class="email"><span class="addr" data-copy-text="{{ best.address }}">{{ status_dot(best.status) }}{{ best.address }}</span></span>
+          <span class="email">{{ status_dot(best.status) }}<span class="addr">{{ best.address }}</span></span>
           <span class="cmeta">{{ status_chip(best.status) }}<span class="mono dim">{{ best.confidence }}% confidence</span></span>
         {% endif %}
       {% else %}

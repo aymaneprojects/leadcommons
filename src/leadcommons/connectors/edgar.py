@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import Iterator
 
@@ -12,6 +13,8 @@ from leadcommons.connectors.base import USER_AGENT
 from leadcommons.models import Company, Provenance, make_id
 from leadcommons.packs.domains import normalize_domain
 from leadcommons.packs.isic import sic_section
+
+log = logging.getLogger(__name__)
 
 TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik}.json"
@@ -89,6 +92,7 @@ class EdgarConnector:
             client, min_interval=min_interval, user_agent=edgar_user_agent(), **kwargs
         )
         self._tickers: list[str] | None = None
+        self._failures = 0
 
     def _get(self, url: str) -> dict:
         try:
@@ -112,11 +116,22 @@ class EdgarConnector:
 
     def _details(self, cik: str) -> Company | None:
         try:
-            return parse_submission(self._get(SUBMISSIONS_URL.format(cik=cik)))
+            company = parse_submission(self._get(SUBMISSIONS_URL.format(cik=cik)))
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code == 404:
                 return None
-            raise
+            return self._skip(cik, exc)
+        except httpx.HTTPError as exc:
+            return self._skip(cik, exc)
+        self._failures = 0
+        return company
+
+    def _skip(self, cik: str, exc: Exception) -> None:
+        log.warning("edgar: CIK %s failed, skipped (%s)", cik, exc)
+        self._failures += 1
+        if self._failures >= 5:  # the service is clearly unhealthy: stop
+            raise exc
+        return None
 
     def iter_companies(
         self, *, country: str | None = None, limit: int | None = None

@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator
 
 import httpx
 
 from leadcommons.connectors._http import PoliteClient
 from leadcommons.models import Company, Provenance, make_id
+
+log = logging.getLogger(__name__)
 
 ENDPOINT = "https://api.gleif.org/api/v1/lei-records"
 
@@ -93,7 +96,11 @@ class GleifConnector:
                 "filter[lei]": ",".join(chunk),
                 "page[size]": self.page_size,
             }
-            data = self._http.get_json(ENDPOINT, params, "application/vnd.api+json")
+            try:
+                data = self._http.get_json(ENDPOINT, params, "application/vnd.api+json")
+            except httpx.HTTPError as exc:
+                log.warning("gleif: lookup of %d LEIs failed, skipped (%s)", len(chunk), exc)
+                continue
             for rec in data.get("data", []):
                 company = parse_record(rec)
                 if company is not None:
