@@ -47,11 +47,14 @@ def create_app(
 
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-    from leadcommons.web import api, pages
+    from leadcommons.web import api, pages, pages_extra
     from leadcommons.web.auth import install_auth
 
     install_auth(app, settings)
     app.include_router(api.router, prefix="/api")
+    # pages_extra first: shell pages (settings, onboarding, notifications, engage) may take over
+    # routes still present in pages.py.
+    app.include_router(pages_extra.router)
     app.include_router(pages.router)
 
     @app.get("/healthz", include_in_schema=False)
