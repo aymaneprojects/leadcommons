@@ -115,6 +115,19 @@
     }
   });
 
+  /* panel groups stay open while filters re-render the workspace */
+  var openGroups = {};
+  doc.addEventListener("toggle", function (e) {
+    var g = e.target;
+    if (g.matches && g.matches(".fpanel .fgroup[data-fgroup]")) openGroups[g.getAttribute("data-fgroup")] = g.open;
+  }, true);
+  function restoreOpenGroups() {
+    $$(".fpanel .fgroup[data-fgroup]").forEach(function (g) {
+      var key = g.getAttribute("data-fgroup");
+      if (key in openGroups && g.open !== openGroups[key]) g.open = openGroups[key];
+    });
+  }
+
   /* ---------- filter pins (side panel shows pinned groups; All filters edits the pins) ---------- */
   function pinKey() { return "lc-pins-" + kind(); }
   function pins() {
@@ -340,7 +353,7 @@
   }
 
   function init() {
-    applyPrefs(); applyCols(); applyPins(); initTabs(); updateSelCount(); syncFiltersLabel();
+    applyPrefs(); applyCols(); applyPins(); restoreOpenGroups(); initTabs(); updateSelCount(); syncFiltersLabel();
   }
   doc.addEventListener("htmx:afterSettle", init);
   restorePerPage();
