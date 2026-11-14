@@ -1,0 +1,20 @@
+{% extends "shell_settings_base.html" %}
+{% from "_shell_macros.html" import sicon %}
+{% block title %}Data packs · LeadCommons{% endblock %}
+{% block settings_body %}
+<h1 class="set-h1">Data packs</h1>
+<p class="muted set-lead">Open company data that powers search. Packs are files on this machine; nothing is uploaded.</p>
+<section class="card">
+  {% if pack.packs %}
+  <div class="table-wrap"><table class="data compact">
+    <thead><tr><th scope="col">File</th><th scope="col">Companies</th><th scope="col">Sources</th><th scope="col">Built</th></tr></thead>
+    <tbody>{% for pk in pack.packs %}<tr>
+      <td class="mono">{{ pk.file.rsplit("/", 1)[-1] }}</td><td class="mono">{{ fmt_int(pk.rows) }}</td>
+      <td>{% for s in (pk.sources or []) %}<span class="chip src">{{ s }}</span> {% endfor %}</td>
+      <td class="mono">{{ pk.built_at or "n/a" }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <p class="muted mt">Total: <span class="mono">{{ fmt_int(pack.rows) }}</span> companies in {{ pack.files }} file{{ "s" if pack.files != 1 }}.</p>
+  {% else %}<p class="muted">No data pack installed.</p>{% endif %}
+  <p class="hint mt">Get or update the open company data: <code>leadcommons pack download latest</code></p>
+</section>
+{% endblock %}

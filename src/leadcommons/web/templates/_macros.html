@@ -1,3 +1,13 @@
+{# ic(): icon from the base sprite, or from search-sprite.svg for the search screens' extras #}
+{% macro ic(name, cls="") -%}
+{%- set extra = ["pin","briefcase","map-pin","factory","arrow-up-down","columns-3","table","chevron-up","chevron-left","check","copy","ellipsis","upload","link","tag","globe","clock","graduation-cap","phone","trending-up","zap","dollar-sign","user-round","hash","calendar","arrow-left","list-plus","shield-alert","maximize-2","building","circle-dot","gauge","info"] -%}
+{%- if name in extra -%}
+<svg class="icon {{ cls }}" aria-hidden="true" focusable="false"><use href="/static/icons/search-sprite.svg#s-{{ name }}"></use></svg>
+{%- else -%}
+<svg class="icon {{ cls }}" aria-hidden="true" focusable="false"><use href="/static/icons/sprite.svg#i-{{ name }}"></use></svg>
+{%- endif -%}
+{%- endmacro %}
+
 {% macro icon(name, cls="") -%}
 <svg class="icon {{ cls }}" aria-hidden="true" focusable="false"><use href="/static/icons/sprite.svg#i-{{ name }}"></use></svg>
 {%- endmacro %}
@@ -21,41 +31,26 @@
 {%- if prov %}<span class="chip src" title="{{ prov.licence }}{% if prov.url %} · {{ prov.url }}{% endif %}">{{ prov.source }} · {{ fmt_date(prov.fetched_at) }}</span>{% endif -%}
 {%- endmacro %}
 
-{% macro pager(pg) -%}
-{% if pg.total %}
-<nav class="pager" aria-label="Pagination">
-  <span>{{ fmt_int(pg.start) }}–{{ fmt_int(pg.end) }} of <span class="mono">{{ fmt_int(pg.total) }}</span></span>
-  {% if pg.pages > 1 %}
-  <span class="pages">
-    {% if pg.prev %}<a class="btn sm" href="{{ pg.prev }}" {{ hxf(pg.prev) }}>Previous</a>{% endif %}
-    {% for n, u in pg.links %}<a class="btn sm {% if n == pg.page %}primary{% endif %}" href="{{ u }}" {{ hxf(u) }}{% if n == pg.page %} aria-current="page"{% endif %}>{{ n }}</a>{% endfor %}
-    {% if pg.next %}<a class="btn sm" href="{{ pg.next }}" {{ hxf(pg.next) }}>Next</a>{% endif %}
-  </span>
-  {% endif %}
-</nav>
-{% endif %}
+{# Initial avatar: round for people, rounded square for companies #}
+{% macro avatar(name, shape="co", size="") -%}
+<span class="av {{ shape }} tone-{{ tone(name) }} {{ size }}" aria-hidden="true">{{ initials(name) }}</span>
 {%- endmacro %}
 
-{# Save-to-list dialog living inside the #bulk form (works without JS: shown inline) #}
-{% macro save_dialog(kind, lists) -%}
-<dialog id="save-dialog" aria-labelledby="sd-title">
-  <div class="dlg">
-    <h2 id="sd-title">Save to list</h2>
-    <div class="field">
-      <label for="sd-list">Add selected {{ kind }} to an existing list</label>
-      <select id="sd-list" name="list_id" form="bulk">
-        <option value="">Choose a list…</option>
-        {% for li in lists %}<option value="{{ li.id }}">{{ li.name }} ({{ li.size }})</option>{% endfor %}
-      </select>
-    </div>
-    <div class="field">
-      <label for="sd-new">…or create a new list</label>
-      <input type="text" id="sd-new" name="new_name" form="bulk" placeholder="New list name" maxlength="120">
-    </div>
-    <div class="foot">
-      <button type="button" class="btn close-dlg">Cancel</button>
-      <button type="submit" class="btn primary" form="bulk" formaction="/lists/save-to" hx-post="/lists/save-to" hx-swap="none" hx-push-url="false">Save</button>
-    </div>
-  </div>
-</dialog>
+{% macro soon_badge(text="Soon") -%}<span class="badge soon-badge">{{ text }}</span>{%- endmacro %}
+
+{# Bottom pagination: arrows, a page-number select and "1 - 25 of N" #}
+{% macro pager(pg) -%}
+{% if pg.total %}
+<nav class="pgbar" aria-label="Pagination">
+  {% if pg.prev %}<a class="pgbtn" href="{{ pg.prev }}" {{ hxf(pg.prev) }} aria-label="Previous page">{{ ic("chevron-left") }}</a>{% else %}<span class="pgbtn off" aria-disabled="true">{{ ic("chevron-left") }}</span>{% endif %}
+  <label class="sr-only" for="pgsel">Page</label>
+  <select id="pgsel" class="pgsel" data-page-select form="ui-only">
+    {% for n, u in pg.options %}<option value="{{ u }}"{% if n == pg.page %} selected{% endif %}>{{ n }}</option>{% endfor %}
+  </select>
+  <span class="pgnums">{% for n, u in pg.links %}<a class="pgnum{% if n == pg.page %} on{% endif %}" href="{{ u }}" {{ hxf(u) }}{% if n == pg.page %} aria-current="page"{% endif %}>{{ n }}</a>{% endfor %}</span>
+  {% if pg.next %}<a class="pgbtn" href="{{ pg.next }}" {{ hxf(pg.next) }} aria-label="Next page">{{ ic("chevron-right") }}</a>{% else %}<span class="pgbtn off" aria-disabled="true">{{ ic("chevron-right") }}</span>{% endif %}
+  <span class="pgrange">{{ fmt_int(pg.start) }} – {{ fmt_int(pg.end) }} of <span class="mono">{{ fmt_int(pg.total) }}{% if pg.capped %}+{% endif %}</span></span>
+  {% if pg.capped %}<span class="pgnote" data-tip="Very large result sets are scanned up to 5,000 rows when sorting, using tabs or excluding values.">{{ ic("info","sm") }}</span>{% endif %}
+</nav>
+{% endif %}
 {%- endmacro %}

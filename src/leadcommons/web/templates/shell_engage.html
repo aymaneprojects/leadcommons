@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{% from "_shell_macros.html" import sicon, soon_btn %}
+{% block title %}{{ page.title }} · LeadCommons{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="eng-title"><h1>{{ page.title }}</h1><span class="chip">Coming in v0.3</span></div>
+  {{ soon_btn(page.cta, "Arrives in v0.3", "primary") }}
+</div>
+{% if page.mailbox_note %}
+<div class="eng-warn" role="note">{{ sicon("triangle-alert") }}<span>No mailbox is connected, and sending from LeadCommons does not exist yet. Mailbox connection arrives in v0.3. <a href="/settings/email-health">Check your domain's DNS meanwhile</a>.</span></div>
+{% endif %}
+<section class="eng-hero">
+  <span class="eng-ic">{{ icon(page.icon, "lg") }}</span>
+  <h2>{{ page.headline }}</h2>
+  <p class="muted">{{ page.lead }}</p>
+  <div class="actions">
+    {{ soon_btn(page.cta, "Arrives in v0.3") }}
+    <a class="btn" href="{{ roadmap_url }}" target="_blank" rel="noopener noreferrer">{{ icon("external-link") }} See the roadmap</a>
+  </div>
+  <p class="hint">Want it sooner, or have an idea? <a href="{{ issues_url }}" target="_blank" rel="noopener noreferrer">Tell us on GitHub</a>.</p>
+</section>
+<div class="eng-feats">
+  {% for ico, title, text in page.features %}
+  <div class="eng-feat"><span class="ic">{{ sicon(ico) }}</span><b>{{ title }}</b><span class="muted">{{ text }}</span></div>
+  {% endfor %}
+</div>
+<p class="eng-meanwhile"><b>Meanwhile:</b> {{ page.meanwhile[0] }} <a href="{{ page.meanwhile[1] }}">{{ page.meanwhile[2] }}</a></p>
+{% endblock %}

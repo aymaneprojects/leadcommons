@@ -1,0 +1,17 @@
+{% from "_macros.html" import icon %}
+{% if recent %}
+<div class="pal-group" role="group" aria-label="Recent searches">
+  <div class="pal-head">Recent searches</div>
+  {% for r in recent %}
+  <a class="pal-item" role="option" href="{{ r.href }}">{{ icon("bookmark") }}<span class="pal-label">{{ r.name }}</span><span class="pal-sub">{{ r.kind|capitalize }}</span></a>
+  {% endfor %}
+</div>
+{% endif %}
+{% if companies %}
+<div class="pal-group" role="group" aria-label="Companies">
+  <div class="pal-head">Companies</div>
+  {% for c in companies %}
+  <a class="pal-item" role="option" href="/companies/{{ c.id }}">{{ icon("building-2") }}<span class="pal-label">{{ c.name }}</span><span class="pal-sub">{% if c.domain %}{{ c.domain }}{% elif c.country %}{{ country_name(c.country) }}{% endif %}</span></a>
+  {% endfor %}
+</div>
+{% endif %}

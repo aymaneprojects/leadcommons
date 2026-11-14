@@ -1,0 +1,7 @@
+{"total_results": 4, "page": 2, "per_page": 25, "total_pages": 2,
+ "results": [
+  {"siren": "300000001", "nom_complet": "ZETA SOLUTIONS", "nom_raison_sociale": "ZETA SOLUTIONS SA",
+   "nature_juridique": "5505", "statut_diffusion": "O", "etat_administratif": "A",
+   "activite_principale": "70.22Z", "tranche_effectif_salarie": "00",
+   "date_creation": "2001-09-09", "siege": {"libelle_commune": "NANTES", "region": "52"}}
+ ]}

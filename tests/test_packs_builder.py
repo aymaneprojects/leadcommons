@@ -90,7 +90,12 @@ def test_build_pack_writes_schema_metadata_attribution(tmp_path: Path):
     path = build(
         tmp_path / "out",
         countries=["gb", "fr"],
-        connectors={"wikidata": wdc, "gleif": glc},
+        connectors={
+            "wikidata": wdc,
+            "gleif": glc,
+            "sirene": FakeConn("sirene", []),
+            "edgar": FakeConn("edgar", []),
+        },
     )
     assert path.name.startswith("companies-") and path.suffix == ".parquet"
     assert wdc.seen_countries == ["GB", "FR"]
@@ -98,7 +103,7 @@ def test_build_pack_writes_schema_metadata_attribution(tmp_path: Path):
     assert tuple(pf.schema_arrow.names) == PACK_COLUMNS
     assert pf.metadata.row_group(0).column(0).compression == "ZSTD"
     meta = {k.decode(): v.decode() for k, v in pf.schema_arrow.metadata.items()}
-    assert meta["sources"] == "wikidata,gleif"
+    assert meta["sources"] == "wikidata,gleif,sirene"  # FR adds sirene by default
     assert meta["built_at"].endswith("+00:00")
     rows = {r["name"]: r for r in pf.read().to_pylist()}
     assert set(rows) == {"Acme", "Beta", "Frenchie"}
@@ -142,3 +147,165 @@ def test_download_pack_http_error(tmp_path: Path):
     with pytest.raises(httpx.HTTPStatusError):
         download_pack("https://example.org/missing.parquet", tmp_path)
     assert list(tmp_path.iterdir()) == []
+
+
+def sirene_row(siren, name, legal, city="Massy") -> Company:
+    return Company(
+        id="s", name=name, legal_name=legal, country="FR", region="Île-de-France", city=city,
+        industry="K", industry_label="Financial and insurance activities", size_range="10001+",
+        founded_year=1963, registry_ids={"siren": siren},
+        sources=[Provenance("sirene", "etalab-2.0", f"https://x/{siren}")],
+    )  # fmt: skip
+
+
+def test_merge_on_siren_wikidata_keeps_name_domain():
+    wdc = wd("Carrefour", "Q1", domain="carrefour.com", country="FR")
+    wdc.registry_ids["siren"] = "652014051"
+    wdc.city = None
+    merged = merge_companies(wdc, sirene_row("652014051", "CARREFOUR", "CARREFOUR SA"))
+    assert (merged.name, merged.domain) == ("Carrefour", "carrefour.com")
+    assert merged.legal_name == "CARREFOUR SA" and merged.city == "Massy"
+    assert merged.industry == "K" and merged.size_range == "10001+" and merged.founded_year == 1963
+    assert merged.region == "Île-de-France"
+    assert merged.registry_ids == {"wikidata": "Q1", "siren": "652014051"}
+    assert [p.source for p in merged.sources] == ["wikidata", "sirene"]
+    # registry stored first, Wikidata arrives later: Wikidata still names the company
+    dd = Deduper()
+    dd.add(sirene_row("652014051", "CARREFOUR", "CARREFOUR SA"))
+    wdc2 = wd("Carrefour", "Q1", domain="carrefour.com", country="FR")
+    wdc2.registry_ids["siren"] = "652014051"
+    stored = dd.add(wdc2)
+    assert len(dd.items) == 1 and stored.name == "Carrefour" and stored.domain == "carrefour.com"
+    assert stored.id == make_id("co", "wd", "Q1")
+
+
+def test_merge_on_cik_and_name_fallback():
+    dd = Deduper()
+    apple = wd("Apple", "Q312", domain="apple.com", country="US")
+    apple.registry_ids["cik"] = "0000320193"
+    dd.add(apple)
+    edgar = Company(
+        id="e", name="Apple Inc.", legal_name="Apple Inc.", country="US", region="CA",
+        registry_ids={"cik": "0000320193"},
+        sources=[Provenance("edgar", "public-domain", "u")],
+    )  # fmt: skip
+    dd.add(edgar)
+    assert len(dd.items) == 1 and dd.items[0].region == "CA"
+    # no shared id: exact normalised-name match within the country merges registry rows
+    dd.add(wd("Danone", "Q2", domain="danone.com", country="FR"))
+    dd.add(sirene_row("552032534", "DANONE", "DANONE SA"))
+    assert len(dd.items) == 2
+    assert dd.items[1].registry_ids["siren"] == "552032534"
+    # different country never merges by name
+    dd.add(sirene_row("111111111", "APPLE", "APPLE SAS"))
+    assert len(dd.items) == 3
+
+
+def test_ids_fall_back_to_siren_then_cik():
+    from leadcommons.packs.builder import company_id
+
+    s = sirene_row("652014051", "X", "X")
+    assert company_id(s) == make_id("co", "siren", "652014051")
+    e = Company(id="e", name="E", registry_ids={"cik": "0000000001"})
+    assert company_id(e) == make_id("co", "cik", "0000000001")
+
+
+class Registry(FakeConn):
+    """Fake national registry that records enrichment calls."""
+
+    def __init__(self, name, rows, countries, kind, by_id):
+        super().__init__(name, rows)
+        self.countries, self.kind, self.by_id = countries, kind, by_id
+        self.asked: list[str] = []
+
+    def _fetch(self, ids):
+        self.asked += list(ids)
+        yield from (c for c in self.by_id if c.registry_ids[self.kind] in ids)
+
+    def fetch_by_siren(self, ids):
+        return self._fetch(ids)
+
+    def fetch_by_cik(self, ids):
+        return self._fetch(ids)
+
+
+def test_default_sources_add_registry_per_country(tmp_path: Path):
+    fr = wd("Carrefour", "Q1", domain="carrefour.com", country="FR")
+    fr.registry_ids["siren"] = "652014051"
+    us = wd("Apple", "Q312", domain="apple.com", country="US")
+    us.registry_ids["cik"] = "0000320193"
+    de = wd("SAP", "Q3", domain="sap.com", country="DE")
+    extra = sirene_row("300000001", "ZETA", "ZETA SA", city="Nantes")
+    sirene = Registry(
+        "sirene", [extra], ("FR",), "siren", [sirene_row("652014051", "C", "CARREFOUR SA")]
+    )
+    edgar_row = Company(
+        id="e", name="Apple Inc.", legal_name="Apple Inc.", country="US", region="CA",
+        city="Cupertino", industry="C", registry_ids={"cik": "0000320193"},
+        sources=[Provenance("edgar", "public-domain", "u")],
+    )  # fmt: skip
+    edgar = Registry("edgar", [], ("US",), "cik", [edgar_row])
+    path = build(
+        tmp_path,
+        countries=["FR", "US", "DE"],
+        connectors={
+            "wikidata": FakeConn("wikidata", [fr, us, de]),
+            "gleif": FakeConn("gleif", []),
+            "sirene": sirene,
+            "edgar": edgar,
+        },
+    )
+    assert sirene.seen_countries == ["FR"] and edgar.seen_countries == ["US"]  # not run for DE
+    assert sirene.asked == ["652014051"] and edgar.asked == ["0000320193"]
+    pf = pq.ParquetFile(path)
+    meta = {k.decode(): v.decode() for k, v in pf.schema_arrow.metadata.items()}
+    assert meta["sources"] == "wikidata,gleif,sirene,edgar"
+    rows = {r["name"]: r for r in pf.read().to_pylist()}
+    assert set(rows) == {"Carrefour", "ZETA", "Apple", "SAP"}  # extra SIRENE row added
+    assert (
+        rows["Carrefour"]["siren"] == "652014051"
+        and rows["Carrefour"]["legal_name"] == "CARREFOUR SA"
+    )
+    assert rows["Apple"]["cik"] == "0000320193" and rows["Apple"]["region"] == "CA"
+    assert rows["ZETA"]["domain"] is None and rows["ZETA"]["siren"] == "300000001"
+    assert rows["SAP"]["siren"] is None and rows["SAP"]["cik"] is None
+    assert "sirene" in rows["Carrefour"]["sources_json"]
+    attr = (path.parent / "ATTRIBUTION.md").read_text()
+    assert "etalab-2.0" in attr and "public-domain" in attr
+
+
+def test_explicit_sources_and_failure_handling(tmp_path: Path):
+    class Boom(Registry):
+        def iter_companies(self, **kw):
+            raise RuntimeError("403")
+
+    base = {
+        "wikidata": FakeConn("wikidata", [wd("A", "Q1", country="US")]),
+        "gleif": FakeConn("gleif", []),
+    }
+    boom = Boom("edgar", [], ("US",), "cik", [])
+    # implicit registry failing is logged and skipped
+    path = build(tmp_path / "a", countries=["US"], connectors={**base, "edgar": boom})
+    assert pq.ParquetFile(path).metadata.num_rows == 1
+    # explicitly requested registry failing is an error
+    with pytest.raises(RuntimeError):
+        build(tmp_path / "b", sources=("wikidata", "edgar"), countries=["US"],
+              connectors={**base, "edgar": boom})  # fmt: skip
+    # explicit sirene only: skipped outside France
+    sir = Registry("sirene", [sirene_row("1", "Z", "Z")], ("FR",), "siren", [])
+    path = build(
+        tmp_path / "c", sources=("sirene",), countries=["FR", "DE"], connectors={"sirene": sir}
+    )
+    assert pq.ParquetFile(path).metadata.num_rows == 1 and sir.seen_countries == ["FR"]
+
+
+def test_build_needs_pyarrow_message(tmp_path: Path, monkeypatch):
+    import sys
+
+    monkeypatch.setitem(sys.modules, "pyarrow", None)
+    monkeypatch.setitem(sys.modules, "pyarrow.parquet", None)
+    with pytest.raises(RuntimeError, match=r"leadcommons\[build\]"):
+        build(
+            tmp_path,
+            connectors={"wikidata": FakeConn("wikidata", []), "gleif": FakeConn("gleif", [])},
+        )

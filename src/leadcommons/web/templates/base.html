@@ -1,6 +1,7 @@
 {%- from "_macros.html" import icon -%}
+{%- from "_shell_macros.html" import sicon -%}
 {% macro nav(href, key, label, ico, soon=False) -%}
-<a class="nav-link" href="{{ href }}" title="{{ label }}"{% if active == key %} aria-current="page"{% endif %}>
+<a class="nav-link" href="{{ href }}" data-tip="{{ label }}" aria-label="{{ label }}"{% if active == key %} aria-current="page"{% endif %}>
   {{ icon(ico) }}<span class="nav-label">{{ label }}</span>{% if soon %}<span class="badge">Soon</span>{% endif %}
 </a>
 {%- endmacro -%}
@@ -12,7 +13,8 @@
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
-<div class="app">
+<div class="app{% block app_class %}{% endblock %}">
+  {% block sidebar %}
   <aside class="sidebar" aria-label="Sidebar">
     <a class="brand" href="/" aria-label="LeadCommons home"><span class="logo" aria-hidden="true">LC</span><span class="brand-name">LeadCommons</span></a>
     <nav aria-label="Main">
@@ -43,22 +45,23 @@
       </div>
     </nav>
     <div class="nav-spacer"></div>
-    <a class="gs-card" href="/" title="Getting started">
+    <a class="gs-card{% if active == 'onboarding' %} current{% endif %}" href="/onboarding" data-tip="Getting started" aria-label="Getting started, {{ tasks_done }} of {{ tasks|length }} done">
       <div class="t"><b>{{ icon("rocket", "sm") }}<span class="gs-extra"> Getting started</span></b><span>{{ tasks_done }}/{{ tasks|length }}</span></div>
       <div class="progress" role="progressbar" aria-label="Getting started progress" aria-valuemin="0" aria-valuemax="{{ tasks|length }}" aria-valuenow="{{ tasks_done }}"><i style="width: {{ (tasks_done * 100 // (tasks|length)) }}%"></i></div>
     </a>
-    {{ nav("/email-health", "email-health", "Email health", "heart-pulse", True) }}
+    {{ nav("/settings/email-health", "email-health", "Email health", "heart-pulse") }}
     {{ nav("/settings", "settings", "Settings", "settings") }}
-    <button class="collapse-btn" type="button" data-collapse aria-expanded="true" title="Collapse sidebar">{{ icon("panel-left") }}<span>Collapse</span></button>
+    <button class="collapse-btn" type="button" data-collapse aria-expanded="true" data-tip="Expand sidebar">{{ icon("panel-left") }}<span>Collapse</span></button>
   </aside>
+  {% endblock %}
 
   <div class="main-col">
     <header class="topbar">
       <form class="topsearch" action="/companies" method="get" role="search">
         {{ icon("search") }}
-        <label class="sr-only" for="topsearch-input">Search companies or jump to a page</label>
-        <input id="topsearch-input" type="search" name="q" placeholder="Search companies, or ask…" autocomplete="off">
-        <span class="kbd" aria-hidden="true">Ctrl K</span>
+        <label class="sr-only" for="shell-topsearch">Search companies or jump to a page</label>
+        <input id="shell-topsearch" type="search" name="q" placeholder="Search companies, or jump to a page…" autocomplete="off" data-palette-open>
+        <span class="kbd" aria-hidden="true" data-kbd>Ctrl K</span>
       </form>
       <div class="top-right">
         <div class="jobs">
@@ -67,6 +70,21 @@
           </button>
           <div class="menu" id="jobs-menu" hidden role="region" aria-label="Recent jobs" data-quiet
                hx-get="/partials/jobs" hx-trigger="load-jobs, every 3s [!document.getElementById('jobs-menu').hidden]" hx-swap="innerHTML"></div>
+        </div>
+        <div class="notif">
+          <button class="btn ghost icon-only notif-btn" type="button" data-notif-toggle aria-expanded="false" aria-controls="notif-menu" aria-label="Notifications">
+            {{ icon("bell") }}<span class="notif-badge" data-notif-badge hidden></span>
+          </button>
+          <div class="menu notif-menu" id="notif-menu" hidden role="region" aria-label="Notifications" data-quiet>
+            <div class="notif-head">
+              <b>Notifications</b>
+              <span class="notif-actions">
+                <button class="btn sm ghost" type="button" data-notif-readall>{{ sicon("check-check", "sm") }} Mark all as read</button>
+                <button class="btn sm ghost icon-only" type="button" data-notif-close aria-label="Close notifications">{{ icon("x", "sm") }}</button>
+              </span>
+            </div>
+            <div class="notif-list" id="notif-list" hx-get="/partials/notifications" hx-trigger="load, every 15s" hx-swap="innerHTML" aria-live="polite"></div>
+          </div>
         </div>
         <a class="btn accent" href="/assistant">{{ icon("sparkles") }} Assistant</a>
         <details class="dd">
@@ -91,9 +109,54 @@
 
 <div id="drawer" aria-live="polite"></div>
 <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
-<dialog id="palette" aria-label="Command palette">
-  <input id="palette-input" type="text" placeholder="Jump to a page, or type to search companies…" autocomplete="off" aria-label="Command palette">
-  <ul id="palette-list"></ul>
+<div id="nav-tip" class="nav-tip" role="tooltip" hidden></div>
+
+{# Fetcher lives outside the dialog: app.js closes any dialog that contains a finished htmx request. #}
+<div id="lc-palette-fetch" hidden hx-get="/partials/palette" hx-trigger="palette-fetch" hx-include="#lc-palette-input" hx-target="#lc-palette-remote" hx-swap="innerHTML" hx-sync="this:replace" hx-push-url="false"></div>
+<dialog id="lc-palette" class="palette" aria-label="Command palette">
+  <div class="pal-search">
+    {{ icon("search") }}
+    <input id="lc-palette-input" type="text" name="q" placeholder="Search companies or jump to a page…" autocomplete="off" spellcheck="false"
+           role="combobox" aria-expanded="true" aria-controls="lc-palette-list" aria-label="Search or jump to">
+  </div>
+  <div id="lc-palette-list" class="pal-list" role="listbox" aria-label="Results">
+    <div class="pal-group" data-pal-group="Pages">
+      <div class="pal-head">Pages</div>
+      <a class="pal-item" role="option" href="/" data-top data-kw="home dashboard getting started">{{ icon("house") }}<span class="pal-label">Home</span></a>
+      <a class="pal-item" role="option" href="/companies" data-top data-kw="companies search find">{{ icon("building-2") }}<span class="pal-label">Companies</span></a>
+      <a class="pal-item" role="option" href="/people" data-top data-kw="people leads contacts">{{ icon("users") }}<span class="pal-label">People</span></a>
+      <a class="pal-item" role="option" href="/lists" data-top data-kw="lists saved">{{ icon("list") }}<span class="pal-label">Lists</span></a>
+      <a class="pal-item" role="option" href="/enrich" data-top data-kw="enrich enrichment csv upload">{{ icon("file-up") }}<span class="pal-label">Enrichment</span></a>
+      <a class="pal-item" role="option" href="/settings" data-top data-kw="settings preferences">{{ icon("settings") }}<span class="pal-label">Settings</span></a>
+      <a class="pal-item" role="option" href="/assistant" data-kw="assistant ai chat">{{ icon("sparkles") }}<span class="pal-label">Assistant</span></a>
+      <a class="pal-item" role="option" href="/onboarding" data-kw="getting started onboarding checklist">{{ icon("rocket") }}<span class="pal-label">Getting started</span></a>
+      <a class="pal-item" role="option" href="/settings/data-packs" data-kw="data packs sources">{{ icon("layers") }}<span class="pal-label">Data packs</span></a>
+      <a class="pal-item" role="option" href="/settings/email-health" data-kw="email health dns spf dmarc mx">{{ icon("heart-pulse") }}<span class="pal-label">Email setup and health</span></a>
+      <a class="pal-item" role="option" href="/settings/privacy" data-kw="privacy opt-out suppression">{{ icon("eye-off") }}<span class="pal-label">Privacy and opt-out</span></a>
+      <a class="pal-item" role="option" href="/sequences" data-kw="sequences outreach">{{ icon("send") }}<span class="pal-label">Sequences</span><span class="pal-sub">v0.3</span></a>
+      <a class="pal-item" role="option" href="/emails" data-kw="emails inbox">{{ icon("mail") }}<span class="pal-label">Emails</span><span class="pal-sub">v0.3</span></a>
+      <a class="pal-item" role="option" href="/tasks" data-kw="tasks todo">{{ icon("square-check-big") }}<span class="pal-label">Tasks</span><span class="pal-sub">v0.3</span></a>
+      <a class="pal-item" role="option" href="/deals" data-kw="deals pipeline">{{ icon("handshake") }}<span class="pal-label">Deals</span><span class="pal-sub">v0.3</span></a>
+    </div>
+    <div class="pal-group" data-pal-group="Actions">
+      <div class="pal-head">Actions</div>
+      <a class="pal-item" role="option" href="/companies" data-dyn="companies" hidden>{{ icon("search") }}<span class="pal-label"></span></a>
+      <a class="pal-item" role="option" href="/people" data-dyn="people" hidden>{{ icon("user-search") }}<span class="pal-label"></span></a>
+      <a class="pal-item" role="option" href="/lists?create=people" data-top data-kw="create new list people">{{ icon("plus") }}<span class="pal-label">Create a people list</span></a>
+      <a class="pal-item" role="option" href="/lists?create=companies" data-top data-kw="create new list company companies">{{ icon("plus") }}<span class="pal-label">Create a company list</span></a>
+      <a class="pal-item" role="option" href="/enrich" data-kw="enrich csv upload file">{{ icon("file-up") }}<span class="pal-label">Enrich a CSV file</span></a>
+      <a class="pal-item" role="option" href="/settings/email-health" data-kw="check dns domain spf dmarc mx">{{ icon("heart-pulse") }}<span class="pal-label">Check a domain's email setup</span></a>
+      <a class="pal-item" role="option" href="#" data-theme-toggle data-kw="theme dark light mode">{{ icon("sun") }}<span class="pal-label">Switch light / dark theme</span></a>
+    </div>
+    <div id="lc-palette-remote"></div>
+    <div class="pal-none" data-pal-none hidden>No match. Press Enter to search companies.</div>
+  </div>
+  <div class="pal-foot" aria-hidden="true">
+    <span><span class="kbd">↑</span> <span class="kbd">↓</span> Navigate</span>
+    <span><span class="kbd">Esc</span> Close</span>
+    <span class="grow"></span>
+    <span><span class="kbd">↵</span> Select</span>
+  </div>
 </dialog>
 {% block dialogs %}{% endblock %}
 <script src="/static/vendor/htmx.min.js"></script>

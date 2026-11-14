@@ -59,6 +59,7 @@ SELECT ?item (SAMPLE(?itemLabel) AS ?label) (SAMPLE(?site) AS ?website)
        (SAMPLE(?cc) AS ?country) (SAMPLE(?cityLabel) AS ?city)
        (SAMPLE(?ind) AS ?industry) (SAMPLE(?indLabel) AS ?industryLabel)
        (MAX(?emp) AS ?employees) (MIN(YEAR(?inc)) AS ?founded) (SAMPLE(?lei) AS ?leiCode)
+       (SAMPLE(?siren) AS ?sirenCode) (SAMPLE(?cik) AS ?cikCode)
 WHERE {{
   VALUES ?item {{ {values} }}
   OPTIONAL {{ ?item wdt:P17 ?c . ?c wdt:P297 ?cc . }}
@@ -68,6 +69,8 @@ WHERE {{
   OPTIONAL {{ ?item wdt:P1128 ?emp . }}
   OPTIONAL {{ ?item wdt:P571 ?inc . }}
   OPTIONAL {{ ?item wdt:P1278 ?lei . }}
+  OPTIONAL {{ ?item wdt:P1616 ?siren . }}
+  OPTIONAL {{ ?item wdt:P5531 ?cik . }}
   SERVICE wikibase:label {{
     bd:serviceParam wikibase:language "{LANGS}" .
     ?item rdfs:label ?itemLabel .
@@ -119,6 +122,12 @@ def parse_binding(row: dict, fetched_country: str | None = None) -> Company | No
     registry = {"wikidata": qid}
     if lei:
         registry["lei"] = lei
+    siren = "".join(ch for ch in (_val(row, "sirenCode") or "") if ch.isdigit())
+    if len(siren) == 9:
+        registry["siren"] = siren
+    cik = (_val(row, "cikCode") or "").strip()
+    if cik.isdigit() and int(cik) > 0:
+        registry["cik"] = cik.zfill(10)
     return Company(
         id=company_id,
         name=label.strip(),

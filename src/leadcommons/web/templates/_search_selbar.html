@@ -1,0 +1,29 @@
+{% from "_macros.html" import ic %}
+{% from "_search_macros.html" import ai_menu %}
+{# Action bar shown while rows are selected. app.js keeps ".count" and ".active" in sync. #}
+{% if s.kind == "companies" %}
+  {% set export_tip = "Exports the selected companies as a CSV file: name, domain, country, city, industry, size, LEI and Wikidata id." %}
+{% else %}
+  {% set export_tip = "Exports the selected people as a CSV file: name, title, company domain, email, status, confidence and sources. Opted-out addresses are never included." %}
+{% endif %}
+<div class="bulk selbar" role="region" aria-label="Bulk actions">
+  <button type="button" class="btn ghost clearsel" data-clear-selection title="Clear the selection"><span>Clear </span><span class="count">0 selected</span></button>
+  <button type="button" class="btn primary" data-open-dialog="save-dialog">{{ ic("plus") }}<span>Save to list</span></button>
+  {% if s.kind == "companies" %}
+  <button type="submit" form="bulk" formaction="/bulk/find-people" class="btn" hx-post="/bulk/find-people" hx-include="#bulk" hx-swap="none" hx-push-url="false">{{ ic("user-search") }}<span>Find people</span></button>
+  {% else %}
+  <button type="submit" form="bulk" formaction="/bulk/find-emails" class="btn" hx-post="/bulk/find-emails" hx-include="#bulk" hx-swap="none" hx-push-url="false">{{ ic("mail") }}<span>Find emails</span></button>
+  {% endif %}
+  <button type="submit" form="bulk" formaction="/bulk/export.csv" class="btn" data-tip="{{ export_tip }}">{{ ic("download") }}<span>Export CSV</span></button>
+  <span class="tb-gap"></span>
+  {{ ai_menu("Research with AI", True) }}
+  <details class="dd more-dd">
+    <summary class="btn icon-only" aria-label="More actions" title="More actions">{{ ic("ellipsis") }}</summary>
+    <div class="menu">
+      <button type="button" class="menu-item" data-select-all>{{ ic("check", "sm") }}<span>Select all on this page</span></button>
+      <button type="button" class="menu-item" data-clear-selection>{{ ic("x", "sm") }}<span>Clear selection</span></button>
+      <div class="menu-sep"></div>
+      <button type="button" class="menu-item" disabled aria-disabled="true">{{ ic("send", "sm") }}<span>Add to sequence</span><span class="badge soon-badge">Soon</span></button>
+    </div>
+  </details>
+</div>

@@ -206,3 +206,59 @@ def test_fallback_to_sample_pack(tmp_path: Path):
     assert DuckDBCompanySearch(None).pack_info() == empty.pack_info()
     if sample_files:
         assert empty.search_companies(CompanyFilters()).total > 0
+
+
+def test_reads_old_pack_without_new_columns(tmp_path: Path):
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    old_cols = [c for c in PACK_COLUMNS if c not in ("siren", "cik")]
+    table = pa.Table.from_pylist(
+        [{k: v for k, v in ROWS[0].items() if k in old_cols}],
+        schema=pa.schema(
+            [pa.field(c, pa.int32() if c == "founded_year" else pa.string()) for c in old_cols]
+        ),
+    )
+    pq.write_table(table, tmp_path / "companies-old.parquet")
+    s = DuckDBCompanySearch(tmp_path)
+    c = s.get_company("co_001")
+    assert c.registry_ids == {"lei": "L1", "wikidata": "Q1"}
+    assert s.search_companies(CompanyFilters()).total == 1
+
+
+def test_old_and_new_packs_together_expose_registry_ids(tmp_path: Path):
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    old_cols = [c for c in PACK_COLUMNS if c not in ("siren", "cik")]
+    pq.write_table(
+        pa.Table.from_pylist(
+            [{k: v for k, v in ROWS[1].items() if k in old_cols}],
+            schema=pa.schema(
+                [pa.field(c, pa.int32() if c == "founded_year" else pa.string()) for c in old_cols]
+            ),
+        ),
+        tmp_path / "a-old.parquet",
+    )
+    new = row(7, "Neu SAS", country="FR", siren="123456789", cik="0000320193")
+    write_parquet(tmp_path / "b-new.parquet", [new], {"built_at": "x", "sources": "sirene,edgar"})
+    s = DuckDBCompanySearch(tmp_path)
+    assert s.search_companies(CompanyFilters()).total == 2
+    c = s.get_company("co_007")
+    assert c.registry_ids == {"siren": "123456789", "cik": "0000320193"}
+    assert s.get_company("co_002").registry_ids == {}
+
+
+def test_works_without_pyarrow(tmp_path: Path, monkeypatch):
+    import sys
+
+    write_parquet(tmp_path / "companies-a.parquet", ROWS[:2],
+                  {"built_at": "2026-01-01T00:00:00+00:00", "sources": "wikidata"})  # fmt: skip
+    monkeypatch.setitem(sys.modules, "pyarrow", None)
+    monkeypatch.setitem(sys.modules, "pyarrow.parquet", None)
+    s = DuckDBCompanySearch(tmp_path)
+    assert s.search_companies(CompanyFilters(text="acme")).total == 1
+    info = s.pack_info()
+    assert info[0]["rows"] == 2 and info[0]["sources"] == ["wikidata"]
+    assert info[0]["built_at"] == "2026-01-01T00:00:00+00:00"
+    assert DuckDBCompanySearch(None).pack_info()  # bundled sample too

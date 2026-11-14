@@ -1,0 +1,12 @@
+{# Macros owned by the shell UI. Extra Lucide icons live in shell-sprite.svg. #}
+{% macro sicon(name, cls="") -%}
+<svg class="icon {{ cls }}" aria-hidden="true" focusable="false"><use href="/static/icons/shell-sprite.svg#i-{{ name }}"></use></svg>
+{%- endmacro %}
+
+{% macro page_head(title, lead="") -%}
+<div class="page-head"><div><h1>{{ title }}</h1>{% if lead %}<p>{{ lead }}</p>{% endif %}</div>{{ caller() if caller else "" }}</div>
+{%- endmacro %}
+
+{% macro soon_btn(label, tip="Arrives in v0.3", cls="") -%}
+<button class="btn {{ cls }}" type="button" disabled aria-disabled="true" title="{{ tip }}">{{ label }}</button>
+{%- endmacro %}

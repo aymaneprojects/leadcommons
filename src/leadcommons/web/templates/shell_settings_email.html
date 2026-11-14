@@ -1,0 +1,71 @@
+{% extends "shell_settings_base.html" %}
+{% from "_macros.html" import icon %}
+{% from "_shell_macros.html" import sicon, soon_btn %}
+{% block title %}Email setup &amp; health · LeadCommons{% endblock %}
+{% block settings_body %}
+<div class="set-head">
+  <h1 class="set-h1">Email setup and health</h1>
+  <span class="chip plain">{{ sicon("lock", "sm") }} Sending not connected</span>
+</div>
+<div class="tabs" role="tablist">
+  <a class="tab" role="tab" href="/settings/email-health" {% if tab == "dns" %}aria-selected="true"{% endif %}>Domain DNS check</a>
+  <a class="tab" role="tab" href="/settings/email-health?tab=mailboxes" {% if tab == "mailboxes" %}aria-selected="true"{% endif %}>Mailboxes</a>
+</div>
+
+{% if tab == "dns" %}
+<section class="card">
+  <h2>Check a sending domain</h2>
+  <p class="muted">Enter the domain you plan to send from. We look up its public DNS records: where mail is delivered (MX), who may send for it (SPF) and what receivers do with failures (DMARC).</p>
+  <form method="get" action="/settings/email-health" class="set-inline" id="dns-form">
+    <div class="field" style="flex:2;min-width:220px"><label for="dns-domain">Domain</label><input id="dns-domain" type="text" name="domain" value="{{ raw_domain }}" placeholder="example.com" autocomplete="off" required></div>
+    <div class="field" style="flex:1;min-width:160px"><label for="dns-selector">DKIM selector <span class="muted">(optional)</span></label><input id="dns-selector" type="text" name="selector" value="{{ selector }}" placeholder="e.g. selector1" autocomplete="off"></div>
+    <button class="btn primary" type="submit">{{ sicon("shield-check") }} Run a check</button>
+  </form>
+  {% if error %}<div class="notice error mt" role="alert">{{ error }}</div>{% endif %}
+</section>
+
+{% if checks %}
+<section class="dns-results" aria-label="Results for {{ domain }}">
+  <div class="dns-sum">
+    <h2><span class="mono">{{ domain }}</span></h2>
+    <span class="chips">
+      {% if summary.ok %}<span class="chip ok">{{ summary.ok }} passed</span>{% endif %}
+      {% if summary.warn %}<span class="chip amber">{{ summary.warn }} to review</span>{% endif %}
+      {% if summary.fail %}<span class="chip red">{{ summary.fail }} missing</span>{% endif %}
+      {% if summary.error %}<span class="chip plain">{{ summary.error }} could not be checked</span>{% endif %}
+    </span>
+  </div>
+  {% for c in checks %}
+  <article class="dns-row {{ c.state }}">
+    <span class="dns-ic {{ c.state }}" aria-hidden="true">{% if c.state == "ok" %}{{ icon("circle-check") }}{% elif c.state == "warn" %}{{ sicon("triangle-alert") }}{% else %}{{ icon("circle-alert") }}{% endif %}</span>
+    <div class="dns-body">
+      <div class="dns-title"><b>{{ c.label }}</b>
+        <span class="chip {{ {'ok': 'ok', 'warn': 'amber', 'fail': 'red', 'error': 'plain'}[c.state] }}">{{ {'ok': 'Passed', 'warn': 'Review', 'fail': 'Missing', 'error': 'Not checked'}[c.state] }}</span></div>
+      <div class="muted">{{ c.what }}</div>
+      <div class="dns-sumline">{{ c.summary }}</div>
+      {% if c.hint %}<div class="hint">{{ c.hint }}</div>{% endif %}
+      {% if c.records %}<ul class="dns-rec">{% for r in c.records %}<li class="mono">{{ r }}</li>{% endfor %}</ul>{% endif %}
+    </div>
+  </article>
+  {% endfor %}
+  <p class="hint">DNS answers can be cached for a while after a change. DKIM is only checked when you give a selector, because it cannot be discovered from the domain alone.</p>
+</section>
+{% endif %}
+
+{% else %}
+<section class="mbx-empty">
+  <div class="mbx-hero">
+    <span class="mbx-ic">{{ sicon("inbox", "lg") }}</span>
+    <div>
+      <h2>No mailboxes connected</h2>
+      <p class="muted">Connecting a mailbox to send email from LeadCommons arrives in v0.3. Until then LeadCommons does not send anything.</p>
+      <div class="actions">
+        {{ soon_btn("Add email & domain", "Arrives in v0.3", "primary") }}
+        <a class="btn" href="{{ roadmap_url }}" target="_blank" rel="noopener noreferrer">{{ icon("external-link") }} See the roadmap</a>
+      </div>
+    </div>
+  </div>
+  <p class="mbx-next"><b>What you can do now:</b> run a <a href="/settings/email-health">DNS check</a> on the domain you plan to send from, so it is ready when sending lands.</p>
+</section>
+{% endif %}
+{% endblock %}

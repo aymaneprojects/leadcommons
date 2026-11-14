@@ -134,3 +134,19 @@ def test_gives_up_after_repeated_errors():
     conn._http.max_retries = 2
     with pytest.raises(httpx.HTTPError):
         list(conn.iter_companies(country="GB"))
+
+
+def test_parse_binding_registry_ids():
+    from leadcommons.connectors.wikidata import parse_binding
+
+    row = {
+        "item": {"value": "http://www.wikidata.org/entity/Q9"},
+        "label": {"value": "La Poste"},
+        "sirenCode": {"value": "356 000 000"},
+        "cikCode": {"value": "320193"},
+    }
+    c = parse_binding(row, "FR")
+    assert c.registry_ids == {"wikidata": "Q9", "siren": "356000000", "cik": "0000320193"}
+    row["sirenCode"] = {"value": "12"}
+    assert "siren" not in parse_binding(row, "FR").registry_ids
+    assert "?sirenCode" in build_details_query(["Q9"]) and "P5531" in build_details_query(["Q9"])

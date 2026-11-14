@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{% from "_shell_macros.html" import sicon %}
+{% block app_class %} settings-mode{% endblock %}
+{% block sidebar %}
+<aside class="sidebar settings-side" aria-label="Settings menu">
+  <a class="set-back" href="/">{{ sicon("arrow-left") }}<span>Back to app</span></a>
+  <div class="set-title">Settings</div>
+  <nav aria-label="Settings sections">
+    {% for key, href, label, ico in (sections if sections is defined else []) %}
+    <a class="nav-link" href="{{ href }}"{% if section == key %} aria-current="page"{% endif %}>{{ sicon(ico) }}<span class="nav-label">{{ label }}</span></a>
+    {% endfor %}
+  </nav>
+  <div class="nav-spacer"></div>
+  <p class="set-foot muted">Everything here is stored on this machine.</p>
+</aside>
+{% endblock %}
+{% block content %}<div class="set-wrap">{% block settings_body %}{% endblock %}</div>{% endblock %}

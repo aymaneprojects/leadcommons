@@ -41,6 +41,7 @@ class PoliteClient:
         sleep: Callable[[float], None] = time.sleep,
         max_wait: float = 120.0,
         wait_429: float = 30.0,
+        user_agent: str = USER_AGENT,
     ) -> None:
         self._client = client or httpx.Client(timeout=timeout, follow_redirects=True)
         self.min_interval = min_interval
@@ -48,11 +49,12 @@ class PoliteClient:
         self._sleep = sleep
         self.max_wait = max_wait
         self.wait_429 = wait_429
+        self.user_agent = user_agent
         self._last = 0.0
 
     def get_json(self, url: str, params: dict[str, str | int], accept: str) -> dict:
         """GET and decode JSON, retrying transient failures; raises httpx errors when exhausted."""
-        headers = {"User-Agent": USER_AGENT, "Accept": accept}
+        headers = {"User-Agent": self.user_agent, "Accept": accept}
         attempt = 0
         while True:
             wait = self.min_interval - (time.monotonic() - self._last)

@@ -1,0 +1,34 @@
+{% from "_macros.html" import ic, hxf %}
+{% from "_search_macros.html" import fgroup, locked_row %}
+{# All filters window: pinned column + Person info + Company info. Unsupported filters are shown
+   disabled. Pins live in localStorage and decide which groups the side panel shows. #}
+<dialog id="allf-dialog" class="allf" aria-labelledby="allf-title">
+  <form id="allf" method="get" action="{{ s.base }}" {{ hxf(s.base) }} hx-trigger="submit">
+    {% if p.tab != "all" %}<input type="hidden" name="tab" value="{{ p.tab }}">{% endif %}
+    {% if p.sort != "relevance" %}<input type="hidden" name="sort" value="{{ p.sort }}">{% endif %}
+    {% if p.per != 25 %}<input type="hidden" name="per" value="{{ p.per }}">{% endif %}
+    <header class="allf-head"><h2 id="allf-title">Filters</h2><button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">{{ ic("x") }}</button></header>
+    <div class="allf-bar">
+      <label class="searchbox big">{{ ic("search") }}<input id="allf-search" type="search" data-allf-search placeholder="Search filters" aria-label="Search filters" form="ui-only" autocomplete="off"></label>
+      <label class="typesel">{{ ic("briefcase", "sm") }}<select data-type-select aria-label="Type" form="ui-only"><option value="all">Type: All</option><option value="person">Type: Person</option><option value="company">Type: Company</option></select></label>
+      <span class="grow"></span>
+      <span id="allf-count" class="allf-count" role="status" aria-live="polite"
+            hx-get="/search/count?kind={{ s.kind }}" hx-include="#allf" hx-target="this" hx-select="unset" hx-swap="innerHTML" hx-push-url="false"
+            hx-trigger="change from:#allf, input from:#allf delay:400ms, refresh"><span class="n mono">…</span> records found</span>
+      <button type="submit" class="btn primary">Apply filters</button>
+    </div>
+    <div class="allf-body">
+      <section class="allf-col" data-fbox="pinned"><h3>Pinned filters</h3><div class="allf-list" data-flist="pinned"><p class="fnote pins-empty">Pin a filter with the pin icon to keep it in the side panel.</p></div></section>
+      <section class="allf-col" data-fbox="person"><h3>Person info</h3><div class="allf-list" data-flist="person">
+        {% for g in s.groups if g.col == "person" %}
+          {% if g.supported %}{{ fgroup(g, s, "modal") }}{% else %}{{ locked_row(g.label, g.icon, "person", "People page", "This filter works on the People page") }}{% endif %}
+        {% endfor %}
+        {% for f in s.soon_filters if f.col == "person" %}{{ locked_row(f.label, f.icon, "person") }}{% endfor %}
+      </div></section>
+      <section class="allf-col" data-fbox="company"><h3>Company info</h3><div class="allf-list" data-flist="company">
+        {% for g in s.groups if g.col == "company" %}{{ fgroup(g, s, "modal") }}{% endfor %}
+        {% for f in s.soon_filters if f.col == "company" %}{{ locked_row(f.label, f.icon, "company") }}{% endfor %}
+      </div></section>
+    </div>
+  </form>
+</dialog>

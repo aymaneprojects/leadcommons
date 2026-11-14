@@ -1,0 +1,16 @@
+{% from "_macros.html" import ic %}
+{# Column chooser: a side panel (no overlay, so it never swallows clicks). State lives in
+   localStorage per page; JS reads data-col-toggle. #}
+<aside id="col-chooser" class="sidepanel" hidden aria-label="Columns" data-key="lc-cols-{{ s.kind }}">
+  <header class="sp-head"><h2>Columns</h2><button type="button" class="btn ghost icon-only" data-close-panel aria-label="Close">{{ ic("x") }}</button></header>
+  <div class="sp-body">
+    <p class="sp-sub">Displayed columns <span class="n" data-col-count>{{ s.columns|selectattr("default")|list|length }}</span></p>
+    <label class="searchbox">{{ ic("search", "sm") }}<input type="search" data-col-search placeholder="Search columns" aria-label="Search columns" form="ui-only" autocomplete="off"></label>
+    <ul class="col-list" role="list">
+      {% for c in s.columns %}
+      <li data-col-row data-text="{{ c.label|lower }}"><label class="opt{% if c.locked %} locked{% endif %}"><input type="checkbox" data-col-toggle="{{ c.key }}" data-default="{{ 1 if c.default else 0 }}" form="ui-only" {% if c.default %}checked{% endif %}{% if c.locked %} disabled{% endif %}><span class="ol">{{ c.label }}</span>{% if c.locked %}<span class="fnote">Always shown</span>{% endif %}</label></li>
+      {% endfor %}
+    </ul>
+    <button type="button" class="btn sm" data-col-reset>Reset to default</button>
+  </div>
+</aside>

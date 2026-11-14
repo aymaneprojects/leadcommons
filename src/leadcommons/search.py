@@ -70,6 +70,8 @@ PACK_COLUMNS: tuple[str, ...] = (
     "wikidata_id",
     "website",
     "sources_json",  # JSON list of {"source","licence","url","fetched_at"}
+    "siren",  # French SIREN (appended in v0.2; absent from older packs)
+    "cik",  # SEC CIK, zero-padded to 10 digits (appended in v0.2)
 )
 
 

@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any
 
 import duckdb
-import pyarrow.parquet as pq
 
 from leadcommons.models import Company, Provenance
 from leadcommons.packs.domains import normalize_domain
@@ -16,6 +15,8 @@ from leadcommons.search import PACK_COLUMNS, CompanyFilters, Page
 
 FACETS = {"country": "country", "industry": "industry", "size_range": "size_range"}
 _COLS = ", ".join(PACK_COLUMNS)
+_REG_COLS = (("lei", "lei"), ("wikidata", "wikidata_id"), ("siren", "siren"), ("cik", "cik"))
+_TYPES = {"founded_year": "INTEGER"}
 _ORDER = "(domain IS NULL), (size_range IS NULL), lower(name), id"
 
 
@@ -27,6 +28,10 @@ def _like(term: str) -> str:
 
 def _lit(path: str) -> str:
     return "'" + path.replace("'", "''") + "'"
+
+
+def _txt(v: object) -> str:
+    return v.decode() if isinstance(v, bytes | bytearray) else str(v)
 
 
 def _parse_dt(text: str | None) -> datetime:
@@ -50,15 +55,26 @@ class DuckDBCompanySearch:
         self._con = duckdb.connect(":memory:")
         if files:
             lst = ", ".join(_lit(str(f)) for f in files)
-            self._con.execute(
-                f"CREATE VIEW companies AS SELECT * FROM read_parquet([{lst}], union_by_name=true)"
-            )
-        else:
-            cols = ", ".join(
-                f"CAST(NULL AS {'INTEGER' if c == 'founded_year' else 'VARCHAR'}) AS {c}"
+            have = {
+                r[0]
+                for r in self._con.execute(
+                    f"SELECT DISTINCT name FROM parquet_schema([{lst}])"
+                ).fetchall()
+            }
+            # Older packs lack newer columns (siren, cik): expose them as NULL.
+            proj = ", ".join(
+                c if c in have else f"CAST(NULL AS {_TYPES.get(c, 'VARCHAR')}) AS {c}"
                 for c in PACK_COLUMNS
             )
-            self._con.execute(f"CREATE VIEW companies AS SELECT {cols} WHERE false")
+            self._con.execute(
+                f"CREATE VIEW companies AS SELECT {proj} "
+                f"FROM read_parquet([{lst}], union_by_name=true)"
+            )
+        else:
+            proj = ", ".join(
+                f"CAST(NULL AS {_TYPES.get(c, 'VARCHAR')}) AS {c}" for c in PACK_COLUMNS
+            )
+            self._con.execute(f"CREATE VIEW companies AS SELECT {proj} WHERE false")
 
     @staticmethod
     def _find(directory: Path | None) -> list[Path]:
@@ -153,15 +169,17 @@ class DuckDBCompanySearch:
         """One dict per loaded pack file: {"file", "rows", "sources", "built_at"}."""
         info = []
         for f in self.files:
-            pf = pq.ParquetFile(f)
-            meta = {k.decode(): v.decode() for k, v in (pf.schema_arrow.metadata or {}).items()}
-            sources = [s for s in meta.get("sources", "").split(",") if s]
+            rows = self._query("SELECT num_rows FROM parquet_file_metadata(?)", [str(f)])
+            kv = {
+                _txt(k): _txt(v)
+                for k, v in self._query("SELECT key, value FROM parquet_kv_metadata(?)", [str(f)])
+            }
             info.append(
                 {
                     "file": str(f),
-                    "rows": pf.metadata.num_rows,
-                    "sources": sources,
-                    "built_at": meta.get("built_at"),
+                    "rows": int(sum(r[0] for r in rows)),
+                    "sources": [x for x in kv.get("sources", "").split(",") if x],
+                    "built_at": kv.get("built_at"),
                 }
             )
         return info
@@ -195,9 +213,7 @@ class DuckDBCompanySearch:
             industry_label=d["industry_label"],
             size_range=d["size_range"],
             founded_year=d["founded_year"],
-            registry_ids={
-                k: d[c] for k, c in (("lei", "lei"), ("wikidata", "wikidata_id")) if d[c]
-            },
+            registry_ids={k: d[c] for k, c in _REG_COLS if d[c]},
             links={"website": d["website"]} if d["website"] else {},
             sources=sources,
         )
