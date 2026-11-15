@@ -158,8 +158,9 @@ jobs:
 
   merge:
     needs: [plan, fetch]
-    # Runs with the shards that were built, so a test run shows results even if a source broke;
-    # the release is only published when every source succeeded.
+    # Runs with the shards that were built, so a test run shows results even if a source broke.
+    # The release is published when the core registers (REQUIRED below) all succeeded; a
+    # failed optional source is left out of that month's packs and named in the notes.
     if: ${{ !cancelled() && needs.plan.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 330
@@ -182,6 +183,24 @@ jobs:
           pattern: shard-*
           path: shards
           merge-multiple: true
+      - name: Check the core sources
+        id: core
+        env:
+          REQUIRED: gleif_golden sirene_stock companies_house
+        run: |
+          missing=()
+          for src in $REQUIRED; do
+            if ! compgen -G "shards/$src*.parquet" >/dev/null; then missing+=("$src"); fi
+          done
+          built="$(find shards -maxdepth 1 -name '*.parquet' -printf '%f ' 2>/dev/null)"
+          echo "built: $built"
+          if [ "${#missing[@]}" -eq 0 ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::core sources missing: ${missing[*]}"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "built=$built" >> "$GITHUB_OUTPUT"
       - name: Merge shards
         env:
           RELEASE: ${{ needs.plan.outputs.release }}
@@ -210,10 +229,11 @@ jobs:
               ).show()
           PY
       - name: Publish release
-        if: needs.plan.outputs.publish == 'true' && needs.fetch.result == 'success'
+        if: needs.plan.outputs.publish == 'true' && steps.core.outputs.ok == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE: ${{ needs.plan.outputs.release }}
+          BUILT: ${{ steps.core.outputs.built }}
         run: |
           files=(packs-out/*)
           if gh release view "$RELEASE" >/dev/null 2>&1; then
@@ -222,10 +242,10 @@ jobs:
             gh release create "$RELEASE" "${files[@]}" \
               --latest=false \
               --title "Company packs $RELEASE" \
-              --notes "Monthly company packs built from official open registers, one file per country. See manifest.json, QUALITY.md and ATTRIBUTION.md for sources, licences and measured coverage."
+              --notes "Monthly company packs built from official open registers, one file per country. Sources in this release: $BUILT. See manifest.json, QUALITY.md and ATTRIBUTION.md for sources, licences and measured coverage."
           fi
       - name: Not published
-        if: needs.plan.outputs.publish == 'true' && needs.fetch.result != 'success'
+        if: needs.plan.outputs.publish == 'true' && steps.core.outputs.ok != 'true'
         run: |
-          echo "::error::at least one source failed; the release was not published"
+          echo "::error::a core source failed; the release was not published"
           exit 1

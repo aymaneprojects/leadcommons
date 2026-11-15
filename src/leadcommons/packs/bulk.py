@@ -408,7 +408,7 @@ def _transfer(
                 label,
                 resp.status_code,
                 url,
-                http.headers.get("User-Agent", "?"),
+                headers.get("User-Agent", "?"),
                 " ".join(snippet.split())[:300],
             )
         resp.raise_for_status()
