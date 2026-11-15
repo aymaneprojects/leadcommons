@@ -17,7 +17,8 @@ Each pack ships with an `ATTRIBUTION.md` listing sources and licences. Packs con
 
 The SEC asks every automated client to say who it is. Set `LEADCOMMONS_CONTACT_EMAIL` before
 building a pack and LeadCommons adds it to its User-Agent; without it, EDGAR is skipped. The
-monthly workflow reads it from the repository variable `EDGAR_CONTACT_EMAIL`. Requests stay
+monthly workflow uses the project's GitHub no-reply address, or the repository variable
+`EDGAR_CONTACT_EMAIL` when it is set. Requests stay
 under the SEC's limit of 10 per second.
 
 ## Build your own pack

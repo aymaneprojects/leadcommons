@@ -37,8 +37,8 @@ jobs:
           COUNTRIES: ${{ inputs.countries || 'FR DE GB US ES IT NL BE CA MA' }}
           LIMIT: ${{ inputs.limit || '1500' }}
           # SEC EDGAR asks every client to declare a contact address in its User-Agent.
-          # Set it as the repository variable EDGAR_CONTACT_EMAIL; without it EDGAR is skipped.
-          LEADCOMMONS_CONTACT_EMAIL: ${{ vars.EDGAR_CONTACT_EMAIL }}
+          # The repository variable EDGAR_CONTACT_EMAIL overrides the project's GitHub no-reply address.
+          LEADCOMMONS_CONTACT_EMAIL: ${{ vars.EDGAR_CONTACT_EMAIL || '181950936+aymaneprojects@users.noreply.github.com' }}
         run: |
           args=()
           for c in $COUNTRIES; do args+=(--country "$c"); done
