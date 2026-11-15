@@ -678,6 +678,14 @@ def _write_demo(out_dir: Path, results: list, now: datetime) -> dict | None:
 
     name = f"companies-0-demo-{now:%Y%m%d}.parquet"
     path = out_dir / name
+    sources = sorted({src for c in results for src in c.sources})
+    kv = {
+        "schema": str(SCHEMA),
+        "built_at": now.replace(microsecond=0).isoformat(),
+        "sources": ",".join(sources),
+        "demo": "true",
+    }
+    kv_sql = ", ".join(f"{k}: {lit(v)}" for k, v in kv.items())
     files = ", ".join(lit(str(out_dir / c.file)) for c in results)
     con = duckdb.connect()
     try:
@@ -688,7 +696,7 @@ def _write_demo(out_dir: Path, results: list, now: datetime) -> dict | None:
                     ORDER BY (domain IS NULL), (employees IS NULL), employees DESC, name, id
                     LIMIT {DEMO_ROWS}
                 ) ORDER BY name, id
-            ) TO {lit(str(path))} (FORMAT PARQUET, COMPRESSION ZSTD)"""
+            ) TO {lit(str(path))} (FORMAT PARQUET, COMPRESSION ZSTD, KV_METADATA {{{kv_sql}}})"""
         )
         rows = int(
             con.execute(f"SELECT count(*) FROM read_parquet({lit(str(path))})").fetchone()[0]

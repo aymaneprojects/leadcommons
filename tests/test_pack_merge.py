@@ -358,6 +358,12 @@ def test_manifest(merged: Path) -> None:
     demo_path = merged / demo["file"]
     assert demo["sha256"] == hashlib.sha256(demo_path.read_bytes()).hexdigest()
     assert sorted(p.name for p in merged.glob("companies-*.parquet"))[0] == demo["file"]
+    kv = dict(
+        duckdb.connect()
+        .execute(f"SELECT key::VARCHAR, value::VARCHAR FROM parquet_kv_metadata('{demo_path}')")
+        .fetchall()
+    )
+    assert kv["built_at"].startswith("2026-12-01") and "sirene_stock" in kv["sources"]
     by_cc = {c["country"]: c for c in m["countries"]}
     assert sorted(by_cc) == ["AU", "DE", "FR", "GB", "NO", "US"]
     fr_entry = by_cc["FR"]
