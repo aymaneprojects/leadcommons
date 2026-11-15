@@ -71,9 +71,9 @@
 .mcp-card p { margin: 0; font-size: 13px; }
 .mcp-x { position: absolute; top: 6px; right: 6px; }
 .mcp-btns { display: flex; gap: 8px; margin-top: 6px; }
-.mcp-card.mcp-inline { position: relative; width: auto; max-width: 420px; margin-top: 14px; box-shadow: none; }
-@media (max-width: 1699px) { .mcp-card:not(.mcp-inline) { display: none; } }
-@media (min-width: 1700px) { .mcp-card.mcp-inline { display: none; } }
+.mcp-card.mcp-inline { position: relative; right: auto; bottom: auto; width: auto; max-width: 420px; margin-top: 14px; box-shadow: none; }
+@media (max-width: 1499px) { .mcp-card:not(.mcp-inline) { display: none; } }
+@media (min-width: 1500px) { .mcp-card.mcp-inline { display: none; } }
 @media (max-width: 820px) { .composer-wrap { left: 16px; width: calc(100vw - 32px); } }
 html.embed-doc body { overflow-x: hidden; }
 .app.embed { display: block; }
@@ -171,3 +171,31 @@ pre.code { margin: 0; padding: 12px 14px; background: var(--bg); border: 1px sol
 .token-new { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 8%, var(--surface)); }
 .token-box { display: flex; gap: 10px; align-items: center; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; flex-wrap: wrap; }
 .token-box code { flex: 1; word-break: break-all; font-size: 13px; }
+
+/* ---------- assistant page, full-screen layout ---------- */
+.app.assistant-full { display: block; }
+.app.assistant-full .sidebar, .app.assistant-full .topbar { display: none; }
+.app.assistant-full .content { padding-top: 14px; }
+.app.assistant-full .composer-wrap { left: calc((100vw - 820px) / 2); width: min(820px, calc(100vw - 32px)); }
+.app.assistant-full ~ .assist-panel, html.assist-open .app.assistant-full .main-col { display: none; }
+.chat-bar { align-items: center; }
+.chat-bar .grow { flex: 1; }
+.chat-home { display: inline-grid; margin-right: 6px; }
+.explore-btn { border-color: var(--line); background: var(--surface); }
+.chat-empty .welcome-opts { width: 100%; margin-top: 18px; }
+.chat-empty-embed { justify-items: center; text-align: center; padding-top: 56px; }
+.chat-empty-embed .logo.lg { width: 64px; height: 64px; font-size: 24px; border-radius: 16px; }
+.chat-empty-embed h1 { font-size: 24px; }
+.chat-empty-embed .cards3 { text-align: left; display: grid; gap: 8px; margin-top: 12px; }
+.mcp-card .tip-kicker { display: inline-flex; gap: 6px; align-items: center; font: 600 11px var(--font-ui); text-transform: uppercase; letter-spacing: .07em; color: var(--orange-text); }
+.att { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 2px 2px 6px; }
+.att-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--raised); border: 1px solid var(--line); font-size: 12.5px; }
+.att-status { font-size: 12.5px; }
+.composer-row .btn.on { color: var(--on-orange); background: var(--orange); }
+.composer-row .btn[aria-disabled="true"] { opacity: .45; }
+.bubble-att { margin-bottom: 4px; }
+.chat-composer .sr-only[type=file] { position: absolute; }
+.app.embed .chat-empty { padding-top: 40px; }
+
+.mcp-card.mcp-inline { padding: 12px 16px; gap: 4px; margin-top: 6px; }
+.chat-empty .welcome-opts .opts-list { padding-top: 0; }

@@ -74,7 +74,7 @@
     ta.addEventListener("keydown", function (e) {
       if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
-        if (ta.value.trim() && form.requestSubmit) form.requestSubmit();
+        if ((ta.value.trim() || ($("[data-att-text]") || {}).value) && form.requestSubmit) form.requestSubmit();
       } else if (e.key === "Escape") slash.hidden = true;
     });
     doc.addEventListener("click", function (e) {
@@ -122,6 +122,99 @@
     }
     if ($$(".msg", log).length) setTimeout(function () { window.scrollTo(0, doc.body.scrollHeight); }, 50);
     grow();
+
+    /* welcome option card: pick one, then Continue */
+    var wo = $("[data-welcome-opts]");
+    if (wo) {
+      var go = $("[data-welcome-go]", wo);
+      wo.addEventListener("change", function () { go.disabled = !$("input:checked", wo); });
+      wo.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var r = $("input:checked", wo); if (!r) return;
+        ta.value = r.value;
+        if (/^\/site\s*$/.test(ta.value)) { ta.value = "/site "; ta.focus(); slashFilter(); return; }
+        form.requestSubmit();
+      });
+    }
+
+    /* attach a file: a CSV is offered to the enrichment flow, a text file becomes context */
+    var att = $("#att"), attIn = $("[data-att-input]"), attName = $("[data-att-name]"), attText = $("[data-att-text]");
+    var attLabel = $("[data-att-label]"), attStatus = $("[data-att-status]"), attEnrich = $("[data-att-enrich]");
+    var attFile = null;
+    function attReset() {
+      attFile = null; attIn.value = ""; attName.value = ""; attText.value = "";
+      att.hidden = true; attEnrich.hidden = true; attStatus.textContent = ""; attLabel.textContent = "";
+      ta.required = true;
+    }
+    function human(n) { return n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB"; }
+    function say(msg) { att.hidden = false; attStatus.textContent = msg; }
+    $("[data-attach]").addEventListener("click", function () { attIn.click(); });
+    $("[data-att-clear]").addEventListener("click", attReset);
+    attIn.addEventListener("change", function () {
+      var f = attIn.files && attIn.files[0]; if (!f) return;
+      var ext = (f.name.split(".").pop() || "").toLowerCase();
+      attReset(); attIn.value = "";
+      if (["csv", "txt", "md", "text"].indexOf(ext) < 0) { say("Only .csv, .txt and .md files can be attached."); return; }
+      attFile = f; att.hidden = false; attLabel.textContent = f.name + " · " + human(f.size);
+      if (ext === "csv") {
+        attEnrich.hidden = false;
+        say(f.size > 5242880 ? "This file is over 5 MB, the limit for enrichment." : "A CSV can be imported and enriched with emails. Nothing is sent anywhere.");
+        return;
+      }
+      var rd = new FileReader();
+      rd.onload = function () {
+        attName.value = f.name; attText.value = String(rd.result || "").slice(0, 20000);
+        ta.required = false;
+        say("Added as context for this chat" + (f.size > 40000 ? " (the first part of the file)." : "."));
+      };
+      rd.onerror = function () { say("That file could not be read."); };
+      rd.readAsText(f.slice(0, 40000));
+    });
+    attEnrich.addEventListener("click", function () {
+      if (attEnrich.getAttribute("aria-disabled") === "true") { say(attEnrich.getAttribute("title")); return; }
+      if (!attFile || !window.fetch) return;
+      var fd = new FormData(); fd.append("file", attFile);
+      attEnrich.disabled = true; say("Uploading…");
+      fetch("/api/enrich", { method: "POST", body: fd, credentials: "same-origin" })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (!res.ok || !res.j.job_id) { attEnrich.disabled = false; say(String(res.j.detail || "Upload failed.")); return; }
+          say("Enriching… you can keep chatting, the job runs in the background.");
+          var timer = setInterval(function () {
+            fetch("/api/jobs/" + encodeURIComponent(res.j.job_id), { credentials: "same-origin" }).then(function (r) { return r.json(); }).then(function (j) {
+              if (j.status === "done") {
+                clearInterval(timer); attEnrich.disabled = false; attStatus.textContent = "Done. ";
+                attStatus.appendChild(el("a", { href: "/api/enrich/" + encodeURIComponent(res.j.job_id) + "/result.csv", text: "Download the enriched CSV" }));
+              } else if (j.status === "failed") { clearInterval(timer); attEnrich.disabled = false; say("Failed: " + String(j.error || "unknown error")); }
+            });
+          }, 1500);
+        })
+        .catch(function () { attEnrich.disabled = false; say("Upload failed."); });
+    });
+    form.addEventListener("htmx:afterRequest", function (e) { if (e.detail.successful && attText.value) attReset(); });
+    form.addEventListener("htmx:configRequest", function () { /* fields are plain inputs: nothing to add */ });
+
+    /* dictation (Web Speech API) */
+    var mic = $("[data-mic]"), SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (mic && SR) {
+      mic.removeAttribute("aria-disabled");
+      mic.setAttribute("title", "Dictate. Your browser may send the audio to its own speech service.");
+      var rec = null, base = "";
+      mic.addEventListener("click", function () {
+        if (rec) { rec.stop(); return; }
+        rec = new SR(); rec.interimResults = true; rec.continuous = false; rec.lang = doc.documentElement.lang || navigator.language || "en";
+        base = ta.value ? ta.value.replace(/\s*$/, " ") : "";
+        rec.onresult = function (ev) {
+          var out = ""; for (var i = 0; i < ev.results.length; i++) out += ev.results[i][0].transcript;
+          ta.value = base + out; grow(); slashFilter();
+        };
+        rec.onerror = function (ev) { say(ev.error === "not-allowed" ? "Microphone access was blocked in the browser." : "Dictation stopped (" + ev.error + ")."); };
+        rec.onend = function () { rec = null; mic.classList.remove("on"); mic.setAttribute("aria-pressed", "false"); ta.focus(); };
+        try { rec.start(); mic.classList.add("on"); mic.setAttribute("aria-pressed", "true"); } catch (err) { rec = null; }
+      });
+    } else if (mic) {
+      mic.addEventListener("click", function () { say(mic.getAttribute("title")); });
+    }
   }
 
   /* ---------------------------------------------------------------- workflow builder */

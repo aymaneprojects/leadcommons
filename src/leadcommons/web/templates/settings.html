@@ -33,7 +33,7 @@
 
   <section class="set-card" aria-labelledby="sc-mail">
     <div class="set-card-head"><h2 id="sc-mail">{{ sicon("mail-check") }} Email setup and health</h2>
-      <span class="set-card-act"><span class="eh-pill eh-{{ verdict.key }}" title="{{ verdict.tip }}">{{ sicon("shield-check", "sm") }} {{ verdict.label }}</span><a class="btn sm" href="/settings/email-health">Open</a></span></div>
+      <span class="set-card-act">{% if settings.smtp_probe %}<span class="chip ok">SMTP probe on</span>{% else %}<span class="chip plain">SMTP probe off</span>{% endif %}<span class="eh-pill eh-{{ verdict.key }}" title="{{ verdict.tip }}">{{ sicon("shield-check", "sm") }} {{ verdict.label }}</span><a class="btn sm" href="/settings/email-health">Open</a></span></div>
     <p class="muted">Check MX, SPF, DKIM and DMARC for your sending domains. {% if settings.smtp_probe %}Addresses are also checked by contacting the mail server.{% else %}Addresses are checked by syntax and DNS only, never by contacting the mail server.{% endif %}</p>
     <p class="hint">Contacting the mail server is {{ "on" if settings.smtp_probe else "off" }}. Change it by starting LeadCommons with <code>LEADCOMMONS_SMTP_PROBE={{ 0 if settings.smtp_probe else 1 }}</code>.</p>
     <div class="set-links"><a href="/settings/email-health?tab=domains">Domains and mailboxes</a><a href="/settings/email-health#check-domain">Check a domain</a><a href="/settings/email-health?tab=policies">Sending policies</a></div>

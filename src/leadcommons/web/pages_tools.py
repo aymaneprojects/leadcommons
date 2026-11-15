@@ -120,6 +120,7 @@ def _assistant_ctx(request: Request, cid: str | None) -> dict[str, Any]:
         and bool(__import__("os").environ.get("LEADCOMMONS_LLM_URL")),
         "prefill": (request.query_params.get("prompt") or "")[:500],
         "mcp_doc": MCP_DOC,
+        "enrich_on": settings.enrichment_enabled,
     }
 
 
@@ -159,15 +160,21 @@ async def assistant_send(request: Request, _: None = Depends(csrf)) -> Response:
     form = await form_values(request)
     text = str(form.get("message") or "").strip()
     cid = str(form.get("conversation_id") or "")
+    att_text = str(form.get("attachment_text") or "")[:20000]
+    attachment = (
+        {"name": str(form.get("attachment_name") or "file.txt").strip(), "text": att_text}
+        if att_text.strip()
+        else None
+    )
     r = repo(request)
-    if not text:
+    if not text and not attachment:
         return done(
             request, "Type a message first.", f"/assistant/{cid}" if cid else "/assistant", "error"
         )
     if not cid or r.get_conversation(cid) is None:
         cid = r.create_conversation()
     asst = make_assistant(request)
-    asst.converse(cid, text)
+    asst.converse(cid, text, attachment)
     if is_htmx(request):
         # the page appends the whole newest exchange: user message and answer
         msgs = r.messages(cid)

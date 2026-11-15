@@ -427,9 +427,9 @@ def test_delete_conversation(app: FastAPI, client: TestClient) -> None:
 
 def test_mcp_card_can_be_dismissed(app: FastAPI, client: TestClient) -> None:
     page = client.get("/assistant").text
-    assert "Use LeadCommons from Claude or ChatGPT" in page and "docs/mcp.md" in page
+    assert "bring your own AI" in page and "docs/mcp.md" in page
     assert client.post("/assistant-card/dismiss", headers=HX).status_code == 200
-    assert "Use LeadCommons from Claude or ChatGPT" not in client.get("/assistant").text
+    assert "bring your own AI" not in client.get("/assistant").text
 
 
 def test_embed_mode_has_no_mcp_card(client: TestClient) -> None:

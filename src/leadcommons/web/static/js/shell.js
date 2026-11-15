@@ -353,6 +353,7 @@
   doc.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
     spOpen(false); hOpen(false);
+    if (panel && !panel.hidden && !(doc.getElementById("lc-palette") || {}).open) panelOpen(false);
     if (hvm) hvm.hidden = true;
     $$(".nav-group.flyout").forEach(function (g) { g.classList.remove("flyout"); });
   });

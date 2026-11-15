@@ -31,6 +31,7 @@ TOP_CARDS = 5
 KEEP_IDS = 25
 LLM_TIMEOUT = 25.0
 MAX_TEXT = 2000
+MAX_FILE = 6000
 
 COMMANDS: list[tuple[str, str, str]] = [
     ("/find", "Find companies", "/find software companies in Lyon with 11-50 people"),
@@ -132,6 +133,11 @@ _SITE_WORDS = re.compile(
     r"summar[iy]s?e|what (?:does|do) .{0,40} (?:sell|do))\b",
     re.I,
 )
+_SETUP = re.compile(
+    r"\b(?:set ?up|connect|link|authenticate|configure|verify)\b.{0,40}"
+    r"\b(?:mailbox|mail box|smtp|sending domain|my domain|dkim|spf|dmarc|deliverability)\b",
+    re.I,
+)
 _GREETING = re.compile(
     r"^\s*(hi|hello|hey|hola|bonjour|salut|good (?:morning|afternoon|evening))\b[\s!.,]*$", re.I
 )
@@ -178,6 +184,8 @@ def detect_intent(raw: str) -> Intent:
     low = text.lower()
     if _GREETING.match(text):
         return Intent("greeting")
+    if _SETUP.search(text):
+        return Intent("setup", text)
     if re.search(r"\b(what can you do|help|how do (?:i|you)|commands?)\b", low) and len(low) < 60:
         return Intent("help")
     if re.search(r"\b(enrich|csv|spreadsheet|upload a file)\b", low):
@@ -449,6 +457,7 @@ class Assistant:
         self._state_get = state_get or (lambda: {})
         self._state_set = state_set or (lambda **kw: None)
         self._fetch_site = fetch_site
+        self._file_ctx = ""
 
     @property
     def demo(self) -> bool:
@@ -460,17 +469,31 @@ class Assistant:
 
     # ------------------------------------------------------------------ public API
 
-    def converse(self, cid: str, text: str) -> list[Message]:
-        """Store the user's message, run the request, store and return the assistant reply."""
+    def converse(
+        self, cid: str, text: str, attachment: dict[str, str] | None = None
+    ) -> list[Message]:
+        """Store the user's message, run the request, store and return the assistant reply.
+
+        `attachment` is a text file the browser already read: {"name": ..., "text": ...}. It is
+        kept with the message and used as context; a CSV never comes here (it goes to /enrich).
+        """
         text = (text or "").strip()[:2000]
-        if not text:
+        att = None
+        if attachment and str(attachment.get("text") or "").strip():
+            body = str(attachment["text"])[:MAX_FILE]
+            att = {"name": str(attachment.get("name") or "file.txt")[:120], "text": body}
+        if not text and not att:
             return []
         history = self.repo.messages(cid)
         if not history:
-            self.repo.rename_conversation(cid, _title_for(text))
-        self.repo.add_message(cid, "user", text)
+            self.repo.rename_conversation(cid, _title_for(text or (att or {}).get("name", "")))
+        data = {"attachment": att} if att else None
+        self.repo.add_message(cid, "user", text, data)
+        self._file_ctx = att["text"] if att else self._last_file(history)
         try:
-            reply = self.reply(cid, text, history)
+            reply = (
+                self.file_reply(att, text) if att and not text else self.reply(cid, text, history)
+            )
         except Exception:
             log.exception("assistant failed on %r", text[:80])
             reply = Reply(
@@ -505,6 +528,65 @@ class Assistant:
 
     # ------------------------------------------------------------------ routing
 
+    @staticmethod
+    def _last_file(history: list[Message]) -> str:
+        for m in reversed(history):
+            att = (m.data or {}).get("attachment") if m.role == "user" else None
+            if att:
+                return str(att.get("text") or "")
+        return ""
+
+    def file_reply(self, att: dict[str, str], text: str) -> Reply:
+        """A text file with no question: use the model if there is one, else offer its websites."""
+        name, body = att["name"], att["text"]
+        words = len(body.split())
+        sites: list[str] = []
+        for m in _DOMAIN.finditer(body):
+            host = m.group(1).lower()
+            if extract_domain(host) and host not in sites:
+                sites.append(host)
+            if len(sites) >= 3:
+                break
+        opts = [_opt(f"Read {d}", type="site", domain=d) for d in sites]
+        if self.llm_on:
+            out = llm_complete(
+                CHAT_SYSTEM,
+                f"The user attached a text file named {name}:\n{body[:4000]}\n\n"
+                "Say in at most four short sentences what it tells you about who they should "
+                "sell to.",
+            )
+            if out:
+                return Reply(out, options=opts or None)
+        lead = f"I added **{name}** ({words} words) as context for this chat. "
+        if self.demo or not self.llm_on:
+            lead += "I cannot read it for meaning without a language model. "
+        if sites:
+            return Reply(
+                lead
+                + "I found these websites in it. Pick one and I will read its public homepage.",
+                options=opts,
+            )
+        return Reply(
+            lead + "I found no website address in it. Tell me who you want to sell to in plain "
+            "words, or attach a CSV to enrich."
+        )
+
+    def setup(self) -> Reply:
+        demo = " Sending is turned off in the public demo." if self.demo else ""
+        return Reply(
+            "To send from LeadCommons you connect a mailbox you already own, then publish the DNS "
+            "records that show the domain is yours.\n"
+            "- Connect the mailbox: pick your provider and the server details are filled in.\n"
+            "- Test it: LeadCommons signs in and quits. Nothing is sent.\n"
+            "- Check the domain: MX, SPF, DKIM and DMARC are looked up for you.\n"
+            "- Set your daily limits and the unsubscribe footer." + demo,
+            links=[
+                {"label": "Connect a mailbox", "href": "/settings/mailboxes/new"},
+                {"label": "Check my domain", "href": "/settings/email-health?tab=domains"},
+                {"label": "Sending rules", "href": "/settings/sending"},
+            ],
+        )
+
     def last_context(self, history: list[Message]) -> dict[str, Any]:
         for m in reversed(history):
             if m.role == "assistant" and m.data.get("context"):
@@ -521,6 +603,8 @@ class Assistant:
             return self.greeting()
         if name == "enrich":
             return self.enrich()
+        if name == "setup":
+            return self.setup()
         if name == "site":
             return self.site(intent)
         if name == "list":
@@ -546,6 +630,9 @@ class Assistant:
             return self.make_list(dict(action.get("context") or {}), str(action.get("name") or ""))
         if kind == "profile":
             return self.save_profile(dict(action.get("profile") or {}))
+        if kind == "site":
+            dom = str(action.get("domain") or "")
+            return self.site(Intent("site", dom, domain=extract_domain(dom)))
         if kind == "say":
             return Reply(str(action.get("text") or ""))
         if kind == "site_prompt":
@@ -613,7 +700,12 @@ class Assistant:
         parsed = self.parse(text, kind)
         if not _has_filters(parsed, kind):
             if self.llm_on:
-                free = llm_complete(CHAT_SYSTEM, text)
+                ctx_file = (
+                    f"Context file the user attached:\n{self._file_ctx[:3000]}\n\nRequest: "
+                    if self._file_ctx
+                    else ""
+                )
+                free = llm_complete(CHAT_SYSTEM, ctx_file + text)
                 if free:
                     return Reply(free)
             return Reply(

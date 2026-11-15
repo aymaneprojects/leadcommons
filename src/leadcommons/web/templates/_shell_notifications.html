@@ -9,7 +9,7 @@
   <span class="notif-ic {{ 'ok' if n.status == 'done' else 'red' }}">{{ tic(n.icon) }}</span>
   <div class="notif-body">
     <div class="notif-title">{{ n.label }}</div>
-    <div class="notif-meta">{% if n.id.startswith("job-") %}{% if n.status == "done" %}Finished{% else %}Failed{% endif %} {% endif %}{{ ago(n.ts) }}{% if n.detail %} · {{ n.detail }}{% endif %}</div>
+    {% if not n.system %}<div class="notif-meta">{% else %}<div class="notif-meta" hidden>{% endif %}{% if n.id.startswith("job-") %}{% if n.status == "done" %}Finished{% else %}Failed{% endif %} {% endif %}{{ ago(n.ts) }}{% if n.detail %} · {{ n.detail }}{% endif %}</div>
     {% if n.href %}<a class="btn sm" href="{{ n.href }}">{{ n.href_label }}</a>{% endif %}
   </div>
   <span class="notif-side"><button class="btn ghost icon-only sm" type="button" data-notif-dismiss aria-label="Dismiss this notification">{{ icon("x", "sm") }}</button><span class="notif-dot" aria-hidden="true" title="Unread"></span></span>

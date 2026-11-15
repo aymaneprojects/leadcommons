@@ -531,7 +531,7 @@ def health_verdict(domains: list[str], saved: dict[str, Any]) -> dict[str, str]:
 
 
 def email_health_ctx(request: Request) -> dict[str, Any]:
-    """Boxes, domains, last saved checks and the verdict, shared by the page and the overview card."""
+    """Mailboxes, domains, saved checks and the verdict, for the page and the overview card."""
     store = request.app.state.store
     boxes, domains = _sending_domains(store)
     saved = load_state(request.app.state.settings).get("email_health") or {}
@@ -565,7 +565,7 @@ def _parse_when(value: Any) -> datetime | None:
 
 @router.post("/settings/email-health/run")
 async def email_health_run(request: Request, _: None = Depends(csrf)) -> Response:
-    """Re-run the DNS checks for every sending domain (or one, with `domain`) and keep the result."""
+    """Re-run the DNS checks for every sending domain (or one) and keep the result."""
     form = await form_values(request)
     back = "/settings/email-health?tab=domains"
     _, domains = _sending_domains(request.app.state.store)
@@ -1194,6 +1194,24 @@ def notifications_partial(request: Request, jobs: Any = Depends(get_jobs)) -> Re
                     )
         except Exception:
             activities = []
+    try:
+        has_hooks = bool(repo_for(store).webhooks())
+    except Exception:
+        has_hooks = True
+    if not has_hooks:  # a standing notice, always in the "Older" group
+        items.append(
+            {
+                "id": "sys-integrations",
+                "label": "No webhook or integration is connected yet.",
+                "status": "done",
+                "ts": datetime(2000, 1, 1, tzinfo=utcnow().tzinfo),
+                "detail": "",
+                "href": "/settings/integrations",
+                "href_label": "Go to Integrations",
+                "icon": "plug",
+                "system": True,
+            }
+        )
     items.sort(key=lambda i: i["ts"], reverse=True)
     return templates.TemplateResponse(
         request,

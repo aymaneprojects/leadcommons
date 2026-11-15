@@ -402,3 +402,15 @@ html.assist-open .help-fab { right: calc(min(520px, 100vw) + 16px); }
 .invite-dlg .inv-head { display: flex; justify-content: space-between; align-items: center; }
 .invite-dlg .inv-body { display: grid; gap: 10px; }
 .invite-dlg .steps { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
+
+/* ---------- hub: floating view switcher, illustrated guide cards ---------- */
+.hub-top { position: sticky; top: calc(var(--top-h) + 8px); z-index: 6; pointer-events: none; }
+.hub-top > * { pointer-events: auto; }
+.hub-views .hub-views-btn { background: var(--surface); box-shadow: var(--shadow); }
+.res-art { height: 150px; background: color-mix(in srgb, var(--orange) 14%, var(--raised)); padding: 6px; }
+.res-art svg { max-height: 100%; }
+.res-card { padding: 14px; }
+.res-card b { font-size: 15px; margin-top: 4px; }
+
+.notif-list { min-height: 220px; }
+.notif-title + .notif-meta[hidden] { display: none; }

@@ -1,7 +1,7 @@
 {% from "_macros.html" import icon %}
 {% from "_shell_macros.html" import tic %}
 {% if m.role == "user" %}
-<article class="msg u" id="msg-{{ m.id }}"><div class="bubble">{{ m.content }}</div></article>
+<article class="msg u" id="msg-{{ m.id }}"><div class="bubble">{% if m.data and m.data.attachment %}<span class="chip plain bubble-att">{{ tic("paperclip", "sm") }} {{ m.data.attachment.name }}</span>{% if m.content %}<br>{% endif %}{% endif %}{{ m.content }}</div></article>
 {% else %}
 {% set d = m.data %}
 <article class="msg a{% if d.tone == 'warn' %} warn{% endif %}" id="msg-{{ m.id }}">

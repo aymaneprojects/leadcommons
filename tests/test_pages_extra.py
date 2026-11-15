@@ -193,7 +193,10 @@ def add_job(app: FastAPI, status: str, kind: str = "find_people", **kw: Any) -> 
 
 def test_notifications_empty_state(client: TestClient) -> None:
     html = client.get("/partials/notifications").text
-    assert "all caught up" in html and "data-notif-id" not in html
+    assert "all caught up" in html
+    assert (
+        html.count("data-notif-id") == 1 and "sys-integrations" in html
+    )  # only the standing notice
 
 
 def test_notifications_list_finished_jobs_only(app: FastAPI, client: TestClient) -> None:
@@ -207,14 +210,14 @@ def test_notifications_list_finished_jobs_only(app: FastAPI, client: TestClient)
     assert "/companies/co_1" in html
     assert "Broken job" in html and "Failed" in html and "boom" in html
     assert f"/api/enrich/{csv_job.id}/result.csv" in html and "Download CSV" in html
-    assert html.count("data-notif-id") == 3
+    assert html.count("data-notif-id") == 3 + 1  # plus the standing integrations notice
 
 
 def test_notifications_most_recent_first_and_capped(app: FastAPI, client: TestClient) -> None:
     for i in range(25):
         add_job(app, "done", label=f"Job number {i:02d}")
     html = client.get("/partials/notifications").text
-    assert html.count("data-notif-id") == 20
+    assert html.count("data-notif-id") == 20 + 1  # plus the standing integrations notice
     assert html.index("Job number 24") < html.index("Job number 10")
 
 
@@ -409,7 +412,11 @@ def test_onboarding_hub_groups_and_progress(app: FastAPI, client: TestClient) ->
     assert "Your first steps with LeadCommons" in html and "0 of 18</b> done" in html
     assert "Find the people you want to reach" in html and "0 of 6 completed" in html
     assert "Find a company phone number" in html and "save a mobile" not in html.lower()
-    assert "Guides and help" in html and "hub-progress" in html and "btn primary" in html
+    assert (
+        "More help for getting the most" in html
+        and "hub-progress" in html
+        and "btn primary" in html
+    )
     store = app.state.store
     store.save_company(app.state.search.companies[0])
     store.create_list("x", "people")
@@ -520,12 +527,12 @@ def test_list_export_never_contains_suppressed_emails(app: FastAPI, client: Test
 
 def test_assistant_page_has_working_composer(client: TestClient) -> None:
     html = client.get("/assistant").text
-    assert "Find companies to sell to" in html and "type / to see commands" in html
+    assert "Find companies I could sell to" in html and "type / to see commands" in html
     assert (
         'action="/assistant/send"' in html
         and "disabled" not in html.split('id="composer"')[1][:600]
     )
-    assert "Use LeadCommons from Claude or ChatGPT" in html
+    assert "bring your own AI" in html
 
 
 def test_sidebar_matches_contract(client: TestClient) -> None:
