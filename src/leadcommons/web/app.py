@@ -39,7 +39,8 @@ def create_app(
 
         jobs = JobRunner(store, search, settings)
 
-    app = FastAPI(title="LeadCommons", version=__version__, docs_url="/api/docs")
+    # /api/docs is our own server-rendered page (pages_apiref): Swagger UI needs a CDN.
+    app = FastAPI(title="LeadCommons", version=__version__, docs_url=None, redoc_url=None)
     app.state.settings = settings
     app.state.search = search
     app.state.store = store
@@ -50,6 +51,7 @@ def create_app(
     from leadcommons.web import (
         api,
         pages,
+        pages_apiref,
         pages_engage,
         pages_extra,
         pages_insights,
@@ -59,6 +61,7 @@ def create_app(
     from leadcommons.web.auth import install_auth
 
     install_auth(app, settings)
+    app.include_router(pages_apiref.router)
     app.include_router(api.router, prefix="/api")
     # First match wins: real feature pages before the shell's placeholders, and the shell
     # (settings, onboarding, notifications) before the older handlers still in pages.py.

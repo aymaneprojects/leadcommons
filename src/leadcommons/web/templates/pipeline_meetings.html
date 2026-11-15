@@ -18,7 +18,7 @@
       <label class="sr-only" for="bk-url">Booking link</label>
       <input type="url" id="bk-url" name="booking_url" value="{{ booking_url }}" placeholder="https://cal.example.com/your-name" maxlength="500">
       <button class="btn" type="submit">Save</button>
-      <button class="btn" type="button" data-copy-from="#bk-url"{% if not booking_url %} disabled{% endif %}>{{ pi("copy", "sm") }}<span>Copy</span></button>
+      <button class="btn" type="button" data-copy-from="#bk-url"{% if not booking_url %} disabled aria-disabled="true" title="Save your booking link first, then you can copy it."{% endif %}>{{ pi("copy", "sm") }}<span>Copy</span></button>
       {% if booking_url %}<a class="btn" href="{{ booking_url }}" target="_blank" rel="noopener noreferrer">{{ pi("external-link", "sm") }}<span>Open</span></a>{% endif %}
     </form>
   </section>

@@ -2,7 +2,7 @@
 /*
  * Parity shots: put LeadCommons in the same state as each reference screenshot and capture it.
  *
- * Usage: node tools/ux_audit/parity.cjs --base http://127.0.0.1:8171 --out /tmp/parity
+ * Usage: node tools/ux_audit/parity.cjs --base http://127.0.0.1:8171 --empty-base http://127.0.0.1:8173 --out /tmp/parity
  * Writes <out>/<id>.png for every scene below and <out>/scenes.json (id, title, ok, note).
  * Each scene runs in a fresh browser context so UI state never leaks between scenes.
  */
@@ -15,9 +15,12 @@ const { chromium } = require("playwright");
 const arg = (n, d) => (process.argv.includes(`--${n}`) ? process.argv[process.argv.indexOf(`--${n}`) + 1] : d);
 const BASE = arg("base", "http://127.0.0.1:8171").replace(/\/$/, "");
 const OUT = arg("out", "parity");
+// Empty-state scenes (lists, sequences, emails, tasks) run against a server with an empty home.
+const EMPTY = arg("empty-base", BASE).replace(/\/$/, "");
 
 // Helpers used by scenes.
-const go = (p, url) => p.goto(BASE + url, { waitUntil: "networkidle" }).catch(() => p.goto(BASE + url));
+const go = (p, url, base = BASE) =>
+  p.goto(base + url, { waitUntil: "networkidle" }).catch(() => p.goto(base + url));
 const clickText = async (p, re, scope = "body") => {
   const loc = p.locator(scope).locator("button, summary, a, [role=button], [role=tab], label").filter({ hasText: re }).first();
   await loc.click({ timeout: 4000 });
@@ -57,11 +60,14 @@ const SCENES = [
   }],
   ["p1-04", "Company panel", async (p) => { await go(p, "/companies?q=bank"); await firstLink(p, "table tbody a.co-name"); }],
   ["p2-05", "Job titles filter open", async (p) => { await go(p, "/people"); await clickText(p, /job titles/i, "aside, .fpanel, form"); }],
-  ["p2-06", "Location filter open", async (p) => { await go(p, "/companies"); await clickText(p, /^\s*location/i, ".fpanel, aside, form"); }],
+  ["p2-06", "Location filter open", async (p) => { await go(p, "/people"); await clickText(p, /^\s*location/i, ".fpanel, aside, form"); }],
   ["p2-08", "Industry & keywords filter open", async (p) => { await go(p, "/companies"); await clickText(p, /industry/i, ".fpanel, aside, form"); }],
   ["p2-09", "All filters window", async (p) => { await go(p, "/companies"); await clickText(p, /view all filters|all filters/i); }],
-  ["p2-10", "# Employees filter open", async (p) => { await go(p, "/companies"); await clickText(p, /employees/i, ".fpanel, aside, form"); }],
-  ["p2-11", "Default view menu", async (p) => { await go(p, "/companies"); await clickText(p, /default view|^view/i); }],
+  ["p2-10", "# Employees in the all-filters window", async (p) => {
+    await go(p, "/companies"); await clickText(p, /view all filters|all filters/i);
+    await p.locator("#allf-dialog summary, #allf-dialog button").filter({ hasText: /employees/i }).first().click(); await p.waitForTimeout(500);
+  }],
+  ["p2-11", "Default view menu", async (p) => { await go(p, "/companies"); await p.locator("details.view-dd > summary").first().click(); await p.waitForTimeout(500); }],
   ["p2-12", "Search settings", async (p) => { await go(p, "/companies"); await p.locator("[aria-label='Search settings'], [title='Search settings']").first().click(); await p.waitForTimeout(400); }],
   ["p2-13", "Column chooser", async (p) => { await go(p, "/companies"); await clickText(p, /add column/i); }],
   ["p2-14", "Action bar, 3 rows", async (p) => { await go(p, "/companies"); await checkRows(p, 3); }],
@@ -73,22 +79,22 @@ const SCENES = [
   }],
   ["p3-18", "AI menu on a selection", async (p) => {
     await go(p, "/people"); await checkRows(p, 2);
-    await p.locator(".selbar, .bulk, [role=region]").locator("summary, button").filter({ hasText: /research with ai|ai/i }).first().click(); await p.waitForTimeout(500);
+    await p.locator(".selbar details.ai-dd > summary").first().click(); await p.waitForTimeout(500);
   }],
   ["p3-19", "Research with AI menu", async (p) => { await go(p, "/companies"); await clickText(p, /research with ai/i); }],
-  ["p3-20", "Lists (empty)", async (p) => go(p, "/lists?tab=companies")],
-  ["p4-21", "Sequences (empty)", async (p) => go(p, "/sequences")],
-  ["p4-22", "Emails (empty)", async (p) => go(p, "/emails")],
-  ["p4-23", "Tasks (empty)", async (p) => go(p, "/tasks")],
-  ["p4-24", "Ctrl+K palette", async (p) => { await go(p, "/"); await p.keyboard.press("Control+k"); await p.waitForTimeout(300); await p.keyboard.type("bank"); await p.waitForTimeout(1200); }],
+  ["p3-20", "Lists (empty)", async (p) => go(p, "/lists?tab=companies", EMPTY)],
+  ["p4-21", "Sequences (empty)", async (p) => go(p, "/sequences", EMPTY)],
+  ["p4-22", "Emails (empty)", async (p) => go(p, "/emails", EMPTY)],
+  ["p4-23", "Tasks (empty)", async (p) => go(p, "/tasks", EMPTY)],
+  ["p4-24", "Ctrl+K palette", async (p) => { await go(p, "/"); await p.keyboard.press("Control+k"); await p.waitForTimeout(800); }],
   ["p4-25", "Notifications", async (p) => { await go(p, "/"); await p.locator("[aria-label*='otification'], [title*='otification']").first().click(); await p.waitForTimeout(800); }],
   ["p4-26", "Settings menu", async (p) => { await go(p, "/companies"); await p.locator("button[data-settings-pop], aside [aria-label='Settings']").first().click(); await p.waitForTimeout(600); }],
   ["p4-27", "Settings overview", async (p) => go(p, "/settings")],
   ["p4-28", "Outbound settings", async (p) => go(p, "/settings/sending")],
   ["p4-29", "Email setup and health", async (p) => go(p, "/settings/email-health")],
   ["p4-30", "Onboarding hub (top)", async (p) => go(p, "/onboarding")],
-  ["p4-31", "Onboarding hub (bottom)", async (p) => { await go(p, "/onboarding"); await p.mouse.wheel(0, 2000); await p.waitForTimeout(500); }],
-  ["p4-32", "Assistant (empty)", async (p) => go(p, "/assistant?new=1")],
+  ["p4-31", "Onboarding hub (bottom)", async (p) => { await go(p, "/onboarding"); await p.evaluate(() => { const m = document.scrollingElement; m.scrollTop = m.scrollHeight; document.querySelectorAll("main, .main, .content").forEach((e) => { e.scrollTop = e.scrollHeight; }); }); await p.waitForTimeout(500); }],
+  ["p4-32", "Assistant side panel (empty)", async (p) => { await go(p, "/"); await p.locator("[data-assistant-panel]").first().click(); await p.waitForTimeout(1500); }],
 ];
 
 (async () => {

@@ -109,7 +109,21 @@ function listControls(scopeSel) {
       tag: el.tagName.toLowerCase(),
       text,
       disabled: !!(el.disabled || el.getAttribute("aria-disabled") === "true"),
-      reason: el.title || el.getAttribute("data-reason") || "",
+      // A reason is a native title, our CSS tooltip (data-tip), aria-describedby text, or the
+      // same on a wrapper (disabled buttons get no hover in some browsers, so wrappers carry it).
+      reason:
+        el.title ||
+        el.getAttribute("data-tip") ||
+        el.getAttribute("data-reason") ||
+        (el.getAttribute("aria-describedby") || "")
+          .split(/\s+/)
+          .map((id) => (id && document.getElementById(id)?.textContent?.trim()) || "")
+          .join(" ")
+          .trim() ||
+        [el.parentElement, el.parentElement?.parentElement]
+          .map((w) => (w && (w.getAttribute("title") || w.getAttribute("data-tip"))) || "")
+          .find(Boolean) ||
+        "",
       shared: !!el.closest("aside, .sidebar, header.topbar, .topbar"),
       href: el.tagName === "A" ? el.getAttribute("href") : null,
       download: el.tagName === "A" && (el.hasAttribute("download") || /export|\.csv|\.ics/i.test(el.getAttribute("href") || "")),

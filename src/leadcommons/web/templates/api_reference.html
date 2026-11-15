@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}API reference · LeadCommons{% endblock %}
+{% block content %}
+<style>
+  .apiref { display: grid; grid-template-columns: 220px 1fr; gap: 24px; align-items: start; }
+  .apiref nav { position: sticky; top: calc(var(--top-h) + 14px); max-height: calc(100vh - var(--top-h) - 30px); overflow-y: auto; font-size: 13px; }
+  .apiref nav a { display: block; padding: 3px 8px; color: var(--muted); text-decoration: none; border-radius: var(--radius-sm); }
+  .apiref nav a:hover { color: var(--text); background: var(--raised); }
+  .apiref nav b { display: block; margin: 12px 8px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .apiref h2 { font-family: var(--font-head); font-size: 17px; margin: 28px 0 10px; text-transform: capitalize; }
+  .op { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); margin: 0 0 10px; }
+  .op > summary { display: flex; gap: 10px; align-items: center; padding: 10px 12px; cursor: pointer; list-style: none; }
+  .op > summary::-webkit-details-marker { display: none; }
+  .op .m { font: 600 11px var(--font-mono); padding: 2px 6px; border-radius: 4px; min-width: 52px; text-align: center; background: var(--raised); color: var(--text); }
+  .op .m.GET { color: var(--ok); } .op .m.POST { color: var(--orange-text); } .op .m.DELETE { color: var(--red); } .op .m.PATCH, .op .m.PUT { color: var(--amber); }
+  .op code.p { font: 13px var(--font-mono); }
+  .op .s { color: var(--muted); margin-left: auto; font-size: 13px; text-align: right; }
+  .op .body { padding: 0 12px 12px; border-top: 1px solid var(--line); }
+  .op table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  .op th, .op td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .op th { color: var(--muted); font-weight: 500; }
+  .op pre { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px 10px; overflow-x: auto; font: 12px var(--font-mono); margin: 10px 0 0; }
+  .req { color: var(--orange-text); font-size: 11px; margin-left: 4px; }
+  @media (max-width: 800px) { .apiref { grid-template-columns: 1fr; } .apiref nav { position: static; max-height: none; } .op .s { display: none; } }
+</style>
+<div class="page-head">
+  <div>
+    <h1>API reference</h1>
+    <p class="muted">{{ ref.count }} endpoints · version {{ ref.version }}. Send <code>Authorization: Bearer lc_…</code> with a token from <a href="/settings/api">API tokens</a> when LeadCommons runs on a server. The raw schema is at <a href="/openapi.json"><code>/openapi.json</code></a>.</p>
+  </div>
+</div>
+<div class="apiref">
+  <nav aria-label="API sections">
+    {% for tag, ops in ref.groups %}<a href="#tag-{{ tag }}">{{ tag }} <span class="muted">({{ ops|length }})</span></a>{% endfor %}
+    {% if ref.schemas %}<b>Data shapes</b>{% for sc in ref.schemas %}<a href="#schema-{{ sc.name }}">{{ sc.name }}</a>{% endfor %}{% endif %}
+  </nav>
+  <div>
+    {% for tag, ops in ref.groups %}
+    <h2 id="tag-{{ tag }}">{{ tag }}</h2>
+    {% for op in ops %}
+    <details class="op" id="{{ op.id }}">
+      <summary><span class="m {{ op.method }}">{{ op.method }}</span><code class="p">{{ op.path }}</code><span class="s">{{ op.summary }}</span></summary>
+      <div class="body">
+        {% if op.about %}<p>{{ op.about }}</p>{% endif %}
+        {% if op.params %}
+        <table><thead><tr><th>Parameter</th><th>In</th><th>Type</th><th>About</th></tr></thead><tbody>
+          {% for p in op.params %}<tr><td><code>{{ p.name }}</code>{% if p.required %}<span class="req">required</span>{% endif %}</td><td>{{ p.where }}</td><td><code>{{ p.type }}</code></td><td>{{ p.about }}</td></tr>{% endfor %}
+        </tbody></table>
+        {% endif %}
+        {% if op.body %}<p class="muted">Body: <code>{{ op.body.type or "object" }}</code> as {{ op.body.media }}</p>{% endif %}
+        {% if op.returns %}<p class="muted">Returns: {% if op.returns in ref.schemas|map(attribute="name")|list %}<a href="#schema-{{ op.returns }}"><code>{{ op.returns }}</code></a>{% else %}<code>{{ op.returns }}</code>{% endif %}</p>{% endif %}
+        <pre>curl -X {{ op.method }} {% if op.body and op.body.media == "application/json" %}-H 'Content-Type: application/json' -d '{}' {% endif %}-H "Authorization: Bearer $LEADCOMMONS_TOKEN" '{{ base }}{{ op.path }}'</pre>
+      </div>
+    </details>
+    {% endfor %}
+    {% endfor %}
+    {% if ref.schemas %}
+    <h2>Data shapes</h2>
+    {% for sc in ref.schemas %}
+    <details class="op" id="schema-{{ sc.name }}">
+      <summary><span class="m">TYPE</span><code class="p">{{ sc.name }}</code><span class="s">{{ sc.fields|length }} fields</span></summary>
+      <div class="body">
+        {% if sc.about %}<p>{{ sc.about }}</p>{% endif %}
+        <table><thead><tr><th>Field</th><th>Type</th></tr></thead><tbody>
+          {% for f in sc.fields %}<tr><td><code>{{ f.name }}</code>{% if f.required %}<span class="req">required</span>{% endif %}</td><td><code>{{ f.type }}</code></td></tr>{% endfor %}
+        </tbody></table>
+      </div>
+    </details>
+    {% endfor %}
+    {% endif %}
+  </div>
+</div>
+<script>
+  // Open the section named in the address bar (#get-api-companies) so links land on it.
+  (function () {
+    var el = location.hash && document.getElementById(location.hash.slice(1));
+    if (el && el.tagName === "DETAILS") el.open = true;
+  })();
+</script>
+{% endblock %}
