@@ -536,7 +536,7 @@ table.data td[data-col="phone"] .phone:hover { color: var(--orange-text); }
 /* ---------- Search settings drawer ---------- */
 .ss-scrim { display: none; }
 html.ss-open .ss-scrim { display: block; position: fixed; inset: 0 min(400px, 100vw) 0 0; background: rgba(0, 0, 0, .38); z-index: 59; }
-.ss-drawer { width: min(400px, 100vw); }
+.ss-drawer { width: min(480px, 100vw); }
 .ss-drawer .ss-view { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .ss-drawer .ss-view[hidden] { display: none; }
 .sidepanel.ss-drawer .sp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 16px 16px 12px 20px; border-bottom: 0; margin: 0; font-weight: 400; }

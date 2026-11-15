@@ -62,6 +62,7 @@ code, .mono { font-family: var(--font-mono); font-size: .92em; }
 html.nav-collapsed { --sb-w: 60px; }
 .sidebar {
   position: sticky; top: 0; height: 100vh; overflow-y: auto; overflow-x: hidden;
+  z-index: 30; /* its flyouts must cover sticky panels in the page; drawers (45+) still cover it */
   background: var(--surface); border-right: 1px solid var(--line);
   display: flex; flex-direction: column; padding: 12px 10px; gap: 4px;
 }
@@ -248,7 +249,7 @@ html.js .bulk:not(.active) { display: none; }
 #drawer { position: fixed; inset: 0 0 0 auto; width: min(520px, 100vw); z-index: 50; background: var(--surface); border-left: 1px solid var(--line); box-shadow: var(--shadow); overflow-y: auto; }
 /* The scrim lives inside #drawer, so it must stop where the panel starts: a full-screen scrim
    would paint over the panel's own buttons and swallow their clicks. */
-.drawer-scrim { position: fixed; inset: 0 min(520px, 100vw) 0 0; background: rgba(0, 0, 0, .35); z-index: 45; }
+.drawer-scrim { position: fixed; inset: 0 min(520px, 100vw) 0 0; background: rgba(0, 0, 0, .58); z-index: 45; }
 .drawer-head { padding: 18px 20px 12px; border-bottom: 1px solid var(--line); display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; }
 .drawer-body { padding: 16px 20px 40px; display: grid; gap: 18px; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
