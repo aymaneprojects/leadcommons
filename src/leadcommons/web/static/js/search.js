@@ -558,7 +558,7 @@
     else if (t.matches('input[name="list_id"]') && t.getAttribute("data-new-radio") === null) {
       var nn = $("#sd-new"); if (nn) nn.value = "";
     } else if (t.classList.contains("rowcb") || t.classList.contains("allcb")) updateSelCount();
-    if (t.matches("[data-save-opt]") && t.closest("#save-dialog")) {
+    if (t.closest("#save-dialog")) {
       syncSaveForm();
       if (!t.matches("[name=dest_new]")) refreshSummary();
     }
@@ -605,16 +605,20 @@
   doc.addEventListener("htmx:afterRequest", function (e) {
     var el = e.detail && e.detail.elt; if (!el || !el.closest || !e.detail.successful) return;
     var pop = el.closest(".addlist"); if (pop) { var dd = pop.closest("details.dd"); if (dd) dd.open = false; }
-    if (el.closest("#save-dialog")) {
-      var hdr = (e.detail.xhr && e.detail.xhr.getResponseHeader("HX-Trigger")) || "";
+    var hdr = (e.detail.xhr && e.detail.xhr.getResponseHeader("HX-Trigger")) || "";
+    var win = el.closest("#save-dialog, #list-dialog");
+    if (win) {
       if (hdr.indexOf('"error"') >= 0) { /* nothing was saved: keep the window open */
-        var sd = $("#save-dialog"); if (sd && !sd.open) sd.showModal();
+        if (!win.open) win.showModal();
         return;
       }
+      if (hdr.indexOf('"lc-export"') >= 0) exportKept($("#bulk"));
       clearSelection();
       /* re-render the results so "Saved" chips, counts and the list sizes are current */
-      if (window.htmx) window.htmx.ajax("GET", location.pathname + location.search, { target: "#workspace", select: "#workspace", swap: "outerHTML" });
+      reloadWorkspace();
+      return;
     }
+    if (el.closest("[data-view-act]") && hdr.indexOf('"error"') < 0) reloadWorkspace(reopenViewMenu);
   });
 
   function syncFiltersLabel() {
