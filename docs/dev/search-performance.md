@@ -83,11 +83,11 @@ Building the index (once per download, in the download job):
 
 | | 12.0M rows, 8 files |
 |---|---|
-| time (4 threads, build memory 2 GB) | 73 s, of which the FR file (7M rows) ~45 s |
-| peak resident memory | 2.1 GB at the 2 GB build limit (an earlier build at a 1 GB limit peaked at 1.2 GB and took 1.6x longer) |
+| time (4 threads, build memory 2 GB) | 81 s for the 8 files and the combined key table; the FR file (7M rows) alone 50 s at a 1 GB limit |
+| peak resident memory | 2.0 GB at the 2 GB build limit; ~1.2 GB at a 1 GB limit (sorts run in chunks, see the 30M run) |
 | disk | 1.16 GB of indexes + 279 MB combined key table, next to 563 MB of Parquet |
 
-So a downloaded country takes about 2.5x its Parquet size on disk (Parquet plus index).
+So a downloaded country takes about 3.5x its Parquet size on disk in total (Parquet plus index).
 
 ## 30M rows (the "30M+ in total" case)
 
@@ -197,16 +197,18 @@ disk beyond it.
   through the `places` table, would make them instant.
 - **Free text** is a substring scan of `txt` (no word index: DuckDB's full-text extension is
   downloaded at runtime, which the offline desktop app cannot rely on). It grows linearly with the
-  rows of the countries searched: ~0.2 s per 12M rows on 4 threads, ~0.4 s on 2.
+  rows of the countries searched: ~0.2 s per 12M rows on 4 threads, ~0.4 s on 2 (~0.45 s for
+  30M rows on 4 threads).
 - **Cold row fetches**: `get_company` for a company whose data is not cached reads one 64 KB block
   per column (~10-20 ms). Pages that call it in a loop for many saved companies would be faster
   with `get_companies(ids)`, which fetches many in one query (not used by the pages yet).
 - **Deep pages** cost more: page N reads the first N x 25 rows of each pack (page 40: ~90 ms).
-- **Index build** takes about 45 s per 7M rows on 4 threads and up to 2 GB of memory (it spills
-  beyond the limit); it runs once per download, with progress shown in the jobs menu.
-- **Disk**: the index roughly doubles the space a country takes. The Parquet file is kept so a
-  new index format can be built without downloading again; deleting it after indexing would save
-  ~40%.
+- **Index build** takes about 50 s per 7M rows on 4 threads (230 s for 30M rows) and stays
+  within the build memory limit (sorted in chunks, spilling beyond it); it runs once per
+  download, with progress shown in the jobs menu.
+- **Disk**: the index takes 2-2.5x the Parquet size (3.6 GB of indexes for 30M rows). The
+  Parquet file is kept so a new index format can be built without downloading again; deleting it
+  after indexing would save ~30%.
 - Packs over 300,000 rows that have no index yet (copied by hand, or an index format change after
   an update) are searched through Parquet views at the old speed until their index is built (the
   desktop app starts that by itself; Settings > Data packs offers a button).
