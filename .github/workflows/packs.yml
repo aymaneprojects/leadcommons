@@ -204,9 +204,14 @@ jobs:
       - name: Merge shards
         env:
           RELEASE: ${{ needs.plan.outputs.release }}
+          PUBLISH: ${{ needs.plan.outputs.publish }}
         run: |
           ls -l shards
-          uv run leadcommons pack merge shards --out packs-out --release "$RELEASE"
+          extra=()
+          # Test runs use 5,000-row samples: a GLEIF row whose company is not in the register's
+          # sample would be dropped as "not in register", so keep those rows when testing.
+          if [ "$PUBLISH" != "true" ]; then extra+=(--keep-unregistered); fi
+          uv run leadcommons pack merge shards --out packs-out --release "$RELEASE" "${extra[@]}"
           ls -l packs-out
       - name: Quality report
         run: uv run leadcommons pack quality packs-out

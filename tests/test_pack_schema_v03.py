@@ -60,7 +60,8 @@ def test_schema_types() -> None:
 def test_old_packs_without_new_columns_still_load(tmp_path: Path) -> None:
     old = tmp_path / "companies-old.parquet"
     duckdb.connect().execute(
-        f"COPY (SELECT 'co_old' AS id, 'Old Co' AS name, 'FR' AS country) TO '{old}' (FORMAT PARQUET)"
+        "COPY (SELECT 'co_old' AS id, 'Old Co' AS name, 'FR' AS country) "
+        f"TO '{old}' (FORMAT PARQUET)"
     )
     search = DuckDBCompanySearch(tmp_path)
     page = search.search_companies(CompanyFilters(text="old"), per_page=5)
