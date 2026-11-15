@@ -1,4 +1,5 @@
 {% from "_macros.html" import ic, avatar %}
+{% from "_results_macros.html" import tipwrap %}
 {% from "_search_profile.html" import profile_actions, contact_card, company_fields, insights_card, activity_panel %}
 {% set back = "/people/" ~ person.id %}
 {% if page_mode is not defined %}<div class="drawer-scrim" data-close-drawer></div>{% endif %}
@@ -19,7 +20,7 @@
   <div class="cp-actions">
     {{ profile_actions("person", person.id, back, lists, phone, tel, demo, person, company, is_saved, best is not none) }}
     <form method="post" action="/people/{{ person.id }}/find-email" hx-post="/people/{{ person.id }}/find-email" hx-swap="none" hx-push-url="false">
-      <button class="btn primary" type="submit"{% if demo %} disabled data-tip="{{ demo_reason }}"{% endif %}>{{ ic("mail") }}<span>Find email</span></button>
+      {% call tipwrap(demo_reason, demo) %}<button class="btn primary" type="submit"{% if demo %} disabled{% endif %}>{{ ic("mail") }}<span>Find email</span></button>{% endcall %}
     </form>
   </div>
   <div class="tabs" role="tablist" data-tabs aria-label="Person sections">

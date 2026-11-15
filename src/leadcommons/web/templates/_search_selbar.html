@@ -33,8 +33,7 @@
   {{ tipbtn("list-plus", "Add to list", 'data-open-dialog="list-dialog"') }}
   <button type="submit" form="bulk" formaction="/bulk/export.csv" class="btn icon-only" data-tip="Export CSV" aria-label="Export CSV" aria-describedby="export-what">{{ ri("download") }}</button>
   <span class="sr-only" id="export-what">{% if s.kind == "companies" %}A CSV with name, domain, country, city, industry, size, LEI and Wikidata id.{% else %}A CSV with name, title, company domain, email, status, confidence and sources. Opted-out addresses are left out.{% endif %}</span>
-  <span class="tb-gap"></span>
-  {{ ai_menu("AI research", True, kind=s.kind, llm=s.llm, demo=s.demo) }}
+  {{ ai_menu("Research with AI", True, kind=s.kind, llm=s.llm, demo=s.demo) }}
   <details class="dd sel-dd">
     <summary class="btn sel-split" data-tip="Send to another tool" aria-label="Send to another tool">{{ ri("cloud-upload") }}{{ ri("chevron-down", "sm") }}</summary>
     <div class="menu right">

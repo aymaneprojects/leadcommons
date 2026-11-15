@@ -25,11 +25,11 @@ DEMO_REASON = (
     "Disabled in the public demo. Install LeadCommons on your computer or server to refresh "
     "company insights."
 )
-TABS = (
+TABS = (  # reference order; News and Website visitors are drawn disabled in the template
     ("overview", "Overview"),
     ("technologies", "Technologies"),
-    ("jobs", "Job postings"),
     ("funding", "Funding"),
+    ("jobs", "Job postings"),
     ("trends", "Employee trends"),
     ("contact", "Contact"),
 )

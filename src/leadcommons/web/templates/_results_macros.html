@@ -21,3 +21,10 @@
   {% for v, label in options %}<label class="seg2-opt"><input type="radio" name="{{ name }}" value="{{ v }}" {% if v == value %}checked{% endif %}{% if disabled %} disabled{% endif %}><span>{{ label }}</span></label>{% endfor %}
 </div>
 {%- endmacro %}
+
+{# Wrap a control that may be disabled: the reason shows on hover of the wrapper (disabled
+   buttons get no hover in some browsers) and is read out next to it.
+   {% call tipwrap(reason, is_off) %}<button ... {% if is_off %}disabled{% endif %}>..</button>{% endcall %} #}
+{% macro tipwrap(reason, on=True, inline=True) -%}
+{%- if on and reason %}<span class="tipwrap{% if inline %} inline{% endif %}" data-tip="{{ reason }}" tabindex="0">{{ caller() }}<span class="sr-only">{{ reason }}</span></span>{% else %}{{ caller() }}{% endif -%}
+{%- endmacro %}

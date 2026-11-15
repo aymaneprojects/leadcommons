@@ -40,7 +40,7 @@
           <div class="save-tile">
             <label class="tile-head" for="sv-list">{{ ri("list-plus") }}<span>Add to list</span></label>
             <select id="sv-list" name="dest_list" data-save-opt>
-              <option value="">{{ "Default list: Saved people" if people_kind else "No list, just save them" }}</option>
+              <option value="">{{ "Saved people (default)" if people_kind else "No list, just save" }}</option>
               {% for li in lists %}<option value="{{ li.id }}">{{ li.name }} ({{ li.size }})</option>{% endfor %}
               <option value="new">New list…</option>
             </select>

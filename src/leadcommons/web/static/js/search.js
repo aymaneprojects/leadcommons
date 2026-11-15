@@ -606,7 +606,7 @@
     var el = e.detail && e.detail.elt; if (!el || !el.closest || !e.detail.successful) return;
     var pop = el.closest(".addlist"); if (pop) { var dd = pop.closest("details.dd"); if (dd) dd.open = false; }
     var hdr = (e.detail.xhr && e.detail.xhr.getResponseHeader("HX-Trigger")) || "";
-    var win = el.closest("#save-dialog, #list-dialog");
+    var win = el.closest("#save-dialog, #list-dialog, #contact-dialog");
     if (win) {
       if (hdr.indexOf('"error"') >= 0) { /* nothing was saved: keep the window open */
         if (!win.open) win.showModal();
@@ -790,18 +790,18 @@
       .then(function () { btn.disabled = false; });
   }
 
-  /* ---- row menus float above the table (it scrolls and would clip them) ---- */
+  /* ---- row menus (results rows, saved-view rows) float above their scrolling box ---- */
   doc.addEventListener("toggle", function (e) {
     var d = e.target;
-    if (!d.matches || !d.matches(".ract-dd") || !d.open) return;
-    var menu = $(".ract-menu", d), r = $("summary", d).getBoundingClientRect();
+    if (!d.matches || !d.matches(".ract-dd, .vrow-dd") || !d.open) return;
+    var menu = $(".ract-menu, .vrow-menu", d), r = $("summary", d).getBoundingClientRect();
     menu.style.position = "fixed"; menu.style.left = "auto"; menu.style.right = Math.max(8, window.innerWidth - r.right) + "px";
     var h = menu.offsetHeight;
     menu.style.top = (r.bottom + 4 + h > window.innerHeight ? Math.max(8, r.top - h - 4) : r.bottom + 4) + "px";
   }, true);
   doc.addEventListener("scroll", function (e) {
-    if (e.target && e.target.nodeType === 1 && e.target.closest && e.target.closest(".ract-dd")) return;
-    $$(".ract-dd[open]").forEach(function (d) { d.open = false; });
+    if (e.target && e.target.nodeType === 1 && e.target.closest && e.target.closest(".ract-dd, .vrow-dd")) return;
+    $$(".ract-dd[open], .vrow-dd[open]").forEach(function (d) { d.open = false; });
   }, true);
 
   doc.addEventListener("click", function (e) {
@@ -828,4 +828,82 @@
     if (t.closest("[data-ai-run]")) { runAi(); return; }
     if (t.closest("[data-temp-remove]")) { removeTemp(); return; }
   });
+})();
+
+/* Records: company drawer (suggested leads, show more), card folds, insights collapse, the
+   score picker of the contact card. */
+(function () {
+  var doc = document;
+  function $(sel, root) { return (root || doc).querySelector(sel); }
+  function $$(sel, root) { return Array.prototype.slice.call((root || doc).querySelectorAll(sel)); }
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage unavailable */ } }
+
+  function filterLeads(card) {
+    var tab = $("[data-lead-tab][aria-selected=true]", card), group = tab ? tab.getAttribute("data-lead-tab") : "all";
+    var box = $("[data-lead-search]", card), q = box ? box.value.trim().toLowerCase() : "", n = 0;
+    $$("[data-lead-groups]", card).forEach(function (li) {
+      var ok = li.getAttribute("data-lead-groups").split(" ").indexOf(group) >= 0 && (!q || li.getAttribute("data-text").indexOf(q) >= 0);
+      li.hidden = !ok; if (ok) n++;
+    });
+    var empty = $("[data-lead-empty]", card); if (empty) empty.hidden = n > 0;
+  }
+  function applyInsFold() {
+    var folded = lsGet("lc-ins-folded") === "1";
+    $$("[data-ins]").forEach(function (sec) {
+      sec.classList.toggle("folded", folded);
+      var b = $("[data-ins-fold]", sec);
+      if (b) {
+        b.setAttribute("aria-expanded", String(!folded)); b.title = folded ? "Expand" : "Collapse";
+        b.setAttribute("aria-label", (folded ? "Expand" : "Collapse") + " company insights");
+      }
+    });
+  }
+  function applyScores() {
+    $$("[data-score-pick]").forEach(function (box) {
+      var sel = $("[data-score-sel]", box), want = lsGet("lc-score-view") || "email";
+      if (sel && $('option[value="' + want + '"]', sel)) sel.value = want;
+      var v = sel ? sel.value : "email";
+      $$("[data-score]", box).forEach(function (s) { s.hidden = s.getAttribute("data-score") !== v; });
+      box.classList.add("ready");
+    });
+  }
+  doc.addEventListener("click", function (e) {
+    var t = e.target.closest ? e.target : e.target.parentElement;
+    if (!t || !t.closest) return;
+    var el;
+    if ((el = t.closest("[data-lead-tab]"))) {
+      var card = el.closest("[data-leads]");
+      $$("[data-lead-tab]", card).forEach(function (b) { b.setAttribute("aria-selected", String(b === el)); });
+      filterLeads(card); return;
+    }
+    if ((el = t.closest("[data-ins-fold]"))) {
+      lsSet("lc-ins-folded", lsGet("lc-ins-folded") === "1" ? "0" : "1"); applyInsFold(); return;
+    }
+    if ((el = t.closest("[data-fold]"))) {
+      var host = el.closest("[data-foldable]"), body = host && $("[data-fold-body]", host);
+      if (!body) return;
+      body.hidden = !body.hidden; host.classList.toggle("folded", body.hidden);
+      el.setAttribute("aria-expanded", String(!body.hidden)); el.title = body.hidden ? "Expand" : "Collapse";
+      return;
+    }
+    if ((el = t.closest("[data-show-more]"))) {
+      var dd = el.closest("dd"), open = el.getAttribute("aria-expanded") !== "true";
+      $$("[data-extra]", dd).forEach(function (x) { x.hidden = !open; });
+      el.setAttribute("aria-expanded", String(open));
+      el.firstChild.nodeValue = open ? "Show fewer " : "Show all ";
+    }
+  });
+  doc.addEventListener("input", function (e) {
+    var t = e.target;
+    if (t.matches && t.matches("[data-lead-search]")) filterLeads(t.closest("[data-leads]"));
+  });
+  doc.addEventListener("change", function (e) {
+    var t = e.target;
+    if (t.matches && t.matches("[data-score-sel]")) { lsSet("lc-score-view", t.value); applyScores(); }
+  });
+  function init() { applyInsFold(); applyScores(); }
+  doc.addEventListener("htmx:afterSettle", init);
+  doc.addEventListener("htmx:load", init);
+  init();
 })();

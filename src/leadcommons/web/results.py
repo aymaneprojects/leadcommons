@@ -24,13 +24,13 @@ from leadcommons.store.tables import SavedSearchRow
 # an editable copy.
 SYSTEM_VIEWS: dict[str, tuple[tuple[str, str, str], ...]] = {
     "people": (
-        ("default", "Default view", ""),
+        ("default", "Default view", "all=1"),
         ("saved", "People in your lists", "tab=saved"),
         ("new", "People not in a list yet", "tab=new"),
         ("valid", "People with a valid email", "status=valid"),
     ),
     "companies": (
-        ("default", "Default view", ""),
+        ("default", "Default view", "all=1"),
         ("saved", "Companies you saved", "tab=saved"),
         ("new", "Companies not saved yet", "tab=new"),
     ),
@@ -57,8 +57,15 @@ def view_payload(filters_json: str) -> dict[str, Any]:
     return {"query": str(raw), "starred": False}
 
 
+IGNORED_PARAMS = {"all", "page", "notice"}  # "all=1" only skips the landing screen
+
+
+def _pairs(query: str) -> list[tuple[str, str]]:
+    return sorted((k, v) for k, v in parse_qsl(query) if k not in IGNORED_PARAMS)
+
+
 def _same_query(a: str, b: str) -> bool:
-    return sorted(parse_qsl(a)) == sorted(parse_qsl(b))
+    return _pairs(a) == _pairs(b)
 
 
 def view_rows(kind: str, store: Any, current_qs: str, base: str) -> dict[str, Any]:
@@ -66,7 +73,7 @@ def view_rows(kind: str, store: Any, current_qs: str, base: str) -> dict[str, An
     rows: list[dict[str, Any]] = []
     current = ""
     for key, name, query in SYSTEM_VIEWS.get(kind, ()):
-        active = _same_query(query, current_qs) if query else not current_qs
+        active = _same_query(query, current_qs)
         if active and not current:
             current = name
         rows.append(

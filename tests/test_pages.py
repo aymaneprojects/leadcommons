@@ -125,12 +125,14 @@ def test_login_template_renders(app: FastAPI) -> None:
 
 
 def test_companies_lists_all_and_filters(client: TestClient) -> None:
-    html = client.get("/companies").text
-    assert "Atelier Nuage" in html and "Kestrel Systems" in html
-    assert "Top countries" in html
+    landing = client.get("/companies").text  # no filter yet: AI prompt + quick filters, no table
+    assert "Quick filters" in landing and "data-ai-box" in landing and "<table" not in landing
+    assert 'href="/companies?all=1"' in landing
+    html = client.get("/companies?all=1").text
+    assert "Atelier Nuage" in html and "Kestrel Systems" in html and "Quick filters" not in html
     html = client.get("/companies?country=DE").text
     assert "Nordwind Data" in html and "Atelier Nuage" not in html
-    assert "Top countries" not in html
+    assert "Quick filters" not in html
     html = client.get("/companies?size=1-10&country=FR").text
     assert "Moss and Pine" in html and "Atelier Nuage" not in html
     html = client.get("/companies?q=kestrel").text
@@ -242,14 +244,14 @@ def test_bulk_find_people_skips_missing_domain(app: FastAPI, client: TestClient)
 def test_people_page_empty_and_filters(client: TestClient, seeded: FastAPI) -> None:
     empty = TestClient(make_app(Path("/tmp"))).get("/people").text
     assert "No people yet" in empty and "Companies" in empty
-    html = client.get("/people").text
+    html = client.get("/people?all=1").text
     assert "Claire Martin" in html and "claire.martin@ateliernuage.example" in html
     assert "Jonas Weber" in html
     html = TestClient(seeded).get("/people?q=sales").text
     assert "Jonas Weber" in html and "Claire Martin" not in html
     html = TestClient(seeded).get("/people?status=valid").text
     assert "Claire Martin" in html and "Jonas Weber" not in html
-    html = TestClient(seeded).get("/people?status=bogus&seniority=nope").text
+    html = TestClient(seeded).get("/people?status=bogus&seniority=nope&all=1").text
     assert "Claire Martin" in html  # invalid values are ignored
 
 
@@ -465,14 +467,15 @@ def test_size_range_maps_to_buckets(client: TestClient) -> None:
 
 
 def test_column_chooser_markup(client: TestClient, seeded: FastAPI) -> None:
-    html = client.get("/companies").text
+    html = client.get("/companies?all=1").text
     assert 'id="col-chooser"' in html and "Add column" in html
-    for key in ("domain", "country", "city", "founded", "lei", "wikidata"):
-        assert f'data-col-toggle="{key}"' in html
+    for key in ("domain", "country", "city", "founded", "lei", "wikidata", "phone"):
+        assert f'"key": "{key}"' in html  # field editor data (the drawer builds the rows)
     assert 'data-col="lei" hidden' in html  # optional columns start hidden
     assert 'data-col="sources"' in html and 'data-col="sources" hidden' not in html
-    people = TestClient(seeded).get("/people").text
-    assert 'data-key="lc-cols-people"' in people and 'data-col-toggle="seniority"' in people
+    people = TestClient(seeded).get("/people?all=1").text
+    assert 'data-key="lc-cols-people"' in people and '"key": "seniority"' in people
+    assert 'data-col="phone"' in people and 'data-col="phone" hidden' not in people
 
 
 def test_filter_badges_and_clearing(client: TestClient) -> None:
@@ -558,7 +561,7 @@ def test_include_exclude_titles_and_similar(tmp_path: Path) -> None:
     assert names("?title=founder&xtitle=cto") == set()
     assert names("?title=ceo&title_add=sales") == {"Ann One", "Bob Two", "Ed Five"}
     html = client.get("/people?title=ceo&xtitle=cto").text
-    assert "Include titles" in html and "Exclude titles" in html
+    assert "Titles:" in html and "Not titles:" in html
 
 
 def test_people_location_filter_uses_company_data(tmp_path: Path) -> None:
@@ -589,17 +592,17 @@ def test_person_page_contact_score_and_optout(seeded: FastAPI) -> None:
 def test_company_panel_tabs_and_sources(app: FastAPI, client: TestClient) -> None:
     cid = ids(app)["Atelier Nuage"]
     html = client.get(f"/companies/{cid}", headers=HX).text
-    for tab in ("Overview", "People", "Sources"):
+    for tab in ("Overview", "People", "Locations", "Sources"):
         assert tab in html
-    assert 'data-panel="sources"' in html and "Find people" in html
+    assert 'data-panel="locations"' in html and "Find more people" in html
 
 
 def test_saved_views_and_settings_markup(app: FastAPI, client: TestClient) -> None:
     app.state.store.save_search("German", "companies", json.dumps({"query": "country=DE"}))
     html = client.get("/companies?country=DE").text
-    assert 'class="menu-item vitem on"' in html and "Save current view" in html
+    assert 'class="vitem on"' in html and "Create saved search" in html
     assert "Results per page" in html and 'data-pref="compact"' in html
-    assert "Run a custom prompt" in html and "From a list of URLs" in html
+    assert "Run a custom prompt" in html and "Single company" in html
 
 
 def test_search_css_scrim_matches_drawer_width() -> None:
@@ -683,8 +686,8 @@ def test_every_dialog_and_fragment_link_hits_a_contract_endpoint(stubbed: FastAP
     client = TestClient(stubbed)
     pid, cid = person_id(stubbed), ids(stubbed)["Atelier Nuage"]
     pages = [
-        client.get("/people").text,
-        client.get("/companies").text,
+        client.get("/people?all=1").text,
+        client.get("/companies?all=1").text,
         client.get(f"/people/{pid}").text,
         client.get(f"/people/{pid}", headers=HX).text,
         client.get(f"/companies/{cid}").text,
@@ -702,7 +705,7 @@ def test_every_dialog_and_fragment_link_hits_a_contract_endpoint(stubbed: FastAP
 def test_row_actions_use_contract_parameters(stubbed: FastAPI) -> None:
     client = TestClient(stubbed)
     pid = person_id(stubbed)
-    html = client.get("/people").text
+    html = client.get("/people?all=1").text
     assert f"/partials/email-compose?person_id={pid}" in html
     assert f"/partials/sequence-picker?ids={pid}" in html
     assert f"/partials/call-log?person_id={pid}" in html
@@ -710,7 +713,7 @@ def test_row_actions_use_contract_parameters(stubbed: FastAPI) -> None:
         assert f"/partials/{path}?person_id={pid}&amp;company_id=" in html
     assert "Find email" in html and f"/people/{pid}/find-email" in html
     cid = ids(stubbed)["Atelier Nuage"]
-    html = client.get("/companies").text
+    html = client.get("/companies?all=1").text
     assert f"/partials/task-new?company_id={cid}" in html
     for path in ("deal-new", "note-new", "meeting-new"):
         assert f"/partials/{path}?company_id={cid}" in html
@@ -734,7 +737,7 @@ def test_call_is_a_tel_link_only_when_a_phone_is_known(
     html = client.get(f"/people/{pid}").text
     assert 'href="tel:+33472001122"' in html and "+33 4 72 00 11 22" in html
     assert "No phone data" not in html and "Log a call" in html
-    assert 'href="tel:+33472001122"' in client.get("/people").text  # row menu
+    assert 'href="tel:+33472001122"' in client.get("/people?all=1").text  # row menu
     assert 'href="tel:+33472001122"' in client.get(f"/companies/{cid}", headers=HX).text
 
 
@@ -748,7 +751,7 @@ def test_selection_bar_actions(stubbed: FastAPI) -> None:
     assert "/partials/call-log?person_id={id}" in bar
     assert 'data-open-dialog="task-dialog"' in bar and 'data-open-dialog="save-dialog"' in bar
     assert "/bulk/find-emails" in bar and "/bulk/export.csv" in bar and "data-tip=" in bar
-    assert "Opted-out addresses are never included" in bar
+    assert "Opted-out addresses are left out" in bar
     assert "/bulk/suppress" in bar and "Set up an integration" in bar
     assert "workflows/new?source=people&amp;query=country%3DDE%26sort%3Dname" in bar
     assert (
@@ -786,10 +789,11 @@ def test_person_page_activity_insights_score_and_dnc(stubbed: FastAPI) -> None:
     html = client.get(f"/people/{pid}").text
     assert f"/partials/activity?person_id={pid}&amp;company_id={cid}" in html
     assert f"/partials/insights?company_id={cid}&amp;tab=overview" in html
-    assert "Website visitors" in html and "Needs a tracking script" not in html
-    assert "need a tracking script on your own website" in html and "News" in html
+    # News and Website visitors are disabled tabs inside the insights card (see
+    # tests/test_search_parity_v3.py), no longer a row under it
+    assert 'class="tab-off"' not in html
     assert "Profile completeness" in html and "Email verified" in html
-    assert "Do not contact" in html and "Mark this person as do not contact" in html
+    assert "do-not-contact list" in html and "Mark as do not contact" in html
     assert f'action="/people/{pid}/suppress"' in html
 
 
@@ -797,9 +801,9 @@ def test_company_panel_has_activity_insights_score_and_dnc(stubbed: FastAPI) -> 
     client = TestClient(stubbed)
     cid = ids(stubbed)["Atelier Nuage"]
     html = client.get(f"/companies/{cid}", headers=HX).text
-    assert 'data-panel="activity"' in html and f"/partials/activity?company_id={cid}" in html
+    assert "Activity" in html and f"/partials/activity?company_id={cid}" in html
     assert f"/partials/insights?company_id={cid}&amp;tab=overview" in html
-    assert "Insights refreshed" in html and "Company profile completeness" in html
+    assert "Insights refreshed" in html and "Company record completeness" in html
     assert f'action="/companies/{cid}/suppress"' in html and "Mark everyone at this company" in html
     dnc = html[html.index('aria-label="Do not contact"') :]
     assert 'hx-target="#drawer"' in dnc.split("</form>")[0]  # the drawer keeps you on the results
@@ -840,7 +844,7 @@ def test_person_suppress_and_unsuppress(stubbed: FastAPI) -> None:
     html = client.get(f"/people/{pid}").text
     assert "On your do-not-contact list" in html and f'action="/people/{pid}/unsuppress"' in html
     r = client.post(f"/people/{pid}/unsuppress", headers={**HX, "HX-Target": "drawer"})
-    assert r.status_code == 200 and "<html" not in r.text and "Mark this person" in r.text
+    assert r.status_code == 200 and "<html" not in r.text and "Mark as do not contact" in r.text
     assert addr not in store.suppressed and "removed" in r.headers["HX-Trigger"].lower()
     r = client.post(f"/people/{pid}/unsuppress", headers=HX)
     assert r.status_code == 200 and "error" in r.headers["HX-Trigger"]
@@ -998,7 +1002,7 @@ def test_demo_mode_disables_crawling_actions(tmp_path: Path) -> None:
     for url in ("/people", "/companies", f"/people/{p.id}", f"/companies/{co.id}"):
         html = client.get(url, headers=HX if "/" in url[1:] else {}).text
         assert "Turned off in the public demo" in html, url
-    assert 'disabled data-tip="Turned off in the public demo' in client.get("/people").text
+    assert 'disabled data-tip="Turned off in the public demo' in client.get("/people?all=1").text
     for path, data in (
         (f"/companies/{co.id}/refresh-insights", {}),
         (f"/companies/{co.id}/find-people", {}),
@@ -1054,8 +1058,11 @@ def test_ai_menu_is_disabled_with_a_how_to_without_a_model(
     monkeypatch.delenv("LEADCOMMONS_LLM_MODEL", raising=False)
     html = TestClient(stubbed).get("/people").text
     items = ai_items(html)
-    assert items and all("disabled" in i and "LEADCOMMONS_LLM_URL" in i for i in items)
-    assert "Open the Assistant" in html
+    assert items and all(
+        'aria-disabled="true"' in i and "LEADCOMMONS_LLM_URL" in i and "aria-describedby" in i
+        for i in items
+    )
+    assert "Ask the Assistant" in html
     client = TestClient(stubbed)
     r = client.post(
         "/bulk/ai-prompt", data={"kind": "people", "ids": [person_id(stubbed)], "prompt": "x"}
@@ -1253,8 +1260,8 @@ def test_unsupported_filters_stay_disabled_with_a_reason(stubbed: FastAPI) -> No
         ("Website visitors", "tracking script"),
     ):
         assert label in html and reason in html, label
-    panel = html[html.index('class="fpanel"') :].split("</aside>")[0]
+    panel = html[html.index('class="fpanel') :].split("</aside>")[0]
     assert "Website visitors" in panel and "Lookalikes" in panel
     people = TestClient(stubbed).get("/people").text
-    assert "People lookalikes" in people[people.index('class="fpanel"') :].split("</aside>")[0]
+    assert "People lookalikes" in people[people.index('class="fpanel') :].split("</aside>")[0]
     assert "Company lookalikes" in people and "Technologies" in people and "Job postings" in people

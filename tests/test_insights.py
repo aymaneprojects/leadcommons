@@ -256,10 +256,8 @@ def test_demo_api_refresh_refused_but_cached_insights_display(
     assert page.status_code == 200
     assert "WordPress" in page.text and "Disabled in the public demo" in page.text
     assert "The data below was saved earlier" in page.text
-    assert (
-        '<button class="btn sm "' in page.text
-        and "disabled" in page.text.split("<button", 1)[1].split(">", 1)[0]
-    )
+    refresh = page.text.split('hx-post="/api/companies/', 1)[1].split("</form>", 1)[0]
+    assert "<button" in refresh and "disabled" in refresh.split("<button", 1)[1].split(">", 1)[0]
 
 
 def test_demo_job_runner_refuses(tmp_path: Path, store: Store, company: Company) -> None:

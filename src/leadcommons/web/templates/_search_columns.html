@@ -8,6 +8,7 @@
 {% set auto_key = "auto_enrich_" ~ s.kind %}
 {% set auto_on = (ui_state(settings).get(auto_key) if settings is defined else false) and not s.demo %}
 {% set shown = s.columns|selectattr("default")|list|length %}
+<div class="ss-scrim" aria-hidden="true"></div>
 <aside id="col-chooser" class="sidepanel ss-drawer" hidden aria-label="Search settings" data-key="lc-cols-{{ s.kind }}">
   <script type="application/json" data-fld-data>{{ {"columns": s.columns, "icons": rx.FIELD_ICONS}|tojson }}</script>
 

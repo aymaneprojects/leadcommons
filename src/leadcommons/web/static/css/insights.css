@@ -70,3 +70,21 @@
   .ins-stats { grid-template-columns: minmax(0, 1fr); }
   .ins-head { flex-wrap: wrap; }
 }
+
+/* header tools (gear menu + collapse), disabled tabs in the strip, folded state */
+.ins-tools { display: flex; align-items: center; gap: 4px; flex: none; }
+.ins-tools form { margin: 0; }
+.ins-gear .menu { min-width: 270px; }
+.ins-gear .menu form { margin: 0; }
+.ins-what { margin: 0; padding: 8px 12px 12px; line-height: 1.45; }
+.ins-fold .icon { transition: transform .15s; }
+.ins.folded .ins-fold .icon { transform: rotate(180deg); }
+.ins.folded .ins-fold-body { display: none; }
+.ins.folded .ins-head { padding-bottom: 14px; }
+.ins-tab-off { padding: 9px 11px; color: var(--muted); white-space: nowrap; display: inline-flex; align-items: center; opacity: .5; cursor: not-allowed; border-bottom: 2px solid transparent; margin-bottom: -1px; position: relative; }
+.ins-tabs { overflow: visible; flex-wrap: wrap; }
+.ins-tab-off[data-tip]:hover::after, .ins-tab-off[data-tip]:focus-visible::after { top: calc(100% + 6px); }
+.ins-empty-act { margin-top: 12px; display: flex; justify-content: center; }
+.ins-empty-act form { margin: 0; }
+.ins-tabs a, .ins-tab-off { padding: 9px 8px; font-size: 13px; }
+.ins-tab-off { opacity: 1; color: color-mix(in srgb, var(--muted) 55%, transparent); }

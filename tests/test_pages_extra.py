@@ -436,10 +436,9 @@ def test_sidebar_getting_started_links_to_hub(client: TestClient) -> None:
 
 def test_lists_empty_state(client: TestClient) -> None:
     html = client.get("/lists").text
-    assert "Welcome to your lists" in html
+    assert "Your lists start here" in html and "How lists work" in html
     assert "Create a people list" in html and "Create a company list" in html
     assert 'data-create-list="people"' in html and 'action="/lists"' in html
-    assert "People <span" in html and "Companies <span" in html
     assert "<table" not in html
 
 

@@ -52,33 +52,33 @@ const SCENES = [
   ["p0-04", "Find people", async (p) => go(p, "/people")],
   ["p0-05", "Find companies", async (p) => go(p, "/companies")],
   ["p1-01", "People results with a title filter", async (p) => go(p, "/people?title=Head")],
-  ["p1-02", "People, 3 rows selected", async (p) => { await go(p, "/people"); await checkRows(p, 3); }],
+  ["p1-02", "People, 3 rows selected", async (p) => { await go(p, "/people?all=1"); await checkRows(p, 3); }],
   ["p1-03", "Person page", async (p) => {
-    await go(p, "/people");
+    await go(p, "/people?all=1");
     const href = await p.locator("table tbody a[href^='/people/']").first().getAttribute("href");
     await go(p, href);
   }],
   ["p1-04", "Company panel", async (p) => { await go(p, "/companies?q=bank"); await firstLink(p, "table tbody a.co-name"); }],
-  ["p2-05", "Job titles filter open", async (p) => { await go(p, "/people"); await clickText(p, /job titles/i, "aside, .fpanel, form"); }],
-  ["p2-06", "Location filter open", async (p) => { await go(p, "/people"); await clickText(p, /^\s*location/i, ".fpanel, aside, form"); }],
-  ["p2-08", "Industry & keywords filter open", async (p) => { await go(p, "/companies"); await clickText(p, /industry/i, ".fpanel, aside, form"); }],
-  ["p2-09", "All filters window", async (p) => { await go(p, "/companies"); await clickText(p, /view all filters|all filters/i); }],
+  ["p2-05", "Job titles filter open", async (p) => { await go(p, "/people?title=Head"); await clickText(p, /job titles/i, ".fpanel"); }],
+  ["p2-06", "Location filter open", async (p) => { await go(p, "/people?title=Head"); await clickText(p, /^\s*location/i, ".fpanel"); }],
+  ["p2-08", "Industry & keywords filter open", async (p) => { await go(p, "/people?title=Head"); await clickText(p, /industry/i, ".fpanel"); }],
+  ["p2-09", "All filters window", async (p) => { await go(p, "/people?title=Head"); await clickText(p, /view all filters|all filters/i); }],
   ["p2-10", "# Employees in the all-filters window", async (p) => {
-    await go(p, "/companies"); await clickText(p, /view all filters|all filters/i);
+    await go(p, "/people?title=Head"); await clickText(p, /view all filters|all filters/i);
     await p.locator("#allf-dialog summary, #allf-dialog button").filter({ hasText: /employees/i }).first().click(); await p.waitForTimeout(500);
   }],
   ["p2-11", "Default view menu", async (p) => { await go(p, "/companies"); await p.locator("details.view-dd > summary").first().click(); await p.waitForTimeout(500); }],
   ["p2-12", "Search settings", async (p) => { await go(p, "/companies"); await p.locator("[aria-label='Search settings'], [title='Search settings']").first().click(); await p.waitForTimeout(400); }],
-  ["p2-13", "Column chooser", async (p) => { await go(p, "/companies"); await clickText(p, /add column/i); }],
-  ["p2-14", "Action bar, 3 rows", async (p) => { await go(p, "/companies"); await checkRows(p, 3); }],
-  ["p2-15", "Save to list window", async (p) => { await go(p, "/companies"); await checkRows(p, 3); await clickText(p, /save to list/i, ".selbar, .bulk, [role=region], body"); }],
+  ["p2-13", "Column chooser", async (p) => { await go(p, "/companies?all=1"); await clickText(p, /add column/i); }],
+  ["p2-14", "Action bar, 3 rows", async (p) => { await go(p, "/companies?all=1"); await checkRows(p, 3); }],
+  ["p2-15", "Save to list window", async (p) => { await go(p, "/companies?all=1"); await checkRows(p, 3); await p.locator('.selbar [data-open-dialog="save-dialog"]').first().click(); await p.waitForTimeout(800); }],
   ["p2-16", "Import menu", async (p) => { await go(p, "/companies"); await clickText(p, /^\s*import/i); }],
   ["p2-17", "Export tooltip", async (p) => {
-    await go(p, "/companies"); await checkRows(p, 3);
-    await p.locator("button, a").filter({ hasText: /export/i }).first().hover(); await p.waitForTimeout(700);
+    await go(p, "/companies?all=1"); await checkRows(p, 3);
+    await p.locator('.selbar [aria-label="Export CSV"]').first().hover(); await p.waitForTimeout(700);
   }],
   ["p3-18", "AI menu on a selection", async (p) => {
-    await go(p, "/people"); await checkRows(p, 2);
+    await go(p, "/people?all=1"); await checkRows(p, 2);
     await p.locator(".selbar details.ai-dd > summary").first().click(); await p.waitForTimeout(500);
   }],
   ["p3-19", "Research with AI menu", async (p) => { await go(p, "/companies"); await clickText(p, /research with ai/i); }],

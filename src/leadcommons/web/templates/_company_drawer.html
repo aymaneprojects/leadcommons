@@ -1,65 +1,88 @@
-{% from "_macros.html" import ic, hxf, avatar %}
-{% from "_search_profile.html" import profile_actions, company_fields, people_list, insights_card, activity_panel, dnc_block, completeness_block %}
+{% from "_macros.html" import ic, avatar %}
+{% from "_search_profile.html" import addlist, people_list, insights_card, activity_panel, dnc_block, save_company, company_details, leads_card, locations_card %}
+{% from "_results_macros.html" import ri %}
+{# Company profile: a wide two-column drawer over the results (or a full page with
+   page_mode). Header: breadcrumb, identity, Add to list, Save company, more, expand, close.
+   Segmented tabs: Overview (details | insights + suggested leads), People, Locations. #}
 {% set back = "/companies/" ~ c.id %}
-{% if page_mode is not defined %}<div class="drawer-scrim" data-close-drawer></div>{% endif %}
-<article class="co-panel {% if page_mode is defined %}profile-page{% else %}drawer-inner{% endif %}" aria-label="Company profile">
-  <nav class="crumb" aria-label="Breadcrumb">
-    <a href="/companies">Companies</a><span class="sep">{{ ic("chevron-right", "sm") }}</span><span class="cur">{{ c.name }}</span>
-    <span class="grow"></span>
-    {% if page_mode is not defined %}
-      <a class="btn ghost icon-only sm" href="/companies/{{ c.id }}" title="Open as a full page" aria-label="Open as a full page">{{ ic("maximize-2", "sm") }}</a>
-      <button class="btn ghost icon-only sm" type="button" data-close-drawer aria-label="Close">{{ ic("x") }}</button>
-    {% endif %}
-  </nav>
-  <header class="cp-head">
-    {{ avatar(c.name, "co", "lg") }}
-    <div class="cp-id">
-      <h2>{{ c.name }}{% if c.domain %} <a class="btn ghost icon-only sm" href="https://{{ c.domain }}" target="_blank" rel="noopener noreferrer" title="{{ c.domain }}" aria-label="Open {{ c.domain }}">{{ ic("link", "sm") }}</a>{% endif %}</h2>
-      <p class="muted">{{ c.industry_label or c.industry or "Industry unknown" }} · {% if c.city %}{{ c.city }}, {% endif %}{{ country_name(c.country) or "Location unknown" }}</p>
+{% set drawer = page_mode is not defined %}
+{% set hxa = ('hx-target="#drawer" hx-swap="innerHTML" hx-push-url="false"' | safe) if drawer else "" %}
+{% set q = "company_id=" ~ c.id %}
+{% if drawer %}<div class="drawer-scrim" data-close-drawer></div>{% endif %}
+<article class="co-panel cx {% if drawer %}drawer-inner{% else %}cx-page{% endif %}" aria-label="Company profile">
+  <header class="cx-head">
+    <div class="cx-who">
+      <nav class="crumb cx-crumb" aria-label="Breadcrumb"><a href="/companies">Companies</a><span class="sep">{{ ri("chevron-right", "sm") }}</span><span class="cur">{{ c.name }}</span></nav>
+      <div class="cx-id">
+        {{ avatar(c.name, "co", "lg") }}
+        <div class="cx-name">
+          <h2>{{ c.name }}
+            {% if drawer %}<a class="btn ghost icon-only sm" href="/companies/{{ c.id }}" title="Open the company page" aria-label="Open the company page">{{ ri("building-2", "sm") }}</a>{% endif %}
+            {% if c.domain %}<a class="btn ghost icon-only sm" href="https://{{ c.domain }}" target="_blank" rel="noopener noreferrer" title="{{ c.domain }}" aria-label="Open {{ c.domain }}">{{ ri("link", "sm") }}</a>{% endif %}
+          </h2>
+          <p class="muted">{{ c.industry_label or c.industry or "Industry unknown" }} · {% if c.city %}{{ c.city }}, {% endif %}{{ country_name(c.country) or "Location unknown" }}{% if phone %} · <a class="mono" href="{{ tel or '#' }}">{{ phone }}</a>{% endif %}</p>
+        </div>
+      </div>
+    </div>
+    <div class="cx-actions">
+      {{ addlist("companies", c.id, lists, back, "cx-" ~ c.id) }}
+      {{ save_company(c, is_saved, member_lists, lists, back, drawer) }}
+      <details class="dd more-dd">
+        <summary class="btn icon-only" aria-label="More actions" title="More actions">{{ ri("ellipsis") }}</summary>
+        <div class="menu right">
+          {% if tel %}<a class="menu-item" href="{{ tel }}">{{ ri("phone", "sm") }}<span>Call {{ phone }}</span></a>
+          {% else %}<span class="menu-item" aria-disabled="true" tabindex="0" data-tip="No phone number known. Refresh the company insights to look for a business number." aria-describedby="cx-nophone-{{ c.id }}">{{ ri("phone", "sm") }}<span>Call</span></span><span class="sr-only" id="cx-nophone-{{ c.id }}">No phone number known. Refresh the company insights to look for a business number.</span>{% endif %}
+          <a class="menu-item" href="/partials/task-new?{{ q }}" data-dlg>{{ ri("square-check-big", "sm") }}<span>Create task</span></a>
+          <a class="menu-item" href="/partials/deal-new?{{ q }}" data-dlg>{{ ic("handshake", "sm") }}<span>Create deal</span></a>
+          <a class="menu-item" href="/partials/note-new?{{ q }}" data-dlg>{{ ic("square-pen", "sm") }}<span>Add note</span></a>
+          <a class="menu-item" href="/partials/meeting-new?{{ q }}" data-dlg>{{ ic("calendar-plus", "sm") }}<span>Schedule meeting</span></a>
+          <div class="menu-sep"></div>
+          {% set nodomain = "No website is known for this company." %}
+          <form method="post" action="/companies/{{ c.id }}/find-people" hx-post="/companies/{{ c.id }}/find-people" {{ hxa }}>
+            {% if demo or not c.domain %}<span class="tipwrap" data-tip="{{ demo_reason if demo else nodomain }}" tabindex="0"><button class="menu-item" type="submit" disabled aria-describedby="cx-why-{{ c.id }}">{{ ri("user-search", "sm") }}<span>Find people</span></button></span>
+            {% else %}<button class="menu-item" type="submit">{{ ri("user-search", "sm") }}<span>Find people</span></button>{% endif %}
+          </form>
+          <form method="post" action="/companies/{{ c.id }}/refresh-insights" hx-post="/companies/{{ c.id }}/refresh-insights" hx-swap="none" hx-push-url="false">
+            {% if demo or not c.domain %}<span class="tipwrap" data-tip="{{ demo_reason if demo else nodomain }}" tabindex="0"><button class="menu-item" type="submit" disabled aria-describedby="cx-why-{{ c.id }}">{{ ri("refresh-cw", "sm") }}<span>Refresh company insights</span></button></span>
+            {% else %}<button class="menu-item" type="submit">{{ ri("refresh-cw", "sm") }}<span>Refresh company insights</span></button>{% endif %}
+          </form>
+          {% if demo or not c.domain %}<span class="sr-only" id="cx-why-{{ c.id }}">{{ demo_reason if demo else nodomain }}</span>{% endif %}
+        </div>
+      </details>
+      {% if drawer %}
+      <a class="btn ghost icon-only" href="/companies/{{ c.id }}" title="Open as a full page" aria-label="Open as a full page">{{ ri("maximize-2") }}</a>
+      <button class="btn ghost icon-only" type="button" data-close-drawer aria-label="Close" title="Close">{{ ri("x") }}</button>
+      {% endif %}
     </div>
   </header>
-  <div class="cp-actions">
-    {{ profile_actions("company", c.id, back, lists, phone, tel, demo, none, none, is_saved) }}
-    <form method="post" action="/companies/{{ c.id }}/save" hx-post="/companies/{{ c.id }}/save" hx-target="#drawer" hx-swap="innerHTML" hx-push-url="false">
-      <button class="btn" type="submit" {% if is_saved %}disabled{% endif %}>{{ ic("bookmark") }}<span>{{ "Saved" if is_saved else "Save" }}</span></button>
-    </form>
-    <form method="post" action="/companies/{{ c.id }}/find-people" hx-post="/companies/{{ c.id }}/find-people" hx-target="#drawer" hx-swap="innerHTML" hx-push-url="false">
-      <button class="btn primary" type="submit" {% if demo %}disabled data-tip="{{ demo_reason }}"{% elif not c.domain %}disabled title="No known domain"{% endif %}>{{ ic("user-search") }}<span>Find people</span></button>
-    </form>
-  </div>
-  <div class="tabs" role="tablist" data-tabs aria-label="Company sections">
+
+  <div class="cx-tabs" role="tablist" data-tabs aria-label="Company sections">
     <a href="#co-overview" role="tab" data-tab="overview" aria-selected="true">Overview</a>
-    <a href="#co-people" role="tab" data-tab="people" aria-selected="false">People<span class="n">{{ people|length }}</span></a>
-    <a href="#co-activity" role="tab" data-tab="activity" aria-selected="false">Activity</a>
-    <a href="#co-sources" role="tab" data-tab="sources" aria-selected="false">Sources</a>
+    <a href="#co-people" role="tab" data-tab="people" aria-selected="false">People <span class="n">{{ people|length }}</span></a>
+    <a href="#co-locations" role="tab" data-tab="locations" aria-selected="false">Locations <span class="n">{{ locations|length }}</span></a>
   </div>
-  <div class="cp-body">
-    <div id="co-overview" class="tab-stack" data-panel="overview" aria-label="Overview">
-      {{ insights_card(c, demo) }}
-      <section class="card" aria-label="Company score">
-        {{ completeness_block("Score", "How many of the fields we look for are filled in for this company. It says nothing about the business.", cscore, "Company profile completeness") }}
-      </section>
-      <section class="card" aria-label="Company details">
-        <h3>Company details</h3>
-        {{ company_fields(c) }}
-      </section>
-      {{ dnc_block("company", c.id, dnc, page_mode is not defined) }}
+
+  <div class="cx-body">
+    <div id="co-overview" class="cx-grid" data-panel="overview">
+      <div class="cx-col">
+        {{ company_details(c, ins, cscore) }}
+        {{ dnc_block("company", c.id, dnc, drawer) }}
+        <section class="card cx-card" aria-labelledby="act-{{ c.id }}">
+          <details>
+            <summary class="cx-card-head"><h3 id="act-{{ c.id }}">Activity</h3><span class="cx-caret">{{ ri("chevron-up", "sm") }}</span></summary>
+            {{ activity_panel("/partials/activity?company_id=" ~ c.id) }}
+          </details>
+        </section>
+      </div>
+      <div class="cx-col">
+        {{ insights_card(c, demo) }}
+        {{ leads_card(c, leads, emails, suppressed, demo, drawer) }}
+      </div>
     </div>
-    <section id="co-people" class="card" data-panel="people" aria-label="People at this company">
+    <section id="co-people" class="card cx-card" data-panel="people" aria-label="People at this company">
       <h3>People at this company</h3>
-      {{ people_list(people, emails, suppressed, "No people found yet. Click Find people to look for them on the company website.") }}
+      {{ people_list(people, emails, suppressed, "No people found yet. Use Find more people on the Overview tab to read the company website.") }}
     </section>
-    <section id="co-activity" class="card" data-panel="activity" aria-label="Activity">
-      <h3>Activity</h3>
-      {{ activity_panel("/partials/activity?company_id=" ~ c.id) }}
-    </section>
-    <section id="co-sources" class="card" data-panel="sources" aria-label="Sources">
-      <h3>Sources</h3>
-      {% if c.sources %}
-      <ul class="src-list">
-        {% for src in c.sources %}<li><span class="chip src">{{ src.source }}</span> <span class="muted">licence {{ src.licence }} · fetched {{ fmt_date(src.fetched_at) }}</span>{% if src.url %} <a href="{{ src.url }}" target="_blank" rel="noopener noreferrer">link</a>{% endif %}</li>{% endfor %}
-      </ul>
-      {% else %}<p class="muted">No source records.</p>{% endif %}
-    </section>
+    <div id="co-locations" data-panel="locations">{{ locations_card(c, locations) }}</div>
   </div>
 </article>

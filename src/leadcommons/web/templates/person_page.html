@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% from "_macros.html" import ic, avatar %}
 {% from "_search_profile.html" import profile_actions, contact_card, company_fields, people_list, insights_card, activity_panel %}
+{% from "_results_macros.html" import ri, tipwrap %}
 {% block title %}{{ person.full_name }} · LeadCommons{% endblock %}
 {% block content %}
 {% set back = "/people/" ~ person.id %}
@@ -17,7 +18,7 @@
     <div class="pp-actions">
       {{ profile_actions("person", person.id, back, lists, phone, tel, demo, person, company, is_saved, best is not none) }}
       <form method="post" action="/people/{{ person.id }}/find-email" hx-post="/people/{{ person.id }}/find-email" hx-swap="none" hx-push-url="false">
-        <button class="btn primary" type="submit"{% if demo %} disabled data-tip="{{ demo_reason }}"{% endif %}>{{ ic("mail") }}<span>Find email</span></button>
+        {% call tipwrap(demo_reason, demo) %}<button class="btn primary" type="submit"{% if demo %} disabled{% endif %}>{{ ic("mail") }}<span>Find email</span></button>{% endcall %}
       </form>
     </div>
   </header>
@@ -28,20 +29,30 @@
     <div class="pp-right">
       {% if company %}{{ insights_card(company, demo) }}{% endif %}
       {% if company %}
-      <section class="card company-card" aria-label="Company">
+      <section class="card company-card" aria-label="Company" data-foldable>
         <header class="cc-head">
           {{ avatar(company.name, "co") }}
-          <div class="cc-id"><a class="cc-name" href="/companies/{{ company.id }}">{{ company.name }}</a><span class="muted">{{ [company.industry_label or company.industry, (company.size_range ~ " employees") if company.size_range else none] | select | join(" · ") }}</span></div>
-          <a class="btn sm" href="/companies/{{ company.id }}">Open company</a>
+          <div class="cc-id"><span class="cc-line"><a class="cc-name" href="/companies/{{ company.id }}">{{ company.name }}</a>{% if cscore %}<span class="chip {{ cscore.tone }}" title="Record completeness: how many of the fields we look for are filled in">{{ cscore.label }} <span class="n">{{ cscore.value }}</span></span>{% endif %}</span><span class="muted">{{ [company.industry_label or company.industry, (company.size_range ~ " employees") if company.size_range else none] | select | join(" · ") }}</span></div>
+          <details class="dd cc-more">
+            <summary class="btn ghost icon-only sm" aria-label="Company actions" title="Company actions">{{ ri("ellipsis", "sm") }}</summary>
+            <div class="menu right">
+              <a class="menu-item" href="/companies/{{ company.id }}">{{ ri("building-2", "sm") }}<span>Open the company page</span></a>
+              {% if company.domain %}<a class="menu-item" href="https://{{ company.domain }}" target="_blank" rel="noopener noreferrer">{{ ri("globe", "sm") }}<span>Visit {{ company.domain }}</span></a>{% endif %}
+              <a class="menu-item" href="/partials/task-new?company_id={{ company.id }}" data-dlg>{{ ri("square-check-big", "sm") }}<span>Create a task for the company</span></a>
+            </div>
+          </details>
+          <button type="button" class="btn ghost icon-only sm cc-caret" data-fold aria-expanded="true" aria-controls="pc-body" title="Collapse" aria-label="Collapse the company card">{{ ri("chevron-up", "sm") }}</button>
         </header>
+        <div class="cc-body" id="pc-body" data-fold-body>
         <div class="tabs" role="tablist" data-tabs aria-label="Company sections">
-          <a href="#pc-overview" role="tab" data-tab="overview" aria-selected="true">Overview</a>
+          <a href="#pc-overview" role="tab" data-tab="overview" aria-selected="true">About</a>
           <a href="#pc-people" role="tab" data-tab="people" aria-selected="false">People at this company<span class="n">{{ colleagues|length + 1 }}</span></a>
         </div>
         <div class="tab-panel" id="pc-overview" data-panel="overview">{{ company_fields(company) }}</div>
         <div class="tab-panel" id="pc-people" data-panel="people">
           <h3 class="nojs-h">People at this company</h3>
           {{ people_list(colleagues, emails, suppressed, "Nobody else found at this company yet.") }}
+        </div>
         </div>
       </section>
       {% else %}
