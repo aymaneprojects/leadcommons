@@ -164,8 +164,8 @@ jobs:
           $bmp.Save("$out\screen-windows.png")
           Start-Sleep -Seconds 4
 
-      - name: Print screenshots to the log (branch builds)
-        if: always() && github.ref_type == 'branch'
+      - name: Print screenshots to the log (feature branches)
+        if: always() && startsWith(github.ref, 'refs/heads/feature/')
         continue-on-error: true
         run: |
           python -m pip install --quiet pillow
