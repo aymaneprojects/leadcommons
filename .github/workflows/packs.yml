@@ -3,7 +3,8 @@ name: Build data packs
 # Monthly: every bulk register source (`leadcommons pack sources`) builds one shard in its own
 # job, then one job merges the shards into per-country packs and publishes a packs-YYYY-MM
 # release. Pushing to a data/** branch runs the same pipeline in test mode (5,000 rows per
-# source, quality report and sample rows in the log, nothing published).
+# source, quality report and sample rows in the log, nothing published); data/full* runs the
+# whole registers without publishing, and data/publish runs and publishes them.
 
 on:
   schedule:
@@ -54,6 +55,7 @@ jobs:
         id: plan
         env:
           EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
           INPUT_SOURCES: ${{ inputs.sources }}
           INPUT_LIMIT: ${{ inputs.limit }}
           INPUT_PUBLISH: ${{ inputs.publish }}
@@ -73,8 +75,14 @@ jobs:
           limit=""
           publish=true
           if [ "$EVENT" = "push" ]; then
-            limit=5000
-            publish=false
+            # data/full*: whole registers, nothing published (a dry run at full scale).
+            # data/publish: whole registers, published (manual dispatch is not always at hand).
+            # Any other data/** branch: 5,000 rows per source, nothing published.
+            case "$REF" in
+              refs/heads/data/publish) limit=""; publish=true ;;
+              refs/heads/data/full*) limit=""; publish=false ;;
+              *) limit=5000; publish=false ;;
+            esac
           elif [ "$EVENT" = "workflow_dispatch" ]; then
             limit="$INPUT_LIMIT"
             publish="$INPUT_PUBLISH"
