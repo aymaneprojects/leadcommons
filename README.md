@@ -25,9 +25,10 @@ Pick one. Details in [docs/install.md](docs/install.md).
 
 ### Desktop app (easiest)
 
-Download the app for Windows, Mac (Apple Silicon) or Linux from the
+Download the app for Windows, Mac (Apple Silicon) or Linux (.deb or AppImage) from the
 [latest release](https://github.com/aymaneprojects/leadcommons/releases/latest), install it and
-double-click. No terminal needed. See [docs/desktop.md](docs/desktop.md).
+open it like any other application: own window, menus, notifications. No terminal needed.
+See [docs/desktop.md](docs/desktop.md).
 
 ### 1. One-line installer (Linux, macOS, Windows)
 

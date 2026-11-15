@@ -201,10 +201,38 @@ def run_in_browser(url: str) -> None:
     root.mainloop()
 
 
-def _wait_forever(seconds: float | None = None) -> None:
+def parent_alive(pid: int) -> bool:
+    """True while process pid runs: the backend must not outlive the desktop shell."""
+    if pid <= 0:
+        return True
+    if sys.platform == "win32":
+        import ctypes
+
+        synchronize, wait_timeout = 0x00100000, 0x102
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        handle = kernel32.OpenProcess(synchronize, False, pid)
+        if not handle:
+            return False
+        try:
+            return bool(kernel32.WaitForSingleObject(handle, 0) == wait_timeout)
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _wait_forever(seconds: float | None = None, parent_pid: int = 0) -> None:
     deadline = None if seconds is None else time.monotonic() + seconds
     with contextlib.suppress(KeyboardInterrupt):
         while deadline is None or time.monotonic() < deadline:
+            if parent_pid and not parent_alive(parent_pid):
+                log.info("the desktop shell (pid %s) is gone; stopping", parent_pid)
+                return
             time.sleep(0.5)
 
 
@@ -217,6 +245,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--port", type=int, default=0, help="Port to use (default: a free one).")
     parser.add_argument("--exit-after", type=float, default=None, help="Stop after N seconds.")
     parser.add_argument("--browser", action="store_true", help="Use the browser, not a window.")
+    parser.add_argument(
+        "--parent-pid", type=int, default=0, help="Stop when this process ends (desktop shell)."
+    )
     args = parser.parse_args(argv)
 
     os.environ.setdefault("LEADCOMMONS_MODE", "local")
@@ -246,7 +277,7 @@ def main(argv: list[str] | None = None) -> int:
         start_first_pack_download(server.app)
         if args.headless:
             print(f"LeadCommons running at {url}", flush=True)
-            _wait_forever(args.exit_after)
+            _wait_forever(args.exit_after, args.parent_pid)
         elif args.browser or not open_window(url, settings.home):
             run_in_browser(url)
     finally:

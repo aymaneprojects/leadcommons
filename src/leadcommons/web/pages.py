@@ -10,6 +10,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import os
 import re
 from collections import Counter
 from collections.abc import Callable
@@ -403,6 +404,8 @@ def is_demo(request: Request) -> bool:
 DEMO_REASON = "Turned off in the public demo. Install LeadCommons to use it on your own data."
 # Template helpers of the results screens (toolbar, selection bar, save window, profiles).
 templates.env.globals["demo_reason"] = DEMO_REASON
+# Set by the desktop app (Electron) when it starts the backend: pages then behave like an app.
+templates.env.globals["desktop_app"] = os.environ.get("LEADCOMMONS_DESKTOP") == "1"
 templates.env.globals["rx"] = results  # view menu rows, field icons, save-window labels
 templates.env.globals["ui_state"] = lambda settings: load_state(settings)  # enrichment mode
 templates.env.filters["tel"] = lambda phone: tel_href(phone) or "#"

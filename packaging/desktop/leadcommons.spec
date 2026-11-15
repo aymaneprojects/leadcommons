@@ -1,15 +1,16 @@
-# PyInstaller recipe for the LeadCommons desktop app (Windows, macOS, Linux).
+# PyInstaller recipe for the desktop app's backend (Windows, macOS, Linux).
 # Built by .github/workflows/desktop.yml:  pyinstaller packaging/desktop/leadcommons.spec
-# Output: dist/LeadCommons/ (a folder with LeadCommons[.exe]) and, on macOS, dist/LeadCommons.app
+# Output: dist/leadcommons-backend/ (leadcommons-backend[.exe] and its files). The Electron
+# shell in desktop/electron starts it with --headless --port N --parent-pid PID and shows the
+# app in its own window.
 import sys
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_all, collect_submodules
+from PyInstaller.utils.hooks import collect_all
 
 HERE = Path(SPECPATH)  # noqa: F821 (set by PyInstaller)
 ROOT = HERE.parent.parent
 sys.path.insert(0, str(ROOT / "src"))
-from leadcommons import __version__  # noqa: E402
 
 datas, binaries, hiddenimports = [], [], []
 # Templates, static files and the sample pack ship inside the leadcommons package. The others
@@ -19,17 +20,6 @@ for pkg in ("leadcommons", "uvicorn", "mcp", "dns", "email_validator", "selectol
     datas += d
     binaries += b
     hiddenimports += h
-try:
-    hiddenimports += collect_submodules("webview")
-except Exception:  # Linux builds use the browser instead of a native window
-    pass
-
-if sys.platform == "win32":
-    icon = HERE / "icons" / "leadcommons.ico"
-elif sys.platform == "darwin":
-    icon = HERE / "icons" / "leadcommons.icns"
-else:
-    icon = HERE / "icons" / "leadcommons.png"
 
 a = Analysis(  # noqa: F821
     [str(HERE / "launch.py")],
@@ -37,7 +27,8 @@ a = Analysis(  # noqa: F821
     datas=datas,
     binaries=binaries,
     hiddenimports=hiddenimports,
-    excludes=["pyarrow", "pytest", "ruff", "IPython"],
+    # The window comes from Electron: no GUI toolkits in the backend.
+    excludes=["pyarrow", "pytest", "ruff", "IPython", "tkinter", "webview"],
     noarchive=False,
 )
 pyz = PYZ(a.pure)  # noqa: F821
@@ -46,25 +37,7 @@ exe = EXE(  # noqa: F821
     a.scripts,
     [],
     exclude_binaries=True,
-    name="LeadCommons",
-    console=False,  # a window app; logs go to ~/.leadcommons/desktop.log
-    icon=str(icon),
+    name="leadcommons-backend",
+    console=False,  # no console window on Windows; logs go to ~/.leadcommons/desktop.log
 )
-coll = COLLECT(exe, a.binaries, a.datas, name="LeadCommons")  # noqa: F821
-
-if sys.platform == "darwin":
-    app = BUNDLE(  # noqa: F821
-        coll,
-        name="LeadCommons.app",
-        icon=str(icon),
-        bundle_identifier="org.leadcommons.desktop",
-        version=__version__,
-        info_plist={
-            "CFBundleName": "LeadCommons",
-            "CFBundleDisplayName": "LeadCommons",
-            "CFBundleShortVersionString": __version__,
-            "NSHighResolutionCapable": True,
-            "LSMinimumSystemVersion": "11.0",
-            "LSApplicationCategoryType": "public.app-category.business",
-        },
-    )
+coll = COLLECT(exe, a.binaries, a.datas, name="leadcommons-backend")  # noqa: F821

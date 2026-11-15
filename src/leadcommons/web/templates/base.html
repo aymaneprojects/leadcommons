@@ -14,7 +14,7 @@
 {% set hub = hub_stats(request) %}
 {% set hub_pct = (hub[0] * 100 // hub[1]) if hub[1] else 0 %}
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="dark"{% if desktop_app %} data-app="desktop"{% endif %}>
 <head>
   {% include "_head.html" %}
   <title>{% block title %}LeadCommons{% endblock %}</title>

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>LeadCommons</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #121110; color: #F2EEEA; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-user-select: none; user-select: none; cursor: default; -webkit-app-region: drag; }
+  main { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
+  img { width: 88px; height: 88px; }
+  h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  p { margin: 0; color: #A39C94; font-size: 12px; }
+  .bar { width: 160px; height: 4px; border-radius: 99px; background: #33302C; overflow: hidden; }
+  .bar i { display: block; width: 40%; height: 100%; background: #FF6B1A; border-radius: 99px; animation: slide 1.1s ease-in-out infinite; }
+  @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
+</style>
+</head>
+<body>
+<main>
+  <img src="lib/logo.png" alt="">
+  <h1 id="t">Starting LeadCommons…</h1>
+  <div class="bar" role="progressbar" aria-label="Starting"><i></i></div>
+  <p id="h">Your data stays on this computer.</p>
+</main>
+<script>
+  const q = new URLSearchParams(location.search);
+  if (q.get("t")) document.getElementById("t").textContent = q.get("t");
+  if (q.get("h")) document.getElementById("h").textContent = q.get("h");
+</script>
+</body>
+</html>

@@ -1,13 +1,15 @@
 name: Desktop apps
 
-# Builds the installable app for Windows (setup .exe), macOS (Apple Silicon .dmg) and Linux
-# (.AppImage), starts each build without a window to check it serves pages, and attaches the
-# files to the GitHub release of the tag.
+# The installable LeadCommons app, built like the big desktop apps: an Electron shell (window,
+# menus, dialogs, notifications) around the frozen Python backend. Windows (setup .exe),
+# macOS on Apple Silicon (.dmg) and Linux (.AppImage and .deb). Every build is started for
+# real and checked, screenshots included, then attached to the GitHub release of the tag.
 on:
   push:
     tags: ["v*"]
     branches: [main, "feature/desktop"]
     paths:
+      - "desktop/**"
       - "packaging/desktop/**"
       - "src/leadcommons/desktop.py"
       - ".github/workflows/desktop.yml"
@@ -32,140 +34,142 @@ jobs:
         include:
           - os: windows-latest
             target: windows-x64
+            builder: --win
           - os: macos-latest
             target: macos-arm64
-          - os: ubuntu-22.04 # older glibc: the AppImage then runs on more distributions
+            builder: --mac
+          - os: ubuntu-22.04 # older glibc: the Linux builds run on more distributions
             target: linux-x86_64
+            builder: --linux
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     defaults:
       run:
         shell: bash
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false" # no paid signing certificate yet
+      LEADCOMMONS_DESKTOP_NO_DOWNLOAD: "1" # smoke tests use the built-in sample data
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - name: Install
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/electron/package-lock.json
+      - name: Install the backend's dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install . "pyinstaller>=6.10,<7"
-          # Native window on Windows (WebView2) and macOS (WebKit); Linux uses the browser.
-          if [ "$RUNNER_OS" != "Linux" ]; then python -m pip install "pywebview>=5.3,<7"; fi
-      - name: Check the window API the launcher uses (Windows, macOS)
-        if: runner.os != 'Linux'
-        shell: python
-        run: |
-          import inspect, webview
-          start = inspect.signature(webview.start).parameters
-          window = inspect.signature(webview.create_window).parameters
-          missing = [p for p in ("private_mode", "storage_path") if p not in start]
-          missing += [p for p in ("min_size", "text_select") if p not in window]
-          missing += [k for k in ("ALLOW_DOWNLOADS", "OPEN_EXTERNAL_LINKS_IN_BROWSER") if k not in webview.settings]
-          assert not missing, f"pywebview changed; update leadcommons/desktop.py: {missing}"
       - name: Version
         id: v
         run: echo "version=$(python -c 'import leadcommons; print(leadcommons.__version__)')" >> "$GITHUB_OUTPUT"
-      - name: Freeze with PyInstaller
+
+      - name: Freeze the backend (PyInstaller)
         run: pyinstaller --noconfirm --clean packaging/desktop/leadcommons.spec
-
-      - name: Sign the app ad hoc (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          codesign --force --deep --sign - dist/LeadCommons.app
-          codesign --verify --deep --strict dist/LeadCommons.app
-
-      - name: Smoke test the frozen app
+      - name: Smoke test the backend
         env:
-          LEADCOMMONS_HOME: ${{ runner.temp }}/lc-frozen
+          LEADCOMMONS_HOME: ${{ runner.temp }}/lc-backend
         run: |
-          case "$RUNNER_OS" in
-            Windows) bin=dist/LeadCommons/LeadCommons.exe ;;
-            macOS) bin=dist/LeadCommons.app/Contents/MacOS/LeadCommons ;;
-            *) bin=dist/LeadCommons/LeadCommons ;;
-          esac
-          bash packaging/desktop/smoke.sh "$bin" 8765
+          exe=dist/leadcommons-backend/leadcommons-backend
+          [ "$RUNNER_OS" = "Windows" ] && exe="$exe.exe"
+          bash packaging/desktop/smoke.sh "$exe" 8765
 
-      - name: Windows installer
-        if: runner.os == 'Windows'
-        shell: pwsh
+      - name: Install the desktop shell (Electron)
+        working-directory: desktop/electron
         run: |
-          $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
-          if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
-          if (-not (Test-Path $iscc)) {
-            choco install innosetup -y --no-progress
-            $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          }
-          & $iscc "/DAppVersion=${{ steps.v.outputs.version }}" packaging\desktop\windows.iss
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm ci --no-audit --no-fund
+          npm run check
+          npm version "${{ steps.v.outputs.version }}" --no-git-tag-version --allow-same-version
+      - name: Build the installers (electron-builder)
+        working-directory: desktop/electron
+        run: npx electron-builder ${{ matrix.builder }} --publish never
+
+      - name: Smoke test the app (Linux)
+        if: runner.os == 'Linux'
+        env:
+          LEADCOMMONS_HOME: ${{ runner.temp }}/lc-app
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb imagemagick >/dev/null
+          out="$RUNNER_TEMP/smoke"
+          xvfb-run -a -s "-screen 0 1500x960x24" dist-desktop/linux-unpacked/leadcommons-desktop \
+            --no-sandbox --disable-gpu --smoke-test="$out/unpacked"
+          node desktop/electron/scripts/check-smoke.js "$out/unpacked"
+          app="$(ls dist-desktop/*.AppImage)"
+          chmod +x "$app"
+          APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run -a -s "-screen 0 1500x960x24" "$app" \
+            --no-sandbox --disable-gpu --smoke-test="$out/appimage"
+          node desktop/electron/scripts/check-smoke.js "$out/appimage"
+          # A picture of the whole screen: window and menu bar as the user sees them.
+          cat > "$RUNNER_TEMP/shot.sh" <<EOF
+          dist-desktop/linux-unpacked/leadcommons-desktop --no-sandbox --disable-gpu --smoke-test="$out/screen" --smoke-hold=8 &
+          sleep 14
+          import -window root "$out/screen-linux.png"
+          wait
+          EOF
+          xvfb-run -a -s "-screen 0 1500x960x24" sh "$RUNNER_TEMP/shot.sh"
+
+      - name: Smoke test the app (macOS)
+        if: runner.os == 'macOS'
+        env:
+          LEADCOMMONS_HOME: ${{ runner.temp }}/lc-app
+        run: |
+          out="$RUNNER_TEMP/smoke"
+          mnt="$(mktemp -d)"
+          hdiutil attach -nobrowse -readonly -mountpoint "$mnt" dist-desktop/*.dmg
+          app="$mnt/LeadCommons.app/Contents/MacOS/LeadCommons"
+          "$app" --smoke-test="$out/dmg"
+          node desktop/electron/scripts/check-smoke.js "$out/dmg"
+          "$app" --smoke-test="$out/screen" --smoke-hold=10 &
+          sleep 14
+          screencapture -x "$out/screen-macos.png" || true
+          wait
+          hdiutil detach "$mnt" || true
+
       - name: Install silently (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $setup = (Get-Item dist-desktop\*-setup.exe).FullName
-          $p = Start-Process -Wait -PassThru -FilePath $setup -ArgumentList '/VERYSILENT', '/CURRENTUSER', '/SUPPRESSMSGBOXES', '/NORESTART'
+          $setup = (Get-Item dist-desktop\LeadCommons-*-setup.exe).FullName
+          $p = Start-Process -Wait -PassThru -FilePath $setup -ArgumentList '/S'
           if ($p.ExitCode -ne 0) { throw "installer exit code $($p.ExitCode)" }
+          Get-Item "$env:LOCALAPPDATA\Programs\LeadCommons\LeadCommons.exe"
       - name: Smoke test the installed app (Windows)
         if: runner.os == 'Windows'
+        shell: pwsh
         env:
-          LEADCOMMONS_HOME: ${{ runner.temp }}/lc-installed
-        run: bash packaging/desktop/smoke.sh "$LOCALAPPDATA/Programs/LeadCommons/LeadCommons.exe" 8766
-
-      - name: macOS disk image
-        if: runner.os == 'macOS'
-        env:
-          VERSION: ${{ steps.v.outputs.version }}
+          LEADCOMMONS_HOME: ${{ runner.temp }}\lc-app
         run: |
-          mkdir -p build/dmg dist-desktop
-          cp -R dist/LeadCommons.app build/dmg/
-          ln -s /Applications build/dmg/Applications
-          dmg="dist-desktop/LeadCommons-$VERSION-macos-arm64.dmg"
-          for attempt in 1 2 3; do  # hdiutil is sometimes "busy" on hosted runners
-            if hdiutil create -volname LeadCommons -srcfolder build/dmg -ov -format UDZO "$dmg"; then break; fi
-            echo "hdiutil failed (attempt $attempt), retrying"; sleep 10
-          done
-          test -f "$dmg"
-      - name: Smoke test the app from the disk image (macOS)
-        if: runner.os == 'macOS'
-        env:
-          LEADCOMMONS_HOME: ${{ runner.temp }}/lc-dmg
-        run: |
-          mnt="$(mktemp -d)"
-          hdiutil attach -nobrowse -readonly -mountpoint "$mnt" dist-desktop/*.dmg
-          bash packaging/desktop/smoke.sh "$mnt/LeadCommons.app/Contents/MacOS/LeadCommons" 8766
-          hdiutil detach "$mnt" || true
-
-      - name: Linux AppImage
-        if: runner.os == 'Linux'
-        env:
-          VERSION: ${{ steps.v.outputs.version }}
-        run: |
-          appdir=build/LeadCommons.AppDir
-          mkdir -p "$appdir/usr/bin" dist-desktop
-          cp -R dist/LeadCommons/. "$appdir/usr/bin/"
-          cp packaging/desktop/icons/leadcommons-512.png "$appdir/leadcommons.png"
-          cp packaging/desktop/leadcommons.desktop "$appdir/"
-          install -m 755 packaging/desktop/AppRun "$appdir/AppRun"
-          curl -fsSL -o build/appimagetool \
-            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x build/appimagetool
-          ARCH=x86_64 build/appimagetool --appimage-extract-and-run "$appdir" \
-            "dist-desktop/LeadCommons-$VERSION-linux-x86_64.AppImage"
-      - name: Smoke test the AppImage (Linux)
-        if: runner.os == 'Linux'
-        env:
-          LEADCOMMONS_HOME: ${{ runner.temp }}/lc-appimage
-          APPIMAGE_EXTRACT_AND_RUN: "1"
-        run: |
-          app="$(ls dist-desktop/*.AppImage)"
-          chmod +x "$app"
-          bash packaging/desktop/smoke.sh "$app" 8766
+          $exe = "$env:LOCALAPPDATA\Programs\LeadCommons\LeadCommons.exe"
+          $out = "$env:RUNNER_TEMP\smoke"
+          $p = Start-Process -Wait -PassThru -FilePath $exe -ArgumentList "--smoke-test=$out\installed"
+          node desktop/electron/scripts/check-smoke.js "$out\installed"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          # A picture of the whole screen: window, title bar and menu as the user sees them.
+          Start-Process -FilePath $exe -ArgumentList "--smoke-test=$out\screen", "--smoke-hold=10"
+          Start-Sleep -Seconds 14
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+          [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+          $bmp.Save("$out\screen-windows.png")
+          Start-Sleep -Seconds 4
 
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.target }}
-          path: dist-desktop/*
+          path: |
+            dist-desktop/LeadCommons-*
+            !dist-desktop/*.blockmap
           if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots-${{ matrix.target }}
+          path: ${{ runner.temp }}/smoke
+          if-no-files-found: ignore
 
   publish:
     needs: build

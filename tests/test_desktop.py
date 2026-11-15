@@ -105,3 +105,35 @@ def test_cli_help(argv: list[str]) -> None:
     with pytest.raises(SystemExit) as exc:
         desktop.main(argv)
     assert exc.value.code == 0
+
+
+def test_parent_alive_tracks_a_real_process() -> None:
+    import subprocess
+    import sys
+
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        assert desktop.parent_alive(child.pid)
+    finally:
+        child.kill()
+        child.wait()
+    assert not desktop.parent_alive(child.pid)
+    assert desktop.parent_alive(0)  # no parent given: never stop for that reason
+
+
+def test_backend_stops_when_the_desktop_shell_is_gone(tmp_path: Path, monkeypatch) -> None:
+    import subprocess
+    import sys
+    import time
+
+    monkeypatch.setenv("LEADCOMMONS_HOME", str(tmp_path))
+    monkeypatch.setenv("LEADCOMMONS_DESKTOP_NO_DOWNLOAD", "1")
+    shell = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(1.5)"])
+    # Reap it as soon as it ends, like the real shell's own parent does (no zombie left behind).
+    import threading
+
+    threading.Thread(target=shell.wait, daemon=True).start()
+    started = time.monotonic()
+    code = desktop.main(["--headless", "--parent-pid", str(shell.pid), "--exit-after", "60"])
+    assert code == 0 and time.monotonic() - started < 30
+    assert not (tmp_path / desktop.STATE_FILE).exists()

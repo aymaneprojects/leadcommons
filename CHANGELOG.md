@@ -2,12 +2,17 @@
 
 ## 0.1.1 (2026-11-15)
 
-- Desktop app for Windows (setup .exe), macOS on Apple Silicon (.dmg) and Linux (.AppImage),
-  built and tested by GitHub Actions. It opens LeadCommons in its own window, keeps the data
-  on your computer and downloads the full company pack at the first start.
+- Desktop app, built like the big desktop apps: an Electron shell (own window, real menu bar in
+  English or French, splash screen, native "Save as" for exports, system notifications when
+  background jobs finish, badge on the Dock or taskbar, one instance at a time, window size kept,
+  update notice) around the LeadCommons engine. Installers for Windows (.exe), macOS on Apple
+  Silicon (.dmg) and Linux (.deb and .AppImage), built and tested by GitHub Actions.
+- In the app, pages behave like an application: no browser reload or developer shortcuts, no
+  stray text selection, links to other sites open in your browser.
 - Settings > Data packs: download the newest company pack from the app; search switches to it
-  when the download is done. A new download replaces the previous one, never your own packs.
-- `leadcommons desktop` opens the window from a command-line install.
+  when the download is done. A new download replaces the previous one, never your own packs. The
+  desktop app does this by itself at the first start.
+- `leadcommons desktop` opens a window from a command-line install.
 
 ## 0.1.0 (2026-11-15)
 

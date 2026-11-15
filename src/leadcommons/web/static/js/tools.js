@@ -199,7 +199,10 @@
 
     /* dictation (Web Speech API) */
     var mic = $("[data-mic]"), SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (mic && SR) {
+    if (mic && doc.documentElement.dataset.app === "desktop") {
+      /* The desktop app's engine has no speech service: point to the system's own dictation. */
+      mic.setAttribute("title", "Use your computer's dictation in the message box: Windows key + H on Windows, Fn twice (or the mic key) on a Mac.");
+    } else if (mic && SR) {
       mic.removeAttribute("aria-disabled");
       mic.setAttribute("title", "Dictate. Your browser may send the audio to its own speech service.");
       var rec = null, base = "";
