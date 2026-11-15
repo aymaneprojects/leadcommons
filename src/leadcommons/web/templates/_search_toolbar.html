@@ -25,7 +25,7 @@
         <input id="q" type="search" name="q" value="{{ p.q }}" placeholder="{{ 'Search companies' if s.kind == 'companies' else 'Search people' }}" autocomplete="off">
       </div>
       <span class="tb-gap"></span>
-      {{ ai_menu("Research with AI", kind=s.kind, llm=s.llm, demo=s.demo) }}
+      {{ ai_menu("AI research", kind=s.kind, llm=s.llm, demo=s.demo) }}
       <details class="dd wf-dd">
         <summary class="btn" title="Automate follow-ups for this search">{{ ic("workflow") }}<span>Create workflow</span>{{ ic("chevron-down", "sm") }}</summary>
         <div class="menu left">

@@ -518,7 +518,7 @@ def test_all_filters_modal_renders(client: TestClient, seeded: FastAPI) -> None:
     assert html.count("soon-badge") >= 10 and 'aria-disabled="true"' in html
     people = TestClient(seeded).get("/people").text
     assert 'data-fgroup="titles"' in people and "include" in people.lower()
-    assert "Include people with similar titles" in people
+    assert "Also match similar titles" in people
 
 
 def real_people_app(tmp_path: Path) -> FastAPI:
@@ -1018,7 +1018,7 @@ def test_demo_mode_disables_crawling_actions(tmp_path: Path) -> None:
     )
 
 
-# ---- Research with AI
+# ---- AI research
 
 
 @pytest.fixture

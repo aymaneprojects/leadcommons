@@ -335,7 +335,7 @@ class Reply:
     cards: list[dict[str, Any]] = field(default_factory=list)
     more: dict[str, str] | None = None
     options: list[dict[str, Any]] | None = None
-    options_prompt: str = "Select one of the following"
+    options_prompt: str = "Pick a next step"
     chips: list[str] = field(default_factory=list)
     links: list[dict[str, str]] = field(default_factory=list)
     context: dict[str, Any] | None = None

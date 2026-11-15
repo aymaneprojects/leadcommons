@@ -24,7 +24,8 @@ def main() -> None:
     store = Store(settings.database_url)
     search = DuckDBCompanySearch(settings.data_dir)
     companies = [
-        c for c in search.search_companies(CompanyFilters(text="bank"), per_page=10).items
+        c
+        for c in search.search_companies(CompanyFilters(text="bank"), per_page=10).items
         if c.domain
     ][:3]
     for company, (name, title, seniority, status, conf) in zip(companies, FAKE, strict=False):
@@ -50,7 +51,9 @@ def main() -> None:
             ),
         )
     lid = store.create_list("Audit list", "people")
-    store.add_to_list(lid, [make_id("pe", c.domain or "", f[0]) for c, f in zip(companies, FAKE)])
+    store.add_to_list(
+        lid, [make_id("pe", c.domain or "", f[0]) for c, f in zip(companies, FAKE, strict=False)]
+    )
     print(f"seeded {len(companies)} people into {settings.home}")
 
 

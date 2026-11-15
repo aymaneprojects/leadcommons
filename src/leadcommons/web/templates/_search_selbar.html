@@ -38,7 +38,7 @@
   {% endif %}
   <button type="submit" form="bulk" formaction="/bulk/export.csv" class="btn icon-only" aria-label="Export CSV" data-tip="{{ export_tip }}">{{ ic("download") }}<span class="sr-only">Export CSV</span></button>
   <span class="tb-gap"></span>
-  {{ ai_menu("Research with AI", True, llm=s.llm, demo=s.demo) }}
+  {{ ai_menu("AI research", True, llm=s.llm, demo=s.demo) }}
   <details class="dd">
     <summary class="btn icon-only" aria-label="Push to another tool" title="Push to a CRM or another tool">{{ ic("upload") }}{{ ic("chevron-down", "sm") }}</summary>
     <div class="menu right">

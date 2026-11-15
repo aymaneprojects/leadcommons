@@ -8,13 +8,13 @@
   <div class="hub-top">{{ views_menu(groups) }}</div>
   <div class="hub-head">
     <div>
-      <h1>Get started with LeadCommons</h1>
+      <h1>Your first steps with LeadCommons</h1>
       <p class="muted">Work through these steps, in any order. <b>{{ hub_done }} of {{ hub_total }}</b> done.{% if request.app.state.settings.mode != "demo" %} Everything stays on this machine.{% endif %}</p>
     </div>
   </div>
   {{ hub_progress(hub_done, hub_total) }}
   {{ checklist(groups) }}
-  <h2 class="hub-sub">More resources to help you master LeadCommons</h2>
+  <h2 class="hub-sub">Guides and help</h2>
   <p class="muted">Guides and project links.</p>
   <div class="res-grid">
     <a class="res-card" href="https://github.com/aymaneprojects/leadcommons/tree/main/docs" target="_blank" rel="noopener noreferrer"><span class="res-art">{{ tic("book-open", "lg") }}</span><b>Read the documentation</b><span class="muted">Install, deploy, data sources and privacy notes.</span></a>

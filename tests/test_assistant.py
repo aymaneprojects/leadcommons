@@ -115,7 +115,7 @@ def test_extract_domain() -> None:
 def test_find_companies_shows_cards_and_option_card(app: FastAPI, client: TestClient) -> None:
     cid, html = say(client, "software companies in Germany with 11-50 people")
     assert "Brücke Software" in html and "Nordwind" not in html  # 11-50 only
-    assert 'href="/companies/' in html and "Select one of the following" in html
+    assert 'href="/companies/' in html and "Pick a next step" in html
     assert "Continue" in html and "disabled" in html  # Continue starts disabled
     msg = last_assistant(app, cid)
     labels = [c["label"] for c in msg.data["options"]["choices"]]
@@ -438,14 +438,14 @@ def test_embed_mode_has_no_mcp_card(client: TestClient) -> None:
 
 
 def test_home_banner_continues_the_conversation(app: FastAPI, client: TestClient) -> None:
-    assert "Pick up where you left off" not in client.get("/").text
+    assert "Your last Assistant chat is waiting" not in client.get("/").text
     cid, _ = say(client, "companies in France")
     home = client.get("/").text
-    assert "Pick up where you left off" in home and f'href="/assistant/{cid}"' in home
+    assert "Your last Assistant chat is waiting" in home and f'href="/assistant/{cid}"' in home
     assert client.post("/dismiss-banner", headers=HX).status_code == 200
-    assert "Pick up where you left off" not in client.get("/").text
+    assert "Your last Assistant chat is waiting" not in client.get("/").text
     say(client, "companies in Spain", cid)  # new activity brings it back
-    assert "Pick up where you left off" in client.get("/").text
+    assert "Your last Assistant chat is waiting" in client.get("/").text
 
 
 def test_assistant_page_does_not_leak_apollo(client: TestClient) -> None:

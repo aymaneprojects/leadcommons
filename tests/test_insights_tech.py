@@ -19,9 +19,18 @@ def test_rule_table_is_large_and_unique() -> None:
     assert len(set(all_names)) == len(all_names) >= 150
     cats = {r.category for r in techrules.RULES}
     for wanted in (
-        techrules.CMS, techrules.SHOP, techrules.ANALYTICS, techrules.TAGS, techrules.MARKETING,
-        techrules.CHAT, techrules.PAY, techrules.JS, techrules.CDN, techrules.ABTEST,
-        techrules.CONSENT, techrules.EMAIL,
+        techrules.CMS,
+        techrules.SHOP,
+        techrules.ANALYTICS,
+        techrules.TAGS,
+        techrules.MARKETING,
+        techrules.CHAT,
+        techrules.PAY,
+        techrules.JS,
+        techrules.CDN,
+        techrules.ABTEST,
+        techrules.CONSENT,
+        techrules.EMAIL,
     ):
         assert wanted in cats
 

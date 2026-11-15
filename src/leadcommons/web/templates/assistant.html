@@ -58,7 +58,7 @@
       <form class="composer chat-composer" id="composer" method="post" action="/assistant/send" hx-post="/assistant/send" hx-target="#chat" hx-swap="beforeend" hx-push-url="false">
         <input type="hidden" name="conversation_id" value="{{ cid or '' }}" data-cid-field>
         <label class="sr-only" for="ask">Message</label>
-        <textarea id="ask" name="message" rows="1" required maxlength="2000" placeholder="Find leads, save your preferences, or type / for commands" autocomplete="off">{{ prefill if False }}</textarea>
+        <textarea id="ask" name="message" rows="1" required maxlength="2000" placeholder="Ask for companies or people, or type / to see commands" autocomplete="off">{{ prefill if False }}</textarea>
         <div class="composer-row">
           <button class="btn ghost icon-only sm" type="button" data-slash-open aria-label="Show commands" title="Commands">/</button>
           <span class="grow"></span>

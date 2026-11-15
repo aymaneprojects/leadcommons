@@ -37,8 +37,8 @@
 {% set p = ui.p %}
 {% if key == "titles" %}
   {{ tagbox(ui, "title", "Enter titles, e.g. Founder", "Include titles") }}
-  <label class="opt similar"><input type="hidden" name="similar" value="0"><input type="checkbox" name="similar" value="1" {% if p.similar %}checked{% endif %}><span class="ol">Include people with similar titles</span><span class="tip" tabindex="0" data-tip="Also matches common equivalents, for example CEO and chief executive officer.">{{ ic("info", "sm") }}</span></label>
-  {{ tagbox(ui, "xtitle", "Enter titles to exclude", "Exclude titles", True) }}
+  <label class="opt similar"><input type="hidden" name="similar" value="0"><input type="checkbox" name="similar" value="1" {% if p.similar %}checked{% endif %}><span class="ol">Also match similar titles</span><span class="tip" tabindex="0" data-tip="Also matches common equivalents, for example CEO and chief executive officer.">{{ ic("info", "sm") }}</span></label>
+  {{ tagbox(ui, "xtitle", "Titles to leave out", "Exclude titles", True) }}
 {% elif key == "seniority" %}
   <div class="opts">{% for sv in ui.seniorities %}<label class="opt"><input type="checkbox" name="seniority" value="{{ sv.value }}" {% if sv.value in p.seniority %}checked{% endif %}><span class="ol">{{ seniority_label(sv) }}</span></label>{% endfor %}</div>
 {% elif key == "email" %}
@@ -153,10 +153,10 @@
 </span>
 {%- endmacro %}
 
-{# "Research with AI" menu. The top box turns plain words into filters (POST /api/ai/parse; works
+{# "AI research" menu. The top box turns plain words into filters (POST /api/ai/parse; works
    offline with rules). The prompt items run a model you configured (LEADCOMMONS_LLM_URL and
    LEADCOMMONS_LLM_MODEL) on the selected rows and add the answers as a temporary column. #}
-{% macro ai_menu(label="Research with AI", up=False, kind=None, llm=False, demo=False) -%}
+{% macro ai_menu(label="AI research", up=False, kind=None, llm=False, demo=False) -%}
 {% set off = "Turned off in the public demo." if demo else ("" if llm else "To turn this on, set LEADCOMMONS_LLM_URL and LEADCOMMONS_LLM_MODEL (any OpenAI-compatible server, for example Ollama) and restart.") %}
 <details class="dd ai-dd">
   <summary class="btn ai-btn" title="{{ label }}">{{ ic("wand-sparkles") }}<span>{{ label }}</span>{{ ic("chevron-down", "sm") }}</summary>

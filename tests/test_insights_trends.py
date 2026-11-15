@@ -38,7 +38,8 @@ def test_parse_entity() -> None:
         ("2024-12-31", 1800),
     ]  # fmt: skip  (deprecated value dropped)
     assert [(r.year, r.amount, r.currency) for r in t.revenue] == [
-        (2023, 250_000_000.0, "euro"), (2024, 310_000_000.0, "euro"),
+        (2023, 250_000_000.0, "euro"),
+        (2024, 310_000_000.0, "euro"),
     ]
     assert [(x.exchange, x.ticker) for x in t.listings] == [("Frankfurt Stock Exchange", "NWD")]
     assert t.owned_by == ["Nordwind Holding"]

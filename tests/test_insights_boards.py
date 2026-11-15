@@ -69,7 +69,9 @@ def test_greenhouse() -> None:
     assert jobs.ats == "greenhouse" and jobs.board == "nordwind" and jobs.error is None
     first, second, third = jobs.postings
     assert (first.title, first.department, first.location) == (
-        "Senior Data Engineer", "Engineering", "Hamburg, Germany",
+        "Senior Data Engineer",
+        "Engineering",
+        "Hamburg, Germany",
     )
     assert first.url == "https://boards.greenhouse.io/nordwind/jobs/1"
     assert first.posted_at == "2026-10-01T09:00:00-04:00" and first.remote is None
@@ -112,7 +114,10 @@ def test_workable() -> None:
     jobs = boards.collect_jobs(["https://apply.workable.com/acme/"], client())
     a, b = jobs.postings
     assert (a.location, a.department, a.posted_at, a.remote) == (
-        "Madrid, Spain", "Customer Success", "2026-10-10", False,
+        "Madrid, Spain",
+        "Customer Success",
+        "2026-10-10",
+        False,
     )
     assert b.location == "Portugal" and b.remote is True
 

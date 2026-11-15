@@ -406,10 +406,10 @@ def test_email_health_mailboxes_tab_links_to_mailboxes(client: TestClient) -> No
 
 def test_onboarding_hub_groups_and_progress(app: FastAPI, client: TestClient) -> None:
     html = client.get("/onboarding").text
-    assert "Get started with LeadCommons" in html and "0 of 18</b> done" in html
-    assert "Start reaching the right prospects" in html and "0 of 6 completed" in html
+    assert "Your first steps with LeadCommons" in html and "0 of 18</b> done" in html
+    assert "Find the people you want to reach" in html and "0 of 6 completed" in html
     assert "Find a company phone number" in html and "save a mobile" not in html.lower()
-    assert "More resources" in html and "hub-progress" in html and "btn primary" in html
+    assert "Guides and help" in html and "hub-progress" in html and "btn primary" in html
     store = app.state.store
     store.save_company(app.state.search.companies[0])
     store.create_list("x", "people")
@@ -520,7 +520,7 @@ def test_list_export_never_contains_suppressed_emails(app: FastAPI, client: Test
 
 def test_assistant_page_has_working_composer(client: TestClient) -> None:
     html = client.get("/assistant").text
-    assert "Find companies to sell to" in html and "type / for commands" in html
+    assert "Find companies to sell to" in html and "type / to see commands" in html
     assert (
         'action="/assistant/send"' in html
         and "disabled" not in html.split('id="composer"')[1][:600]

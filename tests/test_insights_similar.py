@@ -14,10 +14,17 @@ from leadcommons.search import PACK_COLUMNS
 from tests.fakes import FakeSearch
 
 
-def co(i: str, name: str, country: str = "FR", industry: str = "J", size: str | None = "11-50",
-       domain: str | None = "x.example") -> Company:
-    return Company(id=f"co_{i}", name=name, domain=domain, country=country, industry=industry,
-                   size_range=size)
+def co(
+    i: str,
+    name: str,
+    country: str = "FR",
+    industry: str = "J",
+    size: str | None = "11-50",
+    domain: str | None = "x.example",
+) -> Company:
+    return Company(
+        id=f"co_{i}", name=name, domain=domain, country=country, industry=industry, size_range=size
+    )
 
 
 SUBJECT = co("0", "Subject", "FR", "J", "11-50")

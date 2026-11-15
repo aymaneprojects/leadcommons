@@ -499,7 +499,7 @@ def hub_groups(request: Request) -> list[dict[str, Any]]:
     }
     groups = [
         {
-            "title": "Start reaching the right prospects",
+            "title": "Find the people you want to reach",
             "desc": "Find people and companies that match your ideal customer profile.",
             "tasks": [
                 T(
@@ -553,7 +553,7 @@ def hub_groups(request: Request) -> list[dict[str, Any]]:
             ],
         },
         {
-            "title": "Get your inbox ready to send",
+            "title": "Prepare your mailbox for sending",
             "desc": "Make sure your emails land in the inbox.",
             "tasks": [
                 T(
@@ -613,7 +613,7 @@ def hub_groups(request: Request) -> list[dict[str, Any]]:
             ],
         },
         {
-            "title": "Turn activity into meetings",
+            "title": "Book meetings from your outreach",
             "desc": "Make it easy to follow up and book time.",
             "tasks": [
                 T(

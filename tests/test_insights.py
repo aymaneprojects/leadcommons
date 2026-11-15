@@ -68,8 +68,12 @@ def mock_world(router: respx.MockRouter, *, team_route: bool = True) -> dict[str
     routes["home"] = router.get(f"{BASE}/").respond(
         200,
         html=fx("home.html"),
-        headers=[("server", "cloudflare"), ("cf-ray", "1"), ("set-cookie", "_ga=GA1; Path=/"),
-                 ("set-cookie", "PHPSESSID=x; Path=/")],
+        headers=[
+            ("server", "cloudflare"),
+            ("cf-ray", "1"),
+            ("set-cookie", "_ga=GA1; Path=/"),
+            ("set-cookie", "PHPSESSID=x; Path=/"),
+        ],
     )
     routes["careers"] = router.get(f"{BASE}/careers").respond(200, html=fx("careers.html"))
     routes["contact"] = router.get(f"{BASE}/contact").respond(200, html=fx("contact.html"))
@@ -211,8 +215,15 @@ def demo_settings(tmp_path: Path) -> Settings:
 
 
 def local_settings(tmp_path: Path, **kw) -> Settings:
-    return Settings(home=tmp_path, data_dir=tmp_path / "packs", database_url="sqlite://",
-                    mode="local", password=None, password_hash=None, **kw)
+    return Settings(
+        home=tmp_path,
+        data_dir=tmp_path / "packs",
+        database_url="sqlite://",
+        mode="local",
+        password=None,
+        password_hash=None,
+        **kw,
+    )
 
 
 @respx.mock(assert_all_called=False)
