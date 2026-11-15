@@ -79,7 +79,7 @@ function startBackend(port) {
   const exe = L.backendExecutable({ resourcesPath: process.resourcesPath, platform: process.platform });
   const args = ["--headless", "--port", String(port), "--parent-pid", String(process.pid)];
   backend = spawn(exe, args, {
-    env: { ...process.env, LEADCOMMONS_DESKTOP: "1" },
+    env: { ...process.env, LEADCOMMONS_DESKTOP: "1", LEADCOMMONS_LOCALE: localeTag() },
     stdio: "ignore",
     windowsHide: true,
   });
@@ -87,6 +87,15 @@ function startBackend(port) {
   backend.on("exit", (code) => {
     if (!quitting) fatal(new Error(`backend exited with code ${code}`));
   });
+}
+
+// The user's language and region, e.g. "fr-FR": the backend downloads that country's company
+// data on the first start (more countries can be added in Settings > Data packs).
+function localeTag() {
+  const locale = String(app.getLocale() || "");
+  let region = "";
+  try { region = String(app.getLocaleCountryCode() || ""); } catch (_) { /* not on every platform */ }
+  return /^[A-Za-z]{2}$/.test(region) ? `${locale.split("-")[0] || "en"}-${region.toUpperCase()}` : locale;
 }
 
 function showSplash() {
