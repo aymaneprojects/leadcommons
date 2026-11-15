@@ -28,6 +28,7 @@ from leadcommons import __version__, engage, insights
 from leadcommons.ai.llm import llm_config
 from leadcommons.models import SIZE_RANGES, Company, EmailStatus, Person, Seniority, utcnow
 from leadcommons.search import CompanyFilters, PeopleFilters
+from leadcommons.web import results
 from leadcommons.web.deps import get_jobs, get_search, get_store, templates
 
 router = APIRouter()
@@ -729,8 +730,9 @@ def insight_phone(ins: Any) -> str | None:
     """First business phone number in a company's insights, if any."""
     if not ins:
         return None
-    for it in _field(ins, "phones") or []:
-        v = it if isinstance(it, str) else _field(it, "number", "phone", "value")
+    contact = _field(ins, "contact")  # CompanyInsights keeps phones under .contact
+    for it in (_field(contact, "phones") if contact else None) or _field(ins, "phones") or []:
+        v = it if isinstance(it, str) else _field(it, "e164", "number", "phone", "value")
         if isinstance(v, str) and v.strip():
             return v.strip()
     single = _field(ins, "phone")
@@ -1358,6 +1360,7 @@ COMPANY_COLUMNS: tuple[dict[str, Any], ...] = (
     {"key": "industry", "label": "Industry", "default": True},
     {"key": "size", "label": "Employees", "default": True},
     {"key": "sources", "label": "Source", "default": True},
+    {"key": "phone", "label": "Phone"},
     {"key": "country", "label": "Country"},
     {"key": "city", "label": "City"},
     {"key": "region", "label": "Region"},
@@ -1371,6 +1374,7 @@ PEOPLE_COLUMNS: tuple[dict[str, Any], ...] = (
     {"key": "title", "label": "Job title", "default": True},
     {"key": "company", "label": "Company", "default": True},
     {"key": "email", "label": "Email", "default": True},
+    {"key": "phone", "label": "Phone", "default": True},
     {"key": "source", "label": "Source", "default": True},
     {"key": "seniority", "label": "Seniority"},
     {"key": "department", "label": "Department"},
@@ -1404,6 +1408,8 @@ def _remove_url(
 
 
 templates.env.globals["demo_reason"] = DEMO_REASON
+templates.env.globals["rx"] = results  # results screens: view menu, field icons, save window
+templates.env.globals["ui_state"] = load_state
 templates.env.filters["tel"] = lambda phone: tel_href(phone) or "#"
 templates.env.globals["remove_url"] = lambda ui, key, value: _remove_url(
     ui["base"], ui["params"], key, value
@@ -1529,21 +1535,8 @@ def search_ui(
             }
         )
     active_total = sum(g["state"]["count"] for g in groups if g["supported"])
-    views = []
-    current = sorted(parse_qsl(qs(params)))
-    current_view = ""
-    for s in store.saved_searches(kind):
-        try:
-            raw = json.loads(s.filters_json)
-            query = raw.get("query", "") if isinstance(raw, dict) else str(raw)
-        except ValueError:
-            query = s.filters_json
-        active = bool(query) and sorted(parse_qsl(query)) == current
-        if active:
-            current_view = s.name
-        views.append(
-            {"name": s.name, "url": f"{base}?{query}" if query else base, "active": active}
-        )
+    menu = results.view_rows(kind, store, qs(params), base)  # saved-view menu (results.py)
+    views, current_view = menu["rows"], menu["current"]
     return {
         "kind": kind,
         "base": base,
@@ -1672,6 +1665,9 @@ def company_context(request: Request, company: Company) -> dict[str, Any]:
             "domain": company.domain,
             "suppressed": bool(company.domain and store.is_suppressed(company.domain)),
         },
+        "member_lists": results.lists_holding(store, "companies", company.id),
+        "locations": results.company_locations(company, ins),
+        "leads": results.lead_groups(people),
     }
 
 
@@ -1749,6 +1745,8 @@ def company_save(
         return not_found(request, "Company")
     store.save_company(company)
     msg = f"Saved {company.name}."
+    if auto_enrich(request, "companies", [company.id]):
+        msg += " Looking for its people now (enrichment mode is on)."
     if is_htmx(request):
         return drawer_response(request, company, msg)
     return RedirectResponse(with_notice(f"/companies/{company_id}", msg), status_code=303)
@@ -1910,6 +1908,7 @@ def person_context(request: Request, person: Person) -> dict[str, Any]:
         "emails": emails,
         "lists": store.lists("people"),
         "is_saved": person.id in store.saved_person_ids(),
+        "cscore": company_score(company, [person, *colleagues], ins) if company else None,
     }
 
 
@@ -2435,7 +2434,11 @@ def valid_kind(kind: str | None) -> str:
     return kind if kind in ("people", "companies") else "companies"
 
 
-def add_records(request: Request, list_id: str, kind: str, ids: list[str]) -> None:
+def add_records(
+    request: Request, list_id: str, kind: str, ids: list[str], auto: bool = True
+) -> int:
+    """Add records to a list (companies are saved locally first). With the enrichment mode of
+    Search settings on, look-ups start for what was added; returns how many were queued."""
     store, search = request.app.state.store, request.app.state.search
     if kind == "companies":
         for cid in ids:
@@ -2443,6 +2446,36 @@ def add_records(request: Request, list_id: str, kind: str, ids: list[str]) -> No
             if c:
                 store.save_company(c)
     store.add_to_list(list_id, ids)
+    return auto_enrich(request, kind, ids) if auto else 0
+
+
+AUTO_KEYS = {"people": "auto_enrich_people", "companies": "auto_enrich_companies"}
+
+
+def auto_enrich(request: Request, kind: str, ids: list[str]) -> int:
+    """Enrichment mode (Search settings): saving people looks for their emails, saving
+    companies looks for their people. Off in the demo; skips opted-out records."""
+    if is_demo(request) or not load_state(request.app.state.settings).get(AUTO_KEYS[kind]):
+        return 0
+    store, search, jobs = request.app.state.store, request.app.state.search, request.app.state.jobs
+    n = 0
+    for rid in ids[:200]:
+        if kind == "people":
+            person = store.get_person(rid)
+            status, suppressed = results.person_status(store, rid) if person else ("", True)
+            if person and not suppressed and status != "valid":
+                jobs.submit("find_email", {"person_id": rid}, f"Find email for {person.full_name}")
+                n += 1
+        else:
+            company = search.get_company(rid)
+            if (
+                company
+                and company.domain
+                and not store.is_suppressed(company.domain)
+                and _submit_find_people(jobs, company)
+            ):
+                n += 1
+    return n
 
 
 @router.post("/lists")
@@ -2484,10 +2517,13 @@ async def lists_save_to(
         return done(request, "Choose a list or name a new one.", back, "error")
     elif list_id not in {li.id for li in store.lists(kind)}:
         return done(request, "That list does not exist.", back, "error")
-    add_records(request, list_id, kind, ids)
+    queued = add_records(request, list_id, kind, ids)
     name = new_name or next((li.name for li in store.lists(kind) if li.id == list_id), "list")
     n = len(ids)
-    return done(request, f"Added {n} to {name}.", back)
+    msg = f"Added {n} to {name}."
+    if queued:
+        msg += f" Started {queued} look-up{'s' if queued != 1 else ''} (enrichment mode is on)."
+    return done(request, msg, back)
 
 
 def list_or_404(store: Any, list_id: str) -> Any:
@@ -2567,6 +2603,11 @@ async def bulk_export(request: Request, _: None = Depends(csrf)) -> Response:
     form = await form_values(request)
     kind = valid_kind(form.get("kind"))
     ids = form_ids(form)
+    # the save window asks for its CSV with apply_keep=1: only the people it kept
+    keep = save_options(form, kind)["keep"] if form.get("apply_keep") == "1" else None
+    if keep is not None:
+        store = request.app.state.store
+        ids = [i for i in ids if results.person_status(store, i)[0] in keep]
     header, rows = export_rows(request, kind, ids)
     set_state(request.app.state.settings, exported=True)
     return csv_response(rows, header, f"{kind}-selection.csv")
@@ -2590,6 +2631,239 @@ async def searches_create(
         return done(request, "Give the search a name.", back, "error")
     store.save_search(name, kind, json.dumps({"query": query}))
     return done(request, f"Saved search {name}.", back)
+
+
+async def _view_form(request: Request) -> tuple[Any, str, str]:
+    form = await form_values(request)
+    kind = valid_kind(form.get("kind"))
+    back = safe_next(form.get("next"), "/companies" if kind == "companies" else "/people")
+    return form, kind, back
+
+
+@router.post("/searches/{view_id}/rename")
+async def searches_rename(
+    view_id: str, request: Request, _: None = Depends(csrf), store: Any = Depends(get_store)
+) -> Response:
+    form, _kind, back = await _view_form(request)
+    if view_id.startswith("system:"):
+        return done(request, results.SYSTEM_LOCKED, back, "error")
+    name = str(form.get("name") or "").strip()[:120]
+    if not name:
+        return done(request, "Give the search a name.", back, "error")
+    if not results.rename_view(store, view_id, name):
+        return done(request, "That saved search no longer exists.", back, "error")
+    return done(request, f"Renamed to {name}.", back)
+
+
+@router.post("/searches/{view_id}/duplicate")
+async def searches_duplicate(
+    view_id: str, request: Request, _: None = Depends(csrf), store: Any = Depends(get_store)
+) -> Response:
+    _form, kind, back = await _view_form(request)
+    new_id = results.duplicate_view(store, kind, view_id)
+    if new_id is None:
+        return done(request, "That saved search no longer exists.", back, "error")
+    row = results.get_view(store, new_id)
+    return done(request, f"Saved a copy as {row.name if row else 'a new search'}.", back)
+
+
+@router.post("/searches/{view_id}/star")
+async def searches_star(
+    view_id: str, request: Request, _: None = Depends(csrf), store: Any = Depends(get_store)
+) -> Response:
+    form, _kind, back = await _view_form(request)
+    if view_id.startswith("system:"):
+        return done(request, results.SYSTEM_LOCKED, back, "error")
+    on = str(form.get("on") or "1") == "1"
+    if not results.star_view(store, view_id, on):
+        return done(request, "That saved search no longer exists.", back, "error")
+    return done(request, "Starred." if on else "Removed the star.", back)
+
+
+@router.post("/searches/{view_id}/delete")
+async def searches_delete(
+    view_id: str, request: Request, _: None = Depends(csrf), store: Any = Depends(get_store)
+) -> Response:
+    _form, _kind, back = await _view_form(request)
+    if view_id.startswith("system:"):
+        return done(request, results.SYSTEM_LOCKED, back, "error")
+    row = results.get_view(store, view_id)
+    if row is None or not results.delete_view(store, view_id):
+        return done(request, "That saved search no longer exists.", back, "error")
+    return done(request, f"Deleted {row.name}.", back)
+
+
+@router.post("/search-settings")
+async def search_settings_save(request: Request, _: None = Depends(csrf)) -> Response:
+    """Search settings drawer: the enrichment mode switch (stored per screen)."""
+    form = await form_values(request)
+    kind = valid_kind(form.get("kind"))
+    back = safe_next(form.get("next"), "/companies" if kind == "companies" else "/people")
+    if is_demo(request):
+        return done(request, DEMO_REASON, back, "error")
+    on = str(form.get("auto") or "0") == "1"
+    set_state(request.app.state.settings, **{AUTO_KEYS[kind]: on})
+    what = "emails of people you save" if kind == "people" else "people at companies you save"
+    return done(request, f"Enrichment mode {'on' if on else 'off'}: {what}.", back)
+
+
+def save_options(form: Any, kind: str) -> dict[str, Any]:
+    """Choices of the save window. keep is None until the window sent its status boxes."""
+    keep = (
+        [k for k in form.getlist("keep") if k in results.STATUS_KEYS]
+        if form.get("keep_sent")
+        else None
+    )
+    mode = str(form.get("find_mode") or "")
+    return {
+        "keep": keep if kind == "people" else None,
+        "find": str(form.get("find") or "0") == "1",
+        "phones": mode in ("emails_phones", "people_phones"),
+        "mode": mode or ("emails" if kind == "people" else "people"),
+    }
+
+
+def plan_for(request: Request, kind: str, ids: list[str], opts: dict[str, Any]) -> dict[str, Any]:
+    store, search = request.app.state.store, request.app.state.search
+    return results.save_plan(
+        kind,
+        ids,
+        store=store,
+        search=search,
+        keep=opts["keep"],
+        find=opts["find"],
+        phones=opts["phones"],
+        demo=is_demo(request),
+        workers=int(getattr(request.app.state.settings, "max_workers", 4) or 4),
+        has_insights=lambda cid: safe_insights(store, cid) is not None,
+    )
+
+
+@router.post("/partials/save-summary", response_class=HTMLResponse)
+async def save_summary(request: Request, _: None = Depends(csrf)) -> Response:
+    """Right-hand column of the save window: what Save will do for the current choices."""
+    form = await form_values(request)
+    kind = valid_kind(form.get("kind"))
+    ids = form_ids(form)[:500]
+    opts = save_options(form, kind)
+    store = request.app.state.store
+    list_id = str(form.get("dest_list") or "")
+    list_name = str(form.get("dest_new") or "").strip() if list_id == "new" else ""
+    if list_id and list_id != "new":
+        list_name = next((li.name for li in store.lists(kind) if li.id == list_id), "")
+    seq_id = str(form.get("sequence_id") or "")
+    ctx = {
+        "request": request,
+        "kind": kind,
+        "plan": plan_for(request, kind, ids, opts),
+        "opts": opts,
+        "keep": opts["keep"] if opts["keep"] is not None else list(results.DEFAULT_KEEP),
+        "list_name": list_name,
+        "default_list": results.DEFAULT_LIST_NAME[kind],
+        "sequence": results.sequence_name(store, seq_id) if seq_id else None,
+        "export": str(form.get("export") or "0") == "1",
+        "demo": is_demo(request),
+    }
+    return templates.TemplateResponse(request, "_search_save_summary.html", ctx)
+
+
+@router.post("/bulk/save")
+async def bulk_save(request: Request, _: None = Depends(csrf)) -> Response:
+    """The save window: keep the records whose email status you chose, put them in a list,
+    start the look-ups you asked for, add people to a sequence and optionally export a CSV."""
+    store, search, jobs = request.app.state.store, request.app.state.search, request.app.state.jobs
+    form = await form_values(request)
+    kind = valid_kind(form.get("kind"))
+    back = safe_next(form.get("next"), "/companies" if kind == "companies" else "/people")
+    ids = form_ids(form)[:500]
+    if not ids:
+        return done(request, "Select at least one record first.", back, "error")
+    opts = save_options(form, kind)
+    plan = plan_for(request, kind, ids, opts)
+    kept = plan["kept"]
+    if not kept:
+        return done(
+            request, "None of the selected people has an email status you kept.", back, "error"
+        )
+    list_id = str(form.get("dest_list") or "")  # the window shares #bulk with "Add to list"
+    new_name = str(form.get("dest_new") or "").strip()[:120]
+    list_name = ""
+    if list_id == "new":
+        if not new_name:
+            return done(request, "Name the new list, or pick an existing one.", back, "error")
+        list_id, list_name = store.create_list(new_name, kind), new_name
+    elif list_id:
+        match = next((li for li in store.lists(kind) if li.id == list_id), None)
+        if match is None:
+            return done(request, "That list does not exist any more.", back, "error")
+        list_name = match.name
+    elif kind == "people":  # people are saved by being in a list: use the default one
+        list_name = results.DEFAULT_LIST_NAME[kind]
+        found = next((li for li in store.lists(kind) if li.name == list_name), None)
+        list_id = found.id if found else store.create_list(list_name, kind)
+    if list_id:
+        add_records(request, list_id, kind, kept, auto=False)
+    else:
+        for cid in kept:
+            company = search.get_company(cid)
+            if company:
+                store.save_company(company)
+    noun = (
+        ("person" if len(kept) == 1 else "people")
+        if kind == "people"
+        else ("company" if len(kept) == 1 else "companies")
+    )
+    parts = [f"Saved {len(kept)} {noun}" + (f" to {list_name}." if list_name else ".")]
+    if len(kept) < len(ids):
+        parts.append(f"{len(ids) - len(kept)} left out by the email status filter.")
+    if opts["find"] and is_demo(request):
+        parts.append("Look-ups are off in the public demo.")
+    for pid in plan["email_jobs"]:
+        person = store.get_person(pid)
+        jobs.submit(
+            "find_email",
+            {"person_id": pid},
+            f"Find email for {person.full_name if person else pid}",
+        )
+    for cid in plan["people_jobs"]:
+        company = search.get_company(cid)
+        if company:
+            _submit_find_people(jobs, company)
+    for cid in plan["insight_jobs"]:
+        company = search.get_company(cid)
+        if company:
+            _submit_insights(jobs, company)
+    queued = sum(plan["jobs"].values())
+    if queued:
+        parts.append(
+            f"Started {queued} look-up{'s' if queued != 1 else ''}; follow them in the jobs menu."
+        )
+    seq_id = str(form.get("sequence_id") or "")
+    if seq_id and kind == "people":
+        from leadcommons.engage.core import EngageError, enroll_summary
+
+        try:
+            counts = engage.enroll(store, seq_id, kept)
+            parts.append(
+                enroll_summary(results.sequence_name(store, seq_id) or "the sequence", counts)
+            )
+        except EngageError as exc:
+            parts.append(str(exc))
+    export = str(form.get("export") or "0") == "1"
+    if export and not is_htmx(request):  # no JavaScript: answer with the file itself
+        header, rows = export_rows(request, kind, kept)
+        set_state(request.app.state.settings, exported=True)
+        return csv_response(rows, header, f"{kind}-saved.csv")
+    message = " ".join(parts)
+    if not is_htmx(request):
+        return RedirectResponse(with_notice(back, message), status_code=303)
+    trigger: dict[str, Any] = {
+        "toast": {"message": message, "kind": "ok"},
+        "lc-saved": {"kind": kind},
+    }
+    if export:
+        trigger["lc-export"] = {"kind": kind}
+    return Response(status_code=200, headers={"HX-Trigger": json.dumps(trigger)})
 
 
 # ---------------------------------------------------------------- enrich

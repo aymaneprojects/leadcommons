@@ -153,40 +153,47 @@
 </span>
 {%- endmacro %}
 
-{# "AI research" menu. The top box turns plain words into filters (POST /api/ai/parse; works
-   offline with rules). The prompt items run a model you configured (LEADCOMMONS_LLM_URL and
-   LEADCOMMONS_LLM_MODEL) on the selected rows and add the answers as a temporary column. #}
+{# "AI research" menu, in the reference order: custom prompt, formula column, then the
+   Assistant and the templates. The prompt items run a model you configured
+   (LEADCOMMONS_LLM_URL and LEADCOMMONS_LLM_MODEL) on the selected rows and add the answers as
+   a temporary column. Without a model they stay visible with aria-disabled (not "disabled", so
+   the reason still shows on hover) and an aria-describedby reason. The toolbar copy (up=False)
+   ends with a box that turns plain words into filters (POST /api/ai/parse; works offline).
+   The selection-bar copy (up=True) drops from the bar aligned to the trigger's right edge. #}
 {% macro ai_menu(label="AI research", up=False, kind=None, llm=False, demo=False) -%}
 {% set off = "Turned off in the public demo." if demo else ("" if llm else "To turn this on, set LEADCOMMONS_LLM_URL and LEADCOMMONS_LLM_MODEL (any OpenAI-compatible server, for example Ollama) and restart.") %}
-<details class="dd ai-dd">
-  <summary class="btn ai-btn" title="{{ label }}">{{ ic("wand-sparkles") }}<span>{{ label }}</span>{{ ic("chevron-down", "sm") }}</summary>
-  <div class="menu left aimenu{% if up %} right{% endif %}">
-    {% if kind %}
-    <div class="ai-box" data-ai-box data-kind="{{ kind }}">
-      <label class="menu-note" for="ai-q-{{ kind }}{{ '-sel' if up else '' }}">Describe who you want, in plain words</label>
-      {# form= points nowhere so typing here never submits or refreshes the filter form #}
-      <input id="ai-q-{{ kind }}{{ '-sel' if up else '' }}" type="text" form="lc-ai-detached" maxlength="500" autocomplete="off" data-ai-input
-             placeholder="{{ 'e.g. French fintech startups' if kind == 'companies' else 'e.g. CTOs at German SaaS companies, 50-200' }}">
-      <button type="button" class="btn primary sm" data-ai-go>{{ ic("wand-sparkles", "sm") }}<span>Apply as filters</span></button>
-      <p class="ai-out muted" data-ai-out aria-live="polite"></p>
-    </div>
+{% set uid = "ai-" ~ (kind or "x") ~ ("-sel" if up else "-tb") %}
+{% set offattr = (' aria-disabled="true" data-tip="' ~ off ~ '" aria-describedby="' ~ uid ~ '-why"') if off else "" %}
+{% set thing = "company" if kind == "companies" else "person" %}
+<details class="dd ai-dd{% if up %} ai-sel{% endif %}">
+  <summary class="btn ai-btn{% if up %} sel-split{% endif %}" {% if up %}data-tip="{{ label }}" aria-label="{{ label }}"{% else %}title="{{ label }}"{% endif %}>{{ ic("wand-sparkles") }}{% if not up %}<span class="ai-label">{{ label }}</span>{% endif %}{{ ic("chevron-down", "sm") }}</summary>
+  <div class="menu aimenu {{ 'right ai-drop' if up else 'left' }}">
+    {% if off %}<span class="sr-only" id="{{ uid }}-why">{{ off }}</span>{% endif %}
+    <button type="button" class="menu-item" data-ai-open="prompt"{{ offattr|safe }}>{{ ic("wand-sparkles", "sm") }}<span>Run a custom prompt</span></button>
+    <button type="button" class="menu-item" data-ai-open="formula"{{ offattr|safe }}>{{ ic("square-function", "sm") }}<span>Generate a formula column</span></button>
     <div class="menu-sep"></div>
-    {% endif %}
-    <div class="menu-note">Runs on the rows you selected, with your own model.</div>
-    <button type="button" class="menu-item" data-ai-open="prompt"{% if off %} disabled aria-disabled="true" data-tip="{{ off }}"{% endif %}>{{ ic("wand-sparkles", "sm") }}<span>Run a custom prompt</span></button>
-    <button type="button" class="menu-item" data-ai-open="formula"{% if off %} disabled aria-disabled="true" data-tip="{{ off }}"{% endif %}>{{ ic("square-function", "sm") }}<span>Generate a formula column</span></button>
+    <a class="menu-item" href="/assistant">{{ ic("sparkles", "sm") }}<span>Ask the Assistant</span></a>
     <details class="xsub ai-templates">
-      <summary>{{ ic("list", "sm") }} Start from a template {{ ic("chevron-down", "sm") }}</summary>
+      <summary>{{ ic("ellipsis", "sm") }} Start from a template {{ ic("chevron-down", "sm") }}</summary>
       {% set tpls = [
         ("Summarise what they do", "In one line, say what this " ~ ("company" if kind == "companies" else "person's company") ~ " does."),
-        ("Draft an opening line", "Write a friendly one-sentence opener for a cold email to this " ~ ("company" if kind == "companies" else "person") ~ "."),
-        ("Rate the fit", "Rate from 1 to 5 how likely this " ~ ("company" if kind == "companies" else "person") ~ " is a good prospect for a B2B software vendor, then give the reason in a few words."),
-        ("Guess the likely pain", "Name one likely business challenge for this " ~ ("company" if kind == "companies" else "person") ~ ".")
+        ("Draft an opening line", "Write a friendly one-sentence opener for a cold email to this " ~ thing ~ "."),
+        ("Rate the fit", "Rate from 1 to 5 how likely this " ~ thing ~ " is a good prospect for a B2B software vendor, then give the reason in a few words."),
+        ("Guess the likely pain", "Name one likely business challenge for this " ~ thing ~ ".")
       ] %}
-      {% for t, text in tpls %}<button type="button" class="menu-item" data-ai-open="prompt" data-ai-text="{{ text }}"{% if off %} disabled aria-disabled="true" data-tip="{{ off }}"{% endif %}><span>{{ t }}</span></button>{% endfor %}
+      {% for t, text in tpls %}<button type="button" class="menu-item" data-ai-open="prompt" data-ai-text="{{ text }}"{{ offattr|safe }}><span>{{ t }}</span></button>{% endfor %}
     </details>
+    {% if kind and not up %}
     <div class="menu-sep"></div>
-    <a class="menu-item" href="/assistant">{{ ic("sparkles", "sm") }}<span>Open the Assistant</span></a>
+    <div class="ai-box" data-ai-box data-kind="{{ kind }}">
+      <label class="menu-note" for="{{ uid }}-q">Or describe who you want, in plain words</label>
+      {# form= points nowhere so typing here never submits or refreshes the filter form #}
+      <input id="{{ uid }}-q" type="text" form="lc-ai-detached" maxlength="500" autocomplete="off" data-ai-input
+             placeholder="{{ 'e.g. French fintech startups' if kind == 'companies' else 'e.g. CTOs at German SaaS companies, 50-200' }}">
+      <button type="button" class="btn sm" data-ai-go>{{ ic("wand-sparkles", "sm") }}<span>Apply as filters</span></button>
+      <p class="ai-out muted" data-ai-out aria-live="polite"></p>
+    </div>
+    {% endif %}
   </div>
 </details>
 {%- endmacro %}

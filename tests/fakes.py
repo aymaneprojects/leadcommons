@@ -79,9 +79,31 @@ class FakeSearch:
     def _match(self, c: Company, f: CompanyFilters) -> bool:
         if f.text and f.text.lower() not in f"{c.name} {c.domain or ''}".lower():
             return False
-        if f.countries and c.country not in f.countries:
+        places = (
+            (f.countries, c.country),
+            ([r.lower() for r in f.regions], (c.region or "").lower()),
+            ([x.lower() for x in f.cities], (c.city or "").lower()),
+        )
+        if any(vals for vals, _ in places) and not any(have in vals for vals, have in places):
+            return False
+        if f.exclude_countries and (not c.country or c.country in f.exclude_countries):
+            return False
+        if (c.region or "").lower() in [r.lower() for r in f.exclude_regions]:
+            return False
+        if (c.city or "").lower() in [x.lower() for x in f.exclude_cities]:
             return False
         if f.industries and c.industry not in f.industries:
+            return False
+        if f.exclude_industries and (not c.industry or c.industry in f.exclude_industries):
+            return False
+        fields = {"name": (c.name, c.legal_name, c.domain), "industry": (c.industry_label,)}
+        hay = " ".join(
+            x or "" for x in fields.get(f.keyword_fields, (*fields["name"], c.industry_label))
+        ).lower()
+        hits = [k.lower() in hay for k in f.keywords]
+        if hits and not (all(hits) if f.keyword_mode == "all" else any(hits)):
+            return False
+        if any(k.lower() in hay for k in f.exclude_keywords):
             return False
         if f.size_ranges and c.size_range not in f.size_ranges:
             return False

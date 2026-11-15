@@ -14,12 +14,23 @@ from leadcommons.models import Company, EmailStatus, Person, Seniority
 @dataclass
 class CompanyFilters:
     text: str | None = None  # free text over name / legal name / domain
+    # Places: countries, regions and cities are alternatives (a company in any of them matches).
     countries: list[str] = field(default_factory=list)  # ISO alpha-2
-    regions: list[str] = field(default_factory=list)
+    regions: list[str] = field(default_factory=list)  # case-insensitive
     industries: list[str] = field(default_factory=list)  # ISIC codes
     size_ranges: list[str] = field(default_factory=list)  # values from SIZE_RANGES
     keywords: list[str] = field(default_factory=list)
     domains: list[str] = field(default_factory=list)
+    cities: list[str] = field(default_factory=list)  # case-insensitive
+    # Exclusions. A record with no country / industry never passes a country / industry
+    # exclusion; a record with no region or city passes a region or city exclusion.
+    exclude_countries: list[str] = field(default_factory=list)
+    exclude_regions: list[str] = field(default_factory=list)
+    exclude_cities: list[str] = field(default_factory=list)
+    exclude_industries: list[str] = field(default_factory=list)
+    exclude_keywords: list[str] = field(default_factory=list)
+    keyword_mode: str = "any"  # "any": one keyword is enough; "all": every keyword must match
+    keyword_fields: str = "all"  # "all" | "name" (name, legal name, domain) | "industry" (label)
 
 
 @dataclass
@@ -49,8 +60,17 @@ class CompanySearch(Protocol):
     def get_company(self, company_id: str) -> Company | None: ...
 
     def facet_counts(self, facet: str, filters: CompanyFilters, limit: int = 10) -> dict[str, int]:
-        """Counts per value for facet in {"country", "industry", "size_range"}."""
+        """Counts per value for facet in {"country", "industry", "size_range", "region",
+        "city"} (region and city are optional for other backends)."""
         ...
+
+
+# Which text fields a keyword is looked up in (CompanyFilters.keyword_fields).
+KEYWORD_FIELDS: dict[str, tuple[str, ...]] = {
+    "all": ("name", "legal_name", "domain", "industry_label"),
+    "name": ("name", "legal_name", "domain"),
+    "industry": ("industry_label",),
+}
 
 
 # Parquet columns of a company data pack. One row per company.

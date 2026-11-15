@@ -48,42 +48,142 @@
     location.replace(location.pathname + "?" + q.toString());
   }
 
-  /* ---------- columns ---------- */
+  /* ---------- columns + Search settings drawer ----------
+     The column state is an ordered list of visible keys in localStorage (data-key of the
+     drawer). "name" is locked first; the row actions column is locked last. */
   function chooser() { return $("#col-chooser"); }
-  function visibleCols() {
-    var c = chooser(); if (!c) return null;
-    var saved = lsJson(c.getAttribute("data-key"));
-    var out = {};
-    $$("[data-col-toggle]", c).forEach(function (box) {
-      var key = box.getAttribute("data-col-toggle");
-      var def = box.getAttribute("data-default") === "1";
-      out[key] = box.disabled ? true : (Array.isArray(saved) ? saved.indexOf(key) >= 0 : def);
-    });
-    return out;
+  function fieldData() {
+    var c = chooser(), el = c && $("[data-fld-data]", c);
+    if (!el) return null;
+    try { return JSON.parse(el.textContent); } catch (e) { return null; }
+  }
+  var ICON_SPRITE = "/static/icons/results-sprite.svg#r-";
+  function svg(name, cls) {
+    return '<svg class="icon ' + (cls || "") + '" aria-hidden="true" focusable="false"><use href="' + ICON_SPRITE + name + '"></use></svg>';
+  }
+  function colOrder() {
+    var d = fieldData(); if (!d) return null;
+    var known = {}, locked = [];
+    d.columns.forEach(function (c) { known[c.key] = c; if (c.locked) locked.push(c.key); });
+    var saved = lsJson(chooser().getAttribute("data-key"));
+    var keys = Array.isArray(saved) ? saved.filter(function (k) { return known[k]; })
+      : d.columns.filter(function (c) { return c.default; }).map(function (c) { return c.key; });
+    keys = keys.filter(function (k) { return locked.indexOf(k) < 0; });
+    return locked.concat(keys.filter(function (k, i) { return keys.indexOf(k) === i; }));
   }
   function applyCols() {
-    var c = chooser(); if (!c) return;
-    var vis = visibleCols(), n = 0;
-    $$("[data-col-toggle]", c).forEach(function (box) {
-      var on = vis[box.getAttribute("data-col-toggle")];
-      box.checked = on; if (on) n++;
+    var order = colOrder(); if (!order) return;
+    $$("table[data-cols] tr").forEach(function (tr) {
+      var cells = {}, tail = $("th.addcol, td.ract", tr);
+      $$("[data-col]", tr).forEach(function (cell) { cells[cell.getAttribute("data-col")] = cell; });
+      order.forEach(function (k) { var cell = cells[k]; if (cell) { cell.hidden = false; tr.insertBefore(cell, tail); delete cells[k]; } });
+      Object.keys(cells).forEach(function (k) { cells[k].hidden = true; tr.insertBefore(cells[k], tail); });
     });
-    $$("table[data-cols] [data-col]").forEach(function (cell) { cell.hidden = !vis[cell.getAttribute("data-col")]; });
-    $$("[data-col-count]").forEach(function (el) { el.textContent = String(n); });
+    $$("[data-col-count]").forEach(function (el) { el.textContent = String(order.length); });
+    renderFields(order);
   }
-  function saveCols() {
+  function saveOrder(order, said) {
     var c = chooser(); if (!c) return;
-    var keys = $$("[data-col-toggle]", c).filter(function (b) { return b.checked; })
-      .map(function (b) { return b.getAttribute("data-col-toggle"); });
-    lsSet(c.getAttribute("data-key"), JSON.stringify(keys));
+    var locked = (fieldData().columns || []).filter(function (x) { return x.locked; }).map(function (x) { return x.key; });
+    lsSet(c.getAttribute("data-key"), JSON.stringify(order.filter(function (k) { return locked.indexOf(k) < 0; })));
     applyCols();
+    var live = $("[data-fld-live]", c); if (live && said) live.textContent = said;
   }
-  function openPanel(id) {
+  function labelOf(key) {
+    var d = fieldData(), hit = d && d.columns.filter(function (c) { return c.key === key; })[0];
+    return hit ? hit.label : key;
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (ch) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]; }); }
+  function renderFields(order) {
+    var c = chooser(), list = c && $("[data-fld-list]", c), d = fieldData();
+    if (!list || !d) return;
+    var icons = d.icons || {};
+    var swappable = d.columns.filter(function (x) { return !x.locked; });
+    var rows = order.map(function (key, i) {
+      var col = d.columns.filter(function (x) { return x.key === key; })[0] || { key: key, label: key };
+      var locked = !!col.locked;
+      var opts = locked ? '<option>' + esc(col.label) + "</option>" : swappable.map(function (x) {
+        return '<option value="' + esc(x.key) + '"' + (x.key === key ? " selected" : "") + ">" + esc(x.label) + "</option>";
+      }).join("");
+      return '<li class="fld' + (locked ? " locked" : "") + '" data-fld="' + esc(key) + '"' + (locked ? "" : ' draggable="true"') + ">" +
+        '<button type="button" class="fld-grip" data-fld-grip aria-label="Move ' + esc(col.label) + '"' + (locked ? ' disabled aria-disabled="true" title="This column stays in place"' : ' title="Drag, or use the arrow keys"') + ">" + svg("grip-vertical", "sm") + "</button>" +
+        '<span class="fld-sel">' + svg(icons[key] || "list", "sm") + '<select data-fld-swap aria-label="Field in position ' + (i + 1) + '"' + (locked ? " disabled" : "") + ">" + opts + "</select>" + svg(locked ? "lock" : "chevron-down", "sm fld-caret") + "</span>" +
+        '<button type="button" class="fld-x" data-fld-remove aria-label="Remove ' + esc(col.label) + '"' + (locked ? ' disabled aria-disabled="true" title="Always shown"' : ' title="Remove from the table"') + ">" + svg("x", "sm") + "</button></li>";
+    });
+    rows.push('<li class="fld locked"><span class="fld-grip">' + svg("grip-vertical", "sm") + '</span><span class="fld-sel">' + svg("ellipsis", "sm") +
+      '<span class="fld-fixed">Actions</span>' + svg("lock", "sm fld-caret") + '</span><span class="fld-x" aria-hidden="true">' + svg("x", "sm") + "</span></li>");
+    list.innerHTML = rows.join("");
+    var avail = $("[data-fld-avail]", c), hidden = swappable.filter(function (x) { return order.indexOf(x.key) < 0; });
+    if (avail) {
+      avail.innerHTML = hidden.length ? hidden.map(function (x) {
+        return '<li data-col-row data-text="' + esc(x.label.toLowerCase()) + '"><button type="button" class="fld-avail-btn" data-fld-addkey="' + esc(x.key) + '">' +
+          svg(icons[x.key] || "list", "sm") + "<span>" + esc(x.label) + "</span>" + svg("plus", "sm") + "</button></li>";
+      }).join("") : '<li class="muted fld-none">Every field is already in the table.</li>';
+    }
+    $$("[data-fld-hidden]", c).forEach(function (el) { el.textContent = String(hidden.length); });
+  }
+  function moveField(key, delta) {
+    var order = colOrder(), i = order.indexOf(key), j = i + delta;
+    var d = fieldData(), lockedN = d.columns.filter(function (x) { return x.locked; }).length;
+    if (i < 0 || j < lockedN || j >= order.length) return;
+    order.splice(i, 1); order.splice(j, 0, key);
+    saveOrder(order, labelOf(key) + " moved to position " + (j + 1));
+    var grip = $('[data-fld="' + key + '"] [data-fld-grip]', chooser()); if (grip) grip.focus();
+  }
+  /* ---- the drawer ---- */
+  var ssView = null; /* open view, kept across workspace swaps */
+  function showView(name) {
+    var c = chooser(); if (!c) return;
+    $$("[data-ss-view]", c).forEach(function (v) { v.hidden = v.getAttribute("data-ss-view") !== name; });
+    ssView = name;
+    if (name === "fields") renderFields(colOrder() || []);
+    var head = $('[data-ss-view="' + name + '"] h2', c); if (head) { head.tabIndex = -1; head.focus({ preventScroll: true }); }
+  }
+  function openPanel(id, view) {
     var p = doc.getElementById(id); if (!p) return;
     p.hidden = false;
-    var f = $("input[type=search]", p); if (f) f.focus();
+    doc.documentElement.classList.add("ss-open");
+    if (p.id === "col-chooser") showView(view || "fields");
   }
-  function closePanels() { $$(".sidepanel").forEach(function (p) { p.hidden = true; }); }
+  function closePanels() {
+    $$(".sidepanel").forEach(function (p) { p.hidden = true; });
+    doc.documentElement.classList.remove("ss-open");
+    ssView = null;
+  }
+  var dragKey = null;
+  doc.addEventListener("dragstart", function (e) {
+    var li = e.target.closest && e.target.closest(".fld[draggable]"); if (!li) return;
+    dragKey = li.getAttribute("data-fld"); li.classList.add("dragging");
+    try { e.dataTransfer.setData("text/plain", dragKey); e.dataTransfer.effectAllowed = "move"; } catch (err) { /* old browsers */ }
+  });
+  doc.addEventListener("dragover", function (e) {
+    var li = dragKey && e.target.closest && e.target.closest(".fld[data-fld]"); if (!li) return;
+    e.preventDefault();
+    $$(".fld.drop-before, .fld.drop-after").forEach(function (x) { x.classList.remove("drop-before", "drop-after"); });
+    var r = li.getBoundingClientRect();
+    li.classList.add(e.clientY < r.top + r.height / 2 ? "drop-before" : "drop-after");
+  });
+  doc.addEventListener("drop", function (e) {
+    var li = dragKey && e.target.closest && e.target.closest(".fld[data-fld]"); if (!li) return;
+    e.preventDefault();
+    var target = li.getAttribute("data-fld"), after = li.classList.contains("drop-after");
+    var order = colOrder(), d = fieldData(), lockedN = d.columns.filter(function (x) { return x.locked; }).length;
+    order.splice(order.indexOf(dragKey), 1);
+    var at = order.indexOf(target) + (after ? 1 : 0);
+    order.splice(Math.max(lockedN, at), 0, dragKey);
+    var moved = dragKey; dragKey = null;
+    saveOrder(order, labelOf(moved) + " moved to position " + (order.indexOf(moved) + 1));
+  });
+  doc.addEventListener("dragend", function () {
+    dragKey = null;
+    $$(".fld.dragging, .fld.drop-before, .fld.drop-after").forEach(function (x) { x.classList.remove("dragging", "drop-before", "drop-after"); });
+  });
+  doc.addEventListener("keydown", function (e) {
+    var g = e.target.closest && e.target.closest("[data-fld-grip]");
+    if (!g || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+    e.preventDefault();
+    moveField(g.closest("[data-fld]").getAttribute("data-fld"), e.key === "ArrowUp" ? -1 : 1);
+  });
 
   /* ---------- tag inputs (titles, keywords) ---------- */
   function addTag(input, raw) {
@@ -202,8 +302,9 @@
       var q = t.value.trim().toLowerCase();
       $$(".opt[data-text]", scope).forEach(function (o) { o.hidden = !!q && o.getAttribute("data-text").indexOf(q) < 0; });
     } else if (t.matches("[data-view-search]")) {
-      var vq = t.value.trim().toLowerCase();
-      $$(".vitem").forEach(function (v) { v.hidden = !!vq && v.textContent.toLowerCase().indexOf(vq) < 0; });
+      filterViews();
+    } else if (t.matches("[name=dest_new]") && t.closest("#save-dialog")) {
+      refreshSummary(500);
     } else if (t.matches("[data-col-search]")) {
       var cq = t.value.trim().toLowerCase();
       $$("[data-col-row]").forEach(function (r) { r.hidden = !!cq && r.getAttribute("data-text").indexOf(cq) < 0; });
@@ -222,11 +323,89 @@
     $$("input.rowcb, input.allcb").forEach(function (b) { b.checked = false; b.indeterminate = false; });
     var first = $("input.rowcb"); if (first) fire(first, "change"); else updateSelCount();
   }
+  /* ---------- the save window ---------- */
+  var sumTimer = null, sumSeq = 0;
+  function refreshSummary(delay) {
+    clearTimeout(sumTimer);
+    sumTimer = setTimeout(function () {
+      var form = $("#bulk"), out = $("[data-save-summary]");
+      if (!form || !out || !window.fetch) return;
+      var seq = ++sumSeq;
+      fetch("/partials/save-summary", { method: "POST", body: new FormData(form), credentials: "same-origin" })
+        .then(function (r) { return r.ok ? r.text() : Promise.reject(r.status); })
+        .then(function (html) { if (seq === sumSeq) out.innerHTML = html; })
+        .catch(function () { if (seq === sumSeq) out.innerHTML = '<p class="muted">The summary is not available right now. Save still works.</p>'; });
+    }, delay === undefined ? 120 : delay);
+  }
+  function syncSaveForm() {
+    var d = $("#save-dialog"); if (!d) return;
+    var dest = $("[name=dest_list]", d), nm = $("[data-save-new]", d);
+    if (dest && nm) { nm.hidden = dest.value !== "new"; if (!nm.hidden && !nm.value) nm.focus(); }
+    var find = $("[name=find]", d), seg = $(".seg2", d);
+    if (find && seg && !find.disabled) {
+      seg.classList.toggle("dim", !find.checked);
+      $$("input", seg).forEach(function (r) { r.disabled = !find.checked; });
+    }
+  }
   function openSave() {
     var d = $("#save-dialog"); if (!d) return;
-    updateSelCount();
+    updateSelCount(); syncSaveForm();
+    var out = $("[data-save-summary]", d); if (out) out.innerHTML = '<p class="muted">Working out what Save will do…</p>';
     if (d.showModal && !d.open) d.showModal();
+    refreshSummary(0);
   }
+  function exportKept(form) {
+    var f = doc.createElement("form");
+    f.method = "post"; f.action = "/bulk/export.csv"; f.hidden = true;
+    var fd = new FormData(form);
+    ["kind", "ids", "keep", "keep_sent"].forEach(function (k) {
+      fd.getAll(k).forEach(function (v) { var i = doc.createElement("input"); i.type = "hidden"; i.name = k; i.value = v; f.appendChild(i); });
+    });
+    var a = doc.createElement("input"); a.type = "hidden"; a.name = "apply_keep"; a.value = "1"; f.appendChild(a);
+    doc.body.appendChild(f); f.submit(); setTimeout(function () { f.remove(); }, 1000);
+  }
+
+  /* ---------- saved-view menu: search, tabs, row actions ---------- */
+  var vtab = "all";
+  function filterViews() {
+    var menu = $(".viewmenu"); if (!menu) return;
+    var box = $("[data-view-search]", menu), q = box ? box.value.trim().toLowerCase() : "", n = 0;
+    $$("[data-vrow]", menu).forEach(function (r) {
+      var ok = (!q || r.getAttribute("data-text").indexOf(q) >= 0) &&
+        (vtab === "all" || (vtab === "yours" && r.getAttribute("data-system") === "0") ||
+         (vtab === "starred" && r.getAttribute("data-starred") === "1"));
+      r.hidden = !ok; if (ok) n++;
+    });
+    var empty = $("[data-vempty]", menu);
+    if (empty) {
+      empty.hidden = n > 0;
+      empty.textContent = q ? "No saved search matches." : vtab === "starred"
+        ? "Nothing starred yet. Open the menu of one of your searches and choose Star."
+        : "You have not saved a search yet. Apply some filters, then use Create saved search.";
+    }
+    $$("[data-vtab]", menu).forEach(function (b) { b.setAttribute("aria-selected", String(b.getAttribute("data-vtab") === vtab)); });
+  }
+  function reloadWorkspace(after) {
+    if (!window.htmx) { location.reload(); return; }
+    window.htmx.ajax("GET", location.pathname + location.search, { target: "#workspace", select: "#workspace", swap: "outerHTML" })
+      .then(function () { if (after) setTimeout(after, 30); });
+  }
+  function reopenViewMenu() { var m = $("details[data-view-menu]"); if (m) { m.open = true; filterViews(); } }
+  function postForm(form, action) {
+    return fetch(action || form.getAttribute("action"), { method: "POST", body: new FormData(form), credentials: "same-origin", headers: { "HX-Request": "true" } })
+      .then(function (r) {
+        var trig = r.headers.get("HX-Trigger") || "", ok = r.ok && trig.indexOf('"error"') < 0;
+        try { var msg = JSON.parse(trig).toast; if (msg) doc.body.dispatchEvent(new CustomEvent("toast", { detail: msg, bubbles: true })); } catch (err) { /* no toast */ }
+        return ok;
+      });
+  }
+  doc.addEventListener("submit", function (e) {
+    var f = e.target;
+    if (!f.matches || !f.matches("[data-view-rename-form]") || !window.fetch) return;
+    e.preventDefault();
+    var dlg = $("dialog", f);
+    postForm(f).then(function (ok) { if (ok) { if (dlg) dlg.close(); reloadWorkspace(reopenViewMenu); } });
+  });
 
   /* ---------- tabs (company panel, person page) ---------- */
   function lazy() { if (window.lcInitLazy) window.lcInitLazy(); }
@@ -260,18 +439,51 @@
     }
     if ((el = t.closest("[data-open-panel]"))) {
       var dd = el.closest("details.dd"); if (dd) dd.open = false;
-      openPanel(el.getAttribute("data-open-panel")); return;
+      openPanel(el.getAttribute("data-open-panel"), el.getAttribute("data-panel-view")); return;
     }
     if (t.closest("[data-close-panel]")) { closePanels(); return; }
+    if ((el = t.closest("[data-ss-go]"))) { showView(el.getAttribute("data-ss-go")); return; }
+    if ((el = t.closest("[data-vtab]"))) { vtab = el.getAttribute("data-vtab"); filterViews(); return; }
+    if ((el = t.closest("[data-view-rename]"))) {
+      var rf = $("[data-view-rename-form]"), rd = $("#rename-dialog");
+      if (!rf || !rd) return;
+      rf.setAttribute("action", "/searches/" + encodeURIComponent(el.getAttribute("data-view-rename")) + "/rename");
+      var rn = $("#rn-name"); rn.value = el.getAttribute("data-view-name") || "";
+      $$("details.dd[open]").forEach(function (d) { d.open = false; });
+      rd.showModal(); setTimeout(function () { rn.focus(); rn.select(); }, 30);
+      return;
+    }
+    if ((el = t.closest("[data-fld-remove]"))) {
+      if (el.disabled) return;
+      var rk = el.closest("[data-fld]").getAttribute("data-fld"), ro = colOrder();
+      ro.splice(ro.indexOf(rk), 1); saveOrder(ro, labelOf(rk) + " removed from the table"); return;
+    }
+    if ((el = t.closest("[data-fld-addkey]"))) {
+      var ak = el.getAttribute("data-fld-addkey"), ao = colOrder();
+      if (ao.indexOf(ak) < 0) ao.push(ak);
+      saveOrder(ao, labelOf(ak) + " added at the end"); return;
+    }
+    if ((el = t.closest("[data-fld-add]"))) {
+      var pick = $("[data-fld-pick]", chooser()), open = pick.hidden;
+      pick.hidden = !open; el.setAttribute("aria-expanded", String(open));
+      if (open) { var sf = $("input[type=search]", pick); if (sf) sf.focus(); }
+      return;
+    }
     if ((el = t.closest("[data-open-dialog]"))) {
       var menu = el.closest("details.dd"); if (menu) menu.open = false;
       var id = el.getAttribute("data-open-dialog");
-      if (id === "save-dialog" || id === "task-dialog") updateSelCount();
+      if (id === "save-dialog" || id === "task-dialog" || id === "list-dialog") updateSelCount();
+      if (id === "save-dialog") {
+        syncSaveForm();
+        var so = $("[data-save-summary]"); if (so) so.innerHTML = '<p class="muted">Working out what Save will do…</p>';
+        refreshSummary(0);
+      }
       if (id === "allf-dialog") { applyPins(); refreshCount(0); }
       if (id === "savesearch-dialog") { var nm = $("#ss-name"); if (nm) setTimeout(function () { nm.focus(); }, 30); }
     }
     if (t.closest("[data-col-reset]")) {
       var c = chooser(); if (c) { lsDel(c.getAttribute("data-key")); applyCols(); }
+      var lv = c && $("[data-fld-live]", c); if (lv) lv.textContent = "Columns reset to the default set";
       return;
     }
     if ((el = t.closest("[data-clear-selection]"))) {
@@ -292,8 +504,10 @@
       }
       return;
     }
-    if ((el = t.closest("[data-copy]"))) {
-      var text = el.getAttribute("data-copy");
+    /* data-copy-value (not data-copy: tools.js owns that one for Assistant messages) */
+    if ((el = t.closest("[data-copy-value]"))) {
+      e.stopPropagation();
+      var text = el.getAttribute("data-copy-value");
       var done = function () { toast("Copied " + text); };
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, done);
       else {
@@ -312,14 +526,29 @@
     var dlg = t.closest && t.tagName === "DIALOG" ? t : null;
     if (dlg && dlg.id !== "palette" && e.target === dlg) { dlg.close(); return; }
     var panel = chooser();
-    if (panel && !panel.hidden && !t.closest("#col-chooser") && !t.closest("[data-open-panel]") && !t.closest("dialog")) panel.hidden = true;
+    if (panel && !panel.hidden && !t.closest("#col-chooser") && !t.closest("[data-open-panel]") && !t.closest("dialog") && !t.closest(".toast")) closePanels();
   });
 
   doc.addEventListener("change", function (e) {
     var t = e.target; if (!t.matches) return;
     if (t.closest("#allf") && !t.matches("[data-list-search], [data-allf-search], [data-type-select]")) refreshCount();
-    if (t.matches("[data-col-toggle]")) saveCols();
-    else if (t.matches("[data-page-select]")) {
+    if (t.matches("[data-fld-swap]")) {
+      var from = t.closest("[data-fld]").getAttribute("data-fld"), to = t.value, so = colOrder();
+      var i = so.indexOf(from), j = so.indexOf(to);
+      if (j >= 0) { so[j] = from; } /* already shown elsewhere: the two swap places */
+      so[i] = to;
+      saveOrder(so, labelOf(to) + " now in position " + (i + 1));
+    } else if (t.matches("[data-auto-switch]")) {
+      var af = t.closest("form"), fd = new FormData(af);
+      if (!t.checked) fd.set("auto", "0");
+      fetch(af.getAttribute("action"), { method: "POST", body: fd, credentials: "same-origin", headers: { "HX-Request": "true" } })
+        .then(function (r) {
+          var trig = r.headers.get("HX-Trigger");
+          try { var msg = JSON.parse(trig).toast; doc.body.dispatchEvent(new CustomEvent("toast", { detail: msg, bubbles: true })); } catch (err) { /* no toast */ }
+          if (trig && trig.indexOf('"error"') >= 0) t.checked = !t.checked;
+        })
+        .catch(function () { t.checked = !t.checked; toast("Could not save the setting."); });
+    } else if (t.matches("[data-page-select]")) {
       var url = t.value;
       if (window.htmx) {
         window.htmx.ajax("GET", url, { target: "#workspace", select: "#workspace", swap: "outerHTML" })
@@ -329,6 +558,10 @@
     else if (t.matches('input[name="list_id"]') && t.getAttribute("data-new-radio") === null) {
       var nn = $("#sd-new"); if (nn) nn.value = "";
     } else if (t.classList.contains("rowcb") || t.classList.contains("allcb")) updateSelCount();
+    if (t.matches("[data-save-opt]") && t.closest("#save-dialog")) {
+      syncSaveForm();
+      if (!t.matches("[name=dest_new]")) refreshSummary();
+    }
   });
 
   /* a min-max pair is sent once, when focus has left both fields (a swap would eat the second) */
