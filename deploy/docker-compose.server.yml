@@ -27,6 +27,22 @@ services:
         fi
         exec leadcommons serve --host 0.0.0.0 --port 8000
 
+  # Sends due sequence emails, creates due tasks and checks for replies (leadcommons worker).
+  # It shares app-data with the app: mailbox passwords are encrypted with the key kept there.
+  worker:
+    image: ghcr.io/aymaneprojects/leadcommons:latest
+    restart: unless-stopped
+    environment:
+      LEADCOMMONS_MODE: server
+      LEADCOMMONS_SECRET_KEY: ${LEADCOMMONS_SECRET_KEY:?set LEADCOMMONS_SECRET_KEY in .env}
+      LEADCOMMONS_DATABASE_URL: postgresql+psycopg://leadcommons:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/leadcommons
+    volumes:
+      - app-data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["leadcommons", "worker", "--interval", "60"]
+
   db:
     image: postgres:17-alpine
     restart: unless-stopped

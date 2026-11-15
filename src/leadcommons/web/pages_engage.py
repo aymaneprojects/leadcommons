@@ -50,6 +50,14 @@ from leadcommons.web.pages import render as render_page
 
 router = APIRouter()
 
+
+def install_sender(app: Any) -> None:
+    """Start the background email sender with the app (see engage.scheduler.install)."""
+    from leadcommons.engage.scheduler import install
+
+    install(app)
+
+
 DAY_NAMES = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 GUIDE_URL = "https://github.com/aymaneprojects/leadcommons/blob/main/docs/engage.md"
 

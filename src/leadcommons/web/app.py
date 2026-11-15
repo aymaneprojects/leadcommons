@@ -68,6 +68,7 @@ def create_app(
     app.include_router(pages_insights.router)
     app.include_router(pages_extra.router)
     app.include_router(pages.router)
+    pages_engage.install_sender(app)  # background email sender; off in demo and with sync_jobs
 
     @app.get("/healthz", include_in_schema=False)
     def healthz() -> dict[str, str]:
