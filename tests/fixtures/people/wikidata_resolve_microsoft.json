@@ -1,0 +1,42 @@
+{
+ "head": {
+  "vars": [
+   "item",
+   "kind"
+  ]
+ },
+ "results": {
+  "bindings": [
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2283"
+    },
+    "kind": {
+     "type": "literal",
+     "value": "lei"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2283"
+    },
+    "kind": {
+     "type": "literal",
+     "value": "cik"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q2283"
+    },
+    "kind": {
+     "type": "literal",
+     "value": "website"
+    }
+   }
+  ]
+ }
+}

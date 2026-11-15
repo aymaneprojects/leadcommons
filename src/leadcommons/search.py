@@ -74,6 +74,9 @@ KEYWORD_FIELDS: dict[str, tuple[str, ...]] = {
 
 
 # Parquet columns of a company data pack. One row per company.
+# Numeric columns; every other column is text.
+PACK_INT_COLUMNS: frozenset[str] = frozenset({"founded_year", "employees", "revenue_year"})
+PACK_FLOAT_COLUMNS: frozenset[str] = frozenset({"revenue"})
 PACK_COLUMNS: tuple[str, ...] = (
     "id",
     "name",
@@ -92,6 +95,18 @@ PACK_COLUMNS: tuple[str, ...] = (
     "sources_json",  # JSON list of {"source","licence","url","fetched_at"}
     "siren",  # French SIREN (appended in v0.2; absent from older packs)
     "cik",  # SEC CIK, zero-padded to 10 digits (appended in v0.2)
+    # v0.3 (bulk registers and public accounts); older packs read these as NULL
+    "registry",
+    "company_number",
+    "status",
+    "legal_form",
+    "address",
+    "postal_code",
+    "phone",
+    "employees",
+    "revenue",
+    "revenue_currency",
+    "revenue_year",
 )
 
 
@@ -101,6 +116,8 @@ __all__ = [
     "Page",
     "CompanySearch",
     "PACK_COLUMNS",
+    "PACK_INT_COLUMNS",
+    "PACK_FLOAT_COLUMNS",
     "Company",
     "Person",
 ]

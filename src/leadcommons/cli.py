@@ -21,6 +21,8 @@ app = typer.Typer(
 )
 pack_app = typer.Typer(help="Build, download and inspect company data packs.", no_args_is_help=True)
 app.add_typer(pack_app, name="pack")
+eval_app = typer.Typer(help="Measure data quality against a gold set.", no_args_is_help=True)
+app.add_typer(eval_app, name="eval")
 
 DEFAULT_PACKS_REPO = "aymaneprojects/leadcommons"
 
@@ -151,10 +153,18 @@ def pack_build(
     typer.echo(f"Pack written to {path}")
 
 
-def _latest_pack_url(repo: str) -> str:
-    from leadcommons.packs import latest_pack_url
+def _latest_pack_url(repo: str) -> str | None:
+    """URL of the newest single-file pack; None when the newest release has one file per
+    country (manifest.json)."""
+    from leadcommons.packs import latest_release
 
-    return latest_pack_url(repo)
+    release = latest_release(repo)
+    return None if release.has_manifest else release.legacy_url
+
+
+def _print_progress(phase: str, done: int, total: int) -> None:
+    pct = f" {100 * done // total}%" if total else ""
+    typer.echo(f"\r{phase}{pct}      ", nl=False, err=True)
 
 
 @pack_app.command("download")
@@ -162,19 +172,85 @@ def pack_download(
     url: Annotated[
         str, typer.Argument(help="Pack URL, or 'latest' for the newest published pack.")
     ] = "latest",
+    country: Annotated[
+        list[str] | None,
+        typer.Option("--country", "-c", help="Download this country (repeatable), e.g. FR."),
+    ] = None,
+    update: Annotated[
+        bool, typer.Option("--update", help="Update the countries already downloaded.")
+    ] = False,
+    remove: Annotated[
+        list[str] | None, typer.Option("--remove", help="Delete a downloaded country.")
+    ] = None,
 ) -> None:
-    """Download a published company pack into your data directory."""
+    """Download published company data into your data directory (one file per country)."""
     from leadcommons.packs import download_pack
 
     repo = os.environ.get("LEADCOMMONS_PACKS_REPO", DEFAULT_PACKS_REPO)
     data_dir = _settings().data_dir
     data_dir.mkdir(parents=True, exist_ok=True)
+    if country or update or remove:
+        from leadcommons.packs import run_pack_job
+
+        payload: dict[str, Any] = (
+            {"action": "remove", "countries": remove}
+            if remove
+            else {"action": "update"}
+            if update
+            else {"action": "install", "countries": country}
+        )
+        res = _guard(
+            "updating the company data",
+            lambda: run_pack_job(data_dir, payload, _print_progress, repo),
+        )
+        typer.echo("", err=True)
+        typer.echo(f"Done: {res.get('pack')}")
+        return
     if url == "latest":
         typer.echo(f"Looking for the latest pack in {repo} ...")
-        url = _guard("finding the latest pack", lambda: _latest_pack_url(repo))
+        found = _guard("finding the latest pack", lambda: _latest_pack_url(repo))
+        if found is None:  # one file per country: update what is installed, else your country
+            from leadcommons.packs import run_pack_job
+
+            res = _guard("downloading the pack", lambda: run_pack_job(
+                data_dir, {"action": "latest"}, _print_progress, repo))  # fmt: skip
+            typer.echo("", err=True)
+            typer.echo(f"Saved {res.get('pack')}")
+            return
+        url = found
     typer.echo(f"Downloading {url}")
     path = _guard("downloading the pack", lambda: download_pack(url, data_dir))
+    try:
+        from leadcommons.packs import prepare_for_search
+    except ImportError:
+        prepare_for_search = None
+    if prepare_for_search is not None:
+        _guard("preparing the pack for search", lambda: prepare_for_search(data_dir, [path]))
     typer.echo(f"Saved {path}")
+
+
+@pack_app.command("countries")
+def pack_countries() -> None:
+    """List the countries of the newest published data and which ones are downloaded."""
+    from leadcommons.packs import pack_catalog
+
+    repo = os.environ.get("LEADCOMMONS_PACKS_REPO", DEFAULT_PACKS_REPO)
+    cat = _guard("reading the list", lambda: pack_catalog(_settings().data_dir, repo, refresh=True))
+    if cat.error:
+        typer.echo(cat.error, err=True)
+    if cat.legacy:
+        typer.echo(f"{cat.release}: one file for all countries (`leadcommons pack download`).")
+    for c in cat.countries:
+        typer.echo(f"{c.country}  {c.rows:>12,} companies  {c.bytes / 1e6:>9,.1f} MB  {c.state}")
+
+
+@pack_app.command("index")
+def pack_index() -> None:
+    """Prepare the packs in your data directory for fast search (done after each download)."""
+    from leadcommons.packs import prepare_for_search
+
+    built = _guard("indexing", lambda: prepare_for_search(_settings().data_dir))
+    typer.echo(f"{len(built)} file(s) indexed" if built else "Every pack is ready for search.")
 
 
 @pack_app.command("info")
@@ -195,6 +271,144 @@ def pack_info() -> None:
             f"{row.get('file')}  rows={row.get('rows')}  sources={sources}  "
             f"built={row.get('built_at')}"
         )
+
+
+def _log_progress_to_stderr() -> None:
+    """INFO logs on stderr so CI shows progress (DEBUG with LEADCOMMONS_DEBUG=1)."""
+    import logging
+    import sys
+
+    logging.basicConfig(
+        stream=sys.stderr,
+        level=logging.DEBUG if os.environ.get("LEADCOMMONS_DEBUG") == "1" else logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        force=True,
+    )
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
+
+@pack_app.command("sources")
+def pack_sources(
+    as_json: Annotated[bool, typer.Option("--json", help="Print JSON (for CI matrices).")] = False,
+) -> None:
+    """List the bulk register sources `pack fetch-source` can build."""
+    import json
+
+    from leadcommons.connectors.bulk import load_all
+
+    sources = sorted(_guard("loading the bulk sources", load_all).values(), key=lambda s: s.name)
+    if as_json:
+        rows = [
+            {
+                "name": s.name,
+                "title": s.title,
+                "licence": s.licence,
+                "licence_url": s.licence_url,
+                "homepage": s.homepage,
+                "countries": sorted(s.countries) if s.countries is not None else None,
+            }
+            for s in sources
+        ]
+        typer.echo(json.dumps(rows))
+        return
+    for s in sources:
+        countries = ",".join(sorted(s.countries)) if s.countries is not None else "worldwide"
+        typer.echo(f"{s.name:<16} {s.licence:<14} {countries:<12} {s.title}")
+
+
+@pack_app.command("fetch-source")
+def pack_fetch_source(
+    name: Annotated[str, typer.Argument(help="Bulk source, see `leadcommons pack sources`.")],
+    out: Annotated[Path, typer.Option(help="Directory the shard is written to.")],
+    limit: Annotated[int | None, typer.Option(help="Max rows in the shard (test runs).")] = None,
+    country: Annotated[
+        list[str] | None,
+        typer.Option("--country", "-c", help="Keep only this ISO country (repeatable)."),
+    ] = None,
+    work: Annotated[
+        Path | None,
+        typer.Option(help="Download and scratch directory (default: <out>/.work), removed after."),
+    ] = None,
+) -> None:
+    """Download one official register whole and write its shard (Parquet, pack columns)."""
+    from leadcommons.connectors.bulk import BuildOptions
+    from leadcommons.packs.bulk import run_source
+
+    _log_progress_to_stderr()
+    out.mkdir(parents=True, exist_ok=True)
+    options = BuildOptions(
+        work_dir=work or out / ".work",
+        out_dir=out,
+        limit=limit,
+        countries=frozenset(c.strip().upper() for c in country) if country else None,
+        contact=os.environ.get("LEADCOMMONS_CONTACT_EMAIL", "").strip() or None,
+    )
+    stats = _guard(f"fetching {name}", lambda: run_source(name, options))
+    if work is None and options.work_dir.is_dir() and not any(options.work_dir.iterdir()):
+        options.work_dir.rmdir()
+    if not stats.files:
+        typer.echo(f"{name}: nothing to do ({stats.notes})")
+        return
+    for path in stats.files:
+        typer.echo(f"{path}  {path.stat().st_size / 1_048_576:.1f} MB")
+    typer.echo(f"{name}: {stats.rows} rows written, {stats.skipped} dropped by the source rules")
+
+
+@pack_app.command("merge")
+def pack_merge(
+    shards: Annotated[
+        Path, typer.Argument(exists=True, file_okay=False, help="Directory of source shards.")
+    ],
+    out: Annotated[Path, typer.Option(help="Directory the per-country packs are written to.")],
+    release: Annotated[
+        str | None, typer.Option(help="Release tag, e.g. packs-2026-12 (default: this month).")
+    ] = None,
+    work: Annotated[
+        Path | None,
+        typer.Option(help="Scratch directory (default: inside --out), removed after."),
+    ] = None,
+    keep_unregistered: Annotated[
+        bool,
+        typer.Option(
+            "--keep-unregistered",
+            help="Keep companies whose register number is missing from that register's shard "
+            "(use with --limit'ed test shards).",
+        ),
+    ] = False,
+) -> None:
+    """Link and merge the shards into one Parquet file per country, with manifest.json,
+    ATTRIBUTION.md and the quality report."""
+    from leadcommons.packs.merge import merge_shards
+    from leadcommons.packs.quality import summary_text
+
+    _log_progress_to_stderr()
+    result = _guard(
+        "merging the shards",
+        lambda: merge_shards(
+            shards, out, release=release, work_dir=work, keep_unregistered=keep_unregistered
+        ),
+    )
+    typer.echo(summary_text(result.quality))
+    typer.echo(f"Packs written to {out}")
+
+
+@pack_app.command("quality")
+def pack_quality(
+    packs: Annotated[
+        Path, typer.Argument(exists=True, file_okay=False, help="Directory of merged packs.")
+    ],
+    as_json: Annotated[bool, typer.Option("--json", help="Print the full report as JSON.")] = False,
+) -> None:
+    """Measure merged packs, rewrite QUALITY.md and quality.json, print the summary.
+    Exits with 1 when a health check fails."""
+    import json
+
+    from leadcommons.packs.quality import summary_text, write_quality
+
+    report = _guard("measuring the packs", lambda: write_quality(packs))
+    typer.echo(json.dumps(report, indent=2) if as_json else summary_text(report))
+    if report["status"] == "fail":
+        raise typer.Exit(code=1)
 
 
 @app.command("find-people")
@@ -237,6 +451,117 @@ def find_email(
     typer.echo(f"{result.address}  status={result.status}  confidence={result.confidence}")
     if result.pattern:
         typer.echo(f"pattern: {result.pattern}")
+    if result.checks.get("basis"):
+        typer.echo(f"why: {result.checks['basis']}")
+
+
+@eval_app.command("emails")
+def eval_emails(
+    gold: Annotated[
+        Path,
+        typer.Option(
+            exists=True, dir_okay=False, help="Gold CSV: full_name, domain, true_address."
+        ),
+    ],
+    smtp: Annotated[
+        bool,
+        typer.Option(
+            "--smtp", help="Also probe mail servers (simulated with a world file, else live)."
+        ),
+    ] = False,
+    world: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            dir_okay=False,
+            help="Site evidence to replay. Default: <gold>.world.json when it exists, else the "
+            "live web.",
+        ),
+    ] = None,
+    json_out: Annotated[
+        Path | None, typer.Option("--json", dir_okay=False, help="Also write the report as JSON.")
+    ] = None,
+    details: Annotated[
+        Path | None, typer.Option(dir_okay=False, help="Write one CSV line per gold row.")
+    ] = None,
+    min_valid_precision: Annotated[
+        float | None,
+        typer.Option(help="Exit with code 1 if the precision of 'valid' is below this (0-1)."),
+    ] = None,
+    fit: Annotated[
+        bool, typer.Option("--fit", help="Print calibration knots fitted on this gold set.")
+    ] = False,
+) -> None:
+    """Measure email finding on a gold set: precision, coverage, calibration, per provider."""
+    import json
+
+    from leadcommons.enrich import eval as ev
+
+    rows = _guard("reading the gold set", lambda: ev.load_gold(gold))
+    if not rows:
+        raise _fail(f"no usable rows in {gold}.")
+    world_file = world or (ev.world_path_for(gold) if ev.world_path_for(gold).exists() else None)
+    loaded = (
+        _guard("reading the world file", lambda: ev.load_world(world_file)) if world_file else None
+    )
+    if loaded is None:
+        typer.echo(f"No world file: crawling {len({r.domain for r in rows})} sites live.", err=True)
+
+    def progress(done: int, total: int) -> None:
+        if loaded is None:
+            typer.echo(f"\r{done}/{total} people", nl=False, err=True)
+
+    report = _guard(
+        "the evaluation",
+        lambda: ev.evaluate(rows, world=loaded, smtp=smtp, gold_name=gold.name, progress=progress),
+    )
+    if loaded is None:
+        typer.echo("", err=True)
+    typer.echo(ev.format_report(report))
+    if json_out:
+        json_out.write_text(json.dumps(report.to_dict(), indent=1, ensure_ascii=False) + "\n")
+    if details:
+        ev.write_details(report, details)
+    if fit:
+        knots = ev.fit_calibration(report.rows)
+        typer.echo(f"\nCalibration knots (score.CALIBRATION): {knots}")
+    precision = report.overall.valid_precision
+    if (
+        min_valid_precision is not None
+        and precision is not None
+        and precision < min_valid_precision
+    ):
+        raise _fail(f"precision of 'valid' {precision:.3f} is below {min_valid_precision}.")
+
+
+@eval_app.command("build-gold")
+def eval_build_gold(
+    domains_file: Annotated[
+        Path, typer.Argument(exists=True, dir_okay=False, help="Company domains, one per line.")
+    ],
+    out: Annotated[
+        Path | None,
+        typer.Option(dir_okay=False, help="Gold CSV to write. Default: <home>/eval/gold.csv."),
+    ] = None,
+    max_pages: Annotated[int, typer.Option(help="Pages crawled per site.")] = 15,
+) -> None:
+    """Build a gold set from names and addresses published side by side on company sites.
+
+    The result holds personal data of real people: keep it on your machine, never commit it."""
+    from leadcommons.enrich.eval import build_gold
+
+    target = out or _settings().home / "eval" / "gold.csv"
+    domains = domains_file.read_text(encoding="utf-8").splitlines()
+
+    def progress(domain: str, pairs: int) -> None:
+        typer.echo(f"{domain}: {pairs} people with a published address", err=True)
+
+    total, world_file = _guard(
+        "building the gold set",
+        lambda: build_gold(domains, target, max_pages=max_pages, progress=progress),
+    )
+    typer.echo(f"Wrote {total} rows to {target} and the site evidence to {world_file}.")
+    typer.echo("These files contain personal data: keep them local, do not commit or share them.")
 
 
 @app.command()

@@ -1,0 +1,60 @@
+{
+  "etag": "6d3a4b1b0a1e2f3c4d5e6f708192a3b4c5d6e7f8",
+  "kind": "officer-list",
+  "items_per_page": 35,
+  "start_index": 0,
+  "total_results": 6,
+  "active_count": 3,
+  "inactive_count": 0,
+  "resigned_count": 3,
+  "links": {"self": "/company/01234567/officers"},
+  "items": [
+    {
+      "name": "EXAMPLE, Alice Jane",
+      "officer_role": "director",
+      "appointed_on": "2015-03-01",
+      "occupation": "Company Director",
+      "nationality": "British",
+      "country_of_residence": "England",
+      "date_of_birth": {"month": 5, "year": 1975},
+      "address": {"address_line_1": "1 Fake Street", "locality": "London", "postal_code": "EC1A 1AA"},
+      "links": {"officer": {"appointments": "/officers/AbCdEf123/appointments"}}
+    },
+    {
+      "name": "SAMPLE, Bob",
+      "officer_role": "secretary",
+      "appointed_on": "2018-07-12",
+      "address": {"address_line_1": "1 Fake Street", "locality": "London", "postal_code": "EC1A 1AA"},
+      "links": {"officer": {"appointments": "/officers/GhIjKl456/appointments"}}
+    },
+    {
+      "name": "TEST, Carol",
+      "officer_role": "director",
+      "appointed_on": "2010-01-05",
+      "resigned_on": "2020-09-30",
+      "occupation": "Engineer",
+      "links": {"officer": {"appointments": "/officers/MnOpQr789/appointments"}}
+    },
+    {
+      "name": "FAKE HOLDINGS LIMITED",
+      "officer_role": "corporate-director",
+      "appointed_on": "2019-02-02",
+      "identification": {"identification_type": "non-eea", "legal_form": "Limited Company"},
+      "links": {"officer": {"appointments": "/officers/StUvWx012/appointments"}}
+    },
+    {
+      "name": "MUSTERMANN, Dr Erika",
+      "officer_role": "director",
+      "appointed_on": "2021-11-01",
+      "country_of_residence": "Germany",
+      "links": {"officer": {"appointments": "/officers/YzAbCd345/appointments"}}
+    },
+    {
+      "name": "OLD, Oliver",
+      "officer_role": "secretary",
+      "appointed_on": "2005-01-01",
+      "resigned_on": "2018-07-12",
+      "links": {"officer": {"appointments": "/officers/EfGhIj678/appointments"}}
+    }
+  ]
+}

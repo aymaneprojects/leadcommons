@@ -138,18 +138,48 @@ class LocalServer:
 
 
 def start_first_pack_download(app: Any) -> bool:
-    """A fresh install only has the small sample pack: fetch the full one in the background."""
-    from leadcommons.packs import has_own_pack
+    """A fresh install only has the small sample pack: download the user's own country in the
+    background (LEADCOMMONS_LOCALE, set by the desktop shell, else the system locale). More
+    countries are added in Settings > Data packs; the job says so. An install whose packs have
+    no search index yet (an update changed the index format) gets them built instead."""
+    from leadcommons.packs import default_country, has_own_pack
 
     settings = app.state.settings
-    if has_own_pack(settings.data_dir) or os.environ.get("LEADCOMMONS_DESKTOP_NO_DOWNLOAD"):
+    if os.environ.get("LEADCOMMONS_DESKTOP_NO_DOWNLOAD"):
         return False
+    if has_own_pack(settings.data_dir):
+        needs = getattr(getattr(app.state, "search", None), "needs_index", None)
+        if isinstance(needs, list) and needs:
+            with contextlib.suppress(Exception):
+                app.state.jobs.submit(
+                    "download_pack", {"action": "index"}, "Prepare company data for fast search"
+                )
+        return False
+    country = default_country()
+    if country:
+        payload: dict[str, Any] = {"countries": [country], "first_run": True}
+        label = f"Download company data for {_country_name(country)} ({FIRST_RUN_HINT})"
+    else:
+        payload = {"action": "latest", "first_run": True}
+        label = f"{PACK_JOB_LABEL} ({FIRST_RUN_HINT})"
     try:
-        app.state.jobs.submit("download_pack", {}, PACK_JOB_LABEL)
+        app.state.jobs.submit("download_pack", payload, label)
     except Exception:  # never block the window on this
         log.exception("could not start the first pack download")
         return False
     return True
+
+
+FIRST_RUN_HINT = "add more countries in Settings > Data packs"
+
+
+def _country_name(code: str) -> str:
+    try:
+        from leadcommons.web.search_filters import COUNTRIES
+
+        return str(COUNTRIES.get(code, code))
+    except Exception:
+        return code
 
 
 # -- windows --------------------------------------------------------------------------------

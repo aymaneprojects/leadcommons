@@ -47,7 +47,7 @@
                     <button class="btn sm" type="submit" formmethod="post" formaction="/people/{{ x.id }}/find-email" hx-post="/people/{{ x.id }}/find-email" hx-swap="none" hx-push-url="false"{% if s.demo %} disabled data-tip="{{ demo_reason }}"{% endif %}>{{ ic("mail", "sm") }}<span>Find email</span></button>
                   {% endif %}
                 {%- elif col.key == "phone" -%}{% set ph = phones.get(x.company_id) %}{% if ph %}<a class="mono phone" href="{{ ph|tel }}" title="Business line from the company website">{{ ph }}</a>{% endif %}
-                {%- elif col.key == "source" -%}<span class="chips">{% for u in x.source_urls[:2] %}<span class="chip src">{{ u.split('/')[2] if u.startswith('http') and u.split('/')|length > 2 else u }}</span>{% endfor %}</span>
+                {%- elif col.key == "source" -%}<span class="chips">{% set shown = [] %}{% for u in x.source_urls %}{% set lbl = u|source_label %}{% if lbl not in shown and shown|length < 4 %}{% set _ = shown.append(lbl) %}<span class="chip src" title="{{ u }}">{{ lbl }}</span>{% endif %}{% endfor %}</span>
                 {%- elif col.key == "seniority" -%}{{ seniority_label(x.seniority) if x.seniority else "" }}
                 {%- elif col.key == "department" -%}{{ x.department or "" }}
                 {%- elif col.key == "domain" -%}<span class="mono dim">{{ x.company_domain or "" }}</span>

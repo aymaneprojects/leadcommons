@@ -57,8 +57,33 @@ class PoliteClient:
         self.user_agent = user_agent
         self._last = 0.0
 
-    def get_json(self, url: str, params: dict[str, str | int], accept: str) -> dict:
+    def get_json(
+        self,
+        url: str,
+        params: dict[str, str | int],
+        accept: str,
+        auth: tuple[str, str] | None = None,
+    ) -> dict:
         """GET and decode JSON, retrying transient failures; raises httpx errors when exhausted."""
+        return self._get(url, params, accept, auth).json()
+
+    def get_text(
+        self,
+        url: str,
+        params: dict[str, str | int],
+        accept: str,
+        auth: tuple[str, str] | None = None,
+    ) -> str:
+        """Same as get_json for text bodies (XML, HTML)."""
+        return self._get(url, params, accept, auth).text
+
+    def _get(
+        self,
+        url: str,
+        params: dict[str, str | int],
+        accept: str,
+        auth: tuple[str, str] | None,
+    ) -> httpx.Response:
         headers = {"User-Agent": self.user_agent, "Accept": accept}
         attempt = 0
         waited = 0.0
@@ -67,11 +92,12 @@ class PoliteClient:
             if wait > 0:
                 self._sleep(wait)
             try:
-                resp = self._client.get(url, params=params, headers=headers)
+                kwargs = {"auth": auth} if auth else {}
+                resp = self._client.get(url, params=params, headers=headers, **kwargs)
                 self._last = time.monotonic()
                 if resp.status_code not in RETRY_STATUSES:
                     resp.raise_for_status()
-                    return resp.json()
+                    return resp
                 delay = _retry_after(resp)
                 if resp.status_code == 429 and delay is None:
                     delay = self.wait_429  # no Retry-After given: be generous

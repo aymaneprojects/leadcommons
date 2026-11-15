@@ -1,0 +1,12 @@
+siren,statutDiffusionUniteLegale,unitePurgeeUniteLegale,dateCreationUniteLegale,sigleUniteLegale,sexeUniteLegale,prenom1UniteLegale,prenom2UniteLegale,prenom3UniteLegale,prenom4UniteLegale,prenomUsuelUniteLegale,pseudonymeUniteLegale,identifiantAssociationUniteLegale,trancheEffectifsUniteLegale,anneeEffectifsUniteLegale,dateDernierTraitementUniteLegale,nombrePeriodesUniteLegale,categorieEntreprise,anneeCategorieEntreprise,dateDebut,etatAdministratifUniteLegale,nomUniteLegale,nomUsageUniteLegale,denominationUniteLegale,denominationUsuelle1UniteLegale,denominationUsuelle2UniteLegale,denominationUsuelle3UniteLegale,categorieJuridiqueUniteLegale,activitePrincipaleUniteLegale,nomenclatureActivitePrincipaleUniteLegale,nicSiegeUniteLegale,economieSocialeSolidaireUniteLegale,societeMissionUniteLegale,caractereEmployeurUniteLegale,activitePrincipaleNAF25UniteLegale
+552120222,O,,1955-01-01,,,,,,,,,,53,2023,2026-10-03T08:12:45,3,PME,2023,2020-01-01,A,,,SOCIETE EXEMPLE,,,,5599,64.19Z,NAFRev2,00012,N,,N,
+123456782,O,,2015-03-02,,,,,,,,,,12,2023,2026-10-03T08:12:45,3,PME,2023,2020-01-01,A,,,EXEMPLE TECH,,,,5710,62.01Z,NAFRev2,00021,N,,N,
+111111118,O,,2010-01-01,,[ND],JEAN,,,,JEAN,,,NN,,2026-10-03T08:12:45,3,PME,2023,2020-01-01,A,DUPONT,,,,,,1000,43.22A,NAFRev2,00015,N,,N,
+222222226,O,,2010-01-01,,[ND],MARIE,,,,MARIE,,,01,2023,2026-10-03T08:12:45,3,PME,2023,2020-01-01,A,MARTIN,,,BOULANGERIE DU CENTRE,,,1000,10.71C,NAFRev2,00010,N,,N,
+333333334,O,,2010-01-01,,[ND],PAUL,,,,PAUL,,,02,2023,2026-10-03T08:12:45,3,PME,2023,2020-01-01,A,DURAND,,,DURAND PLOMBERIE,,,1000,43.22A,NAFRev2,00018,N,,N,
+444444442,O,,2010-01-01,,,,,,,,,,NN,,2026-10-03T08:12:45,3,PME,2023,2020-01-01,C,,,FERMEE SARL,,,,5499,70.22Z,NAFRev2,00011,N,,N,
+555555550,P,,2010-01-01,,,,,,,,,,NN,,2026-10-03T08:12:45,3,PME,2023,2020-01-01,A,,,DISCRETE SAS,,,,5710,70.22Z,NAFRev2,00011,N,,N,
+666666668,O,,1990-09-01,,,,,,,,,,NN,,2026-10-03T08:12:45,3,PME,2023,2020-01-01,A,,,ASSOCIATION SPORTIVE EXEMPLE,,,,9220,93.12Z,NAFRev2,00017,N,,N,
+777777776,O,,2008-06-15,,,,,,,,,,00,2023,2026-10-03T08:12:45,3,PME,2023,2020-01-01,A,,,SCI DES LILAS,,,,6540,68.20B,NAFRev2,00016,N,,N,
+888888884,O,,1998-02-01,,,,,,,,,,03,2023,2026-10-03T08:12:45,3,PME,2023,2020-01-01,A,,,ANCIENNE NOMENCLATURE,,,,5499,74.1A,NAFRev1,00013,N,,N,
+999999992,O,,2019-11-20,,,,,,,,,,21,2023,2026-10-03T08:12:45,3,PME,2023,2020-01-01,A,,,EXEMPLE CONSEIL,EXCO,,,5720,70.22Z,NAFRev2,00034,N,,N,

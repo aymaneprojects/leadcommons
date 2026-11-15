@@ -81,3 +81,7 @@ uv run leadcommons serve
 | `LEADCOMMONS_SMTP_PROBE` | `1` to enable live mailbox probing | off |
 | `LEADCOMMONS_WORKERS` | background workers | 4 |
 | `LEADCOMMONS_PACKS_REPO` | repo that `pack download latest` reads | `aymaneprojects/leadcommons` |
+| `LEADCOMMONS_DUCKDB_MEMORY` | memory the company search may use (e.g. `1GB`) | 1/16 of RAM, 256 MB to 1 GB |
+| `LEADCOMMONS_DUCKDB_BUILD_MEMORY` | memory for preparing a downloaded pack for search | 1/6 of RAM, 512 MB to 2 GB |
+| `LEADCOMMONS_DUCKDB_THREADS` | CPU threads for company search | number of cores, at most 8 |
+| `LEADCOMMONS_LOCALE` | your locale, e.g. `fr-FR`: the country downloaded first | system locale |

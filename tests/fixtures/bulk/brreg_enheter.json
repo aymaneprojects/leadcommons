@@ -1,0 +1,632 @@
+[
+ {
+  "organisasjonsnummer": "999100001",
+  "navn": "FJORDKRAFT TESTSELSKAP ASA",
+  "organisasjonsform": {
+   "kode": "ASA",
+   "beskrivelse": "Allmennaksjeselskap",
+   "_links": {
+    "self": {
+     "href": "https://data.brreg.no/enhetsregisteret/api/organisasjonsformer/ASA"
+    }
+   }
+  },
+  "registreringsdatoEnhetsregisteret": "1998-04-01",
+  "registrertIMvaregisteret": true,
+  "antallAnsatte": 812,
+  "harRegistrertAntallAnsatte": true,
+  "registrertIForetaksregisteret": true,
+  "registrertIStiftelsesregisteret": false,
+  "registrertIFrivillighetsregisteret": false,
+  "konkurs": false,
+  "underAvvikling": false,
+  "underTvangsavviklingEllerTvangsopplosning": false,
+  "maalform": "Bokmål",
+  "aktivitet": [
+   "Fiktiv virksomhet for testformål."
+  ],
+  "_links": {
+   "self": {
+    "href": "https://data.brreg.no/enhetsregisteret/api/enheter/999100001"
+   }
+  },
+  "hjemmeside": "www.fjordkraft-test.no",
+  "naeringskode1": {
+   "kode": "35.140",
+   "beskrivelse": "Handel med elektrisitet"
+  },
+  "institusjonellSektorkode": {
+   "kode": "2100",
+   "beskrivelse": "Private aksjeselskaper mv."
+  },
+  "stiftelsesdato": "1998-03-02",
+  "forretningsadresse": {
+   "land": "Norge",
+   "landkode": "NO",
+   "postnummer": "5003",
+   "poststed": "BERGEN",
+   "adresse": [
+    "Testveien 1",
+    "Bygg B"
+   ],
+   "kommune": "Bergen",
+   "kommunenummer": "4601"
+  },
+  "postadresse": {
+   "land": "Norge",
+   "landkode": "NO",
+   "postnummer": "5803",
+   "poststed": "BERGEN",
+   "adresse": [
+    "Postboks 100 Sentrum"
+   ],
+   "kommune": "Bergen",
+   "kommunenummer": "4601"
+  },
+  "sisteInnsendteAarsregnskap": "2025",
+  "vedtektsdato": "2020-06-01",
+  "vedtektsfestetFormaal": [
+   "Kraftomsetning."
+  ]
+ },
+ {
+  "organisasjonsnummer": "999100002",
+  "navn": "NORDLYS DATA AS",
+  "organisasjonsform": {
+   "kode": "AS",
+   "beskrivelse": "Aksjeselskap",
+   "_links": {
+    "self": {
+     "href": "https://data.brreg.no/enhetsregisteret/api/organisasjonsformer/AS"
+    }
+   }
+  },
+  "registreringsdatoEnhetsregisteret": "2015-02-03",
+  "registrertIMvaregisteret": true,
+  "antallAnsatte": 14,
+  "harRegistrertAntallAnsatte": true,
+  "registrertIForetaksregisteret": true,
+  "registrertIStiftelsesregisteret": false,
+  "registrertIFrivillighetsregisteret": false,
+  "konkurs": false,
+  "underAvvikling": false,
+  "underTvangsavviklingEllerTvangsopplosning": false,
+  "maalform": "Bokmål",
+  "aktivitet": [
+   "Fiktiv virksomhet for testformål."
+  ],
+  "_links": {
+   "self": {
+    "href": "https://data.brreg.no/enhetsregisteret/api/enheter/999100002"
+   }
+  },
+  "hjemmeside": "https://nordlysdata.example/",
+  "naeringskode1": {
+   "kode": "62.010",
+   "beskrivelse": "Programmeringstjenester"
+  },
+  "naeringskode2": {
+   "kode": "62.020",
+   "beskrivelse": "Konsulentvirksomhet tilknyttet informasjonsteknologi"
+  },
+  "stiftelsesdato": "2015-01-20",
+  "forretningsadresse": {
+   "land": "Norge",
+   "landkode": "NO",
+   "postnummer": "0155",
+   "poststed": "OSLO",
+   "adresse": [
+    "Storgata 12"
+   ],
+   "kommune": "Oslo",
+   "kommunenummer": "0301"
+  }
+ },
+ {
+  "organisasjonsnummer": "999100003",
+  "navn": "KONKURS EKSEMPEL AS",
+  "organisasjonsform": {
+   "kode": "AS",
+   "beskrivelse": "Aksjeselskap",
+   "_links": {
+    "self": {
+     "href": "https://data.brreg.no/enhetsregisteret/api/organisasjonsformer/AS"
+    }
+   }
+  },
+  "registreringsdatoEnhetsregisteret": "2004-05-12",
+  "registrertIMvaregisteret": true,
+  "antallAnsatte": 0,
+  "harRegistrertAntallAnsatte": false,
+  "registrertIForetaksregisteret": true,
+  "registrertIStiftelsesregisteret": false,
+  "registrertIFrivillighetsregisteret": false,
+  "konkurs": true,
+  "underAvvikling": false,
+  "underTvangsavviklingEllerTvangsopplosning": false,
+  "maalform": "Bokmål",
+  "aktivitet": [
+   "Fiktiv virksomhet for testformål."
+  ],
+  "_links": {
+   "self": {
+    "href": "https://data.brreg.no/enhetsregisteret/api/enheter/999100003"
+   }
+  },
+  "konkursdato": "2026-02-01",
+  "naeringskode1": {
+   "kode": "47.190",
+   "beskrivelse": "Annen butikkhandel"
+  },
+  "forretningsadresse": {
+   "land": "Norge",
+   "landkode": "NO",
+   "postnummer": "7010",
+   "poststed": "TRONDHEIM",
+   "adresse": [
+    "Torget 3"
+   ],
+   "kommune": "Trondheim",
+   "kommunenummer": "5001"
+  }
+ },
+ {
+  "organisasjonsnummer": "999100004",
+  "navn": "AVVIKLING TEST AS",
+  "organisasjonsform": {
+   "kode": "AS",
+   "beskrivelse": "Aksjeselskap",
+   "_links": {
+    "self": {
+     "href": "https://data.brreg.no/enhetsregisteret/api/organisasjonsformer/AS"
+    }
+   }
+  },
+  "registreringsdatoEnhetsregisteret": "2004-05-12",
+  "registrertIMvaregisteret": true,
+  "antallAnsatte": 0,
+  "harRegistrertAntallAnsatte": false,
+  "registrertIForetaksregisteret": true,
+  "registrertIStiftelsesregisteret": false,
+  "registrertIFrivillighetsregisteret": false,
+  "konkurs": false,
+  "underAvvikling": true,
+  "underTvangsavviklingEllerTvangsopplosning": false,
+  "maalform": "Bokmål",
+  "aktivitet": [
+   "Fiktiv virksomhet for testformål."
+  ],
+  "_links": {
+   "self": {
+    "href": "https://data.brreg.no/enhetsregisteret/api/enheter/999100004"
+   }
+  },
+  "underAvviklingDato": "2026-05-05",
+  "forretningsadresse": {
+   "land": "Norge",
+   "landkode": "NO",
+   "postnummer": "4006",
+   "poststed": "STAVANGER",
+   "adresse": [
+    "Kaia 9"
+   ],
+   "kommune": "Stavanger",
+   "kommunenummer": "1103"
+  }
+ },
+ {
+  "organisasjonsnummer": "999100005",
+  "navn": "SLETTET HOLDING AS",
+  "organisasjonsform": {
+   "kode": "AS",
+   "beskrivelse": "Aksjeselskap",
+   "_links": {
+    "self": {
+     "href": "https://data.brreg.no/enhetsregisteret/api/organisasjonsformer/AS"
+    }
+   }
+  },
+  "registreringsdatoEnhetsregisteret": "2004-05-12",
+  "registrertIMvaregisteret": true,
+  "antallAnsatte": 0,
+  "harRegistrertAntallAnsatte": false,
+  "registrertIForetaksregisteret": true,
+  "registrertIStiftelsesregisteret": false,
+  "registrertIFrivillighetsregisteret": false,
+  "konkurs": false,
+  "underAvvikling": false,
+  "underTvangsavviklingEllerTvangsopplosning": false,
+  "maalform": "Bokmål",
+  "aktivitet": [
+   "Fiktiv virksomhet for testformål."
+  ],
+  "_links": {
+   "self": {
+    "href": "https://data.brreg.no/enhetsregisteret/api/enheter/999100005"
+   }
+  },
+  "slettedato": "2025-12-31",
+  "forretningsadresse": {
+   "land": "Norge",
+   "landkode": "NO",
+   "postnummer": "9008",
+   "poststed": "TROMSØ",
+   "adresse": [
+    "Gata 1"
+   ],
+   "kommune": "Tromsø",
+   "kommunenummer": "5501"
+  }
+ },
+ {
+  "organisasjonsnummer": "999100006",
+  "navn": "OLA NORDMANN",
+  "organisasjonsform": {
+   "kode": "ENK",
+   "beskrivelse": "Enkeltpersonforetak",
+   "_links": {
+    "self": {
+     "href": "https://data.brreg.no/enhetsregisteret/api/organisasjonsformer/ENK"
+    }
+   }
+  },
+  "registreringsdatoEnhetsregisteret": "2004-05-12",
+  "registrertIMvaregisteret": false,
+  "antallAnsatte": 0,
+  "harRegistrertAntallAnsatte": false,
+  "registrertIForetaksregisteret": false,
+  "registrertIStiftelsesregisteret": false,
+  "registrertIFrivillighetsregisteret": false,
+  "konkurs": false,
+  "underAvvikling": false,
+  "underTvangsavviklingEllerTvangsopplosning": false,
+  "maalform": "Bokmål",
+  "aktivitet": [
+   "Fiktiv virksomhet for testformål."
+  ],
+  "_links": {
+   "self": {
+    "href": "https://data.brreg.no/enhetsregisteret/api/enheter/999100006"
+   }
+  },
+  "naeringskode1": {
+   "kode": "74.200",
+   "beskrivelse": "Fotografvirksomhet"
+  },
+  "forretningsadresse": {
+   "land": "Norge",
+   "landkode": "NO",
+   "postnummer": "3510",
+   "poststed": "HØNEFOSS",
+   "adresse": [
+    "Fjellstien 4"
+   ],
+   "kommune": "Ringerike",
+   "kommunenummer": "3305"
+  }
+ },
+ {
+  "organisasjonsnummer": "999100007",
+  "navn": "NORDMANN RØRLEGGERSERVICE",
+  "organisasjonsform": {
+   "kode": "ENK",
+   "beskrivelse": "Enkeltpersonforetak",
+   "_links": {
+    "self": {
+     "href": "https://data.brreg.no/enhetsregisteret/api/organisasjonsformer/ENK"
+    }
+   }
+  },
+  "registreringsdatoEnhetsregisteret": "2011-08-15",
+  "registrertIMvaregisteret": true,
+  "antallAnsatte": 2,
+  "harRegistrertAntallAnsatte": true,
+  "registrertIForetaksregisteret": true,
+  "registrertIStiftelsesregisteret": false,
+  "registrertIFrivillighetsregisteret": false,
+  "konkurs": false,
+  "underAvvikling": false,
+  "underTvangsavviklingEllerTvangsopplosning": false,
+  "maalform": "Bokmål",
+  "aktivitet": [
+   "Fiktiv virksomhet for testformål."
+  ],
+  "_links": {
+   "self": {
+    "href": "https://data.brreg.no/enhetsregisteret/api/enheter/999100007"
+   }
+  },
+  "hjemmeside": "nordmannror.example",
+  "naeringskode1": {
+   "kode": "43.221",
+   "beskrivelse": "Rørleggerarbeid"
+  },
+  "forretningsadresse": {
+   "land": "Norge",
+   "landkode": "NO",
+   "postnummer": "2317",
+   "poststed": "HAMAR",
+   "adresse": [
+    "Industriveien 7"
+   ],
+   "kommune": "Hamar",
+   "kommunenummer": "3403"
+  }
+ },
+ {
+  "organisasjonsnummer": "999100008",
+  "navn": "FOTOGRAF KARI NORDMANN",
+  "organisasjonsform": {
+   "kode": "ENK",
+   "beskrivelse": "Enkeltpersonforetak",
+   "_links": {
+    "self": {
+     "href": "https://data.brreg.no/enhetsregisteret/api/organisasjonsformer/ENK"
+    }
+   }
+  },
+  "registreringsdatoEnhetsregisteret": "2004-05-12",
+  "registrertIMvaregisteret": true,
+  "antallAnsatte": 0,
+  "harRegistrertAntallAnsatte": false,
+  "registrertIForetaksregisteret": true,
+  "registrertIStiftelsesregisteret": false,
+  "registrertIFrivillighetsregisteret": false,
+  "konkurs": false,
+  "underAvvikling": false,
+  "underTvangsavviklingEllerTvangsopplosning": false,
+  "maalform": "Bokmål",
+  "aktivitet": [
+   "Fiktiv virksomhet for testformål."
+  ],
+  "_links": {
+   "self": {
+    "href": "https://data.brreg.no/enhetsregisteret/api/enheter/999100008"
+   }
+  },
+  "naeringskode1": {
+   "kode": "74.200",
+   "beskrivelse": "Fotografvirksomhet"
+  },
+  "forretningsadresse": {
+   "land": "Norge",
+   "landkode": "NO",
+   "postnummer": "8006",
+   "poststed": "BODØ",
+   "adresse": [
+    "Sjøgata 2"
+   ],
+   "kommune": "Bodø",
+   "kommunenummer": "1804"
+  }
+ },
+ {
+  "organisasjonsnummer": "999100009",
+  "navn": "KONKURSBO ETTER GAMMEL BUTIKK AS",
+  "organisasjonsform": {
+   "kode": "KBO",
+   "beskrivelse": "Konkursbo",
+   "_links": {
+    "self": {
+     "href": "https://data.brreg.no/enhetsregisteret/api/organisasjonsformer/KBO"
+    }
+   }
+  },
+  "registreringsdatoEnhetsregisteret": "2004-05-12",
+  "registrertIMvaregisteret": true,
+  "antallAnsatte": 0,
+  "harRegistrertAntallAnsatte": false,
+  "registrertIForetaksregisteret": false,
+  "registrertIStiftelsesregisteret": false,
+  "registrertIFrivillighetsregisteret": false,
+  "konkurs": false,
+  "underAvvikling": false,
+  "underTvangsavviklingEllerTvangsopplosning": false,
+  "maalform": "Bokmål",
+  "aktivitet": [
+   "Fiktiv virksomhet for testformål."
+  ],
+  "_links": {
+   "self": {
+    "href": "https://data.brreg.no/enhetsregisteret/api/enheter/999100009"
+   }
+  },
+  "postadresse": {
+   "land": "Norge",
+   "landkode": "NO",
+   "postnummer": "0250",
+   "poststed": "OSLO",
+   "adresse": [
+    "c/o Advokat Test"
+   ],
+   "kommune": "Oslo",
+   "kommunenummer": "0301"
+  }
+ },
+ {
+  "organisasjonsnummer": "999100010",
+  "navn": "STORBYEN IDRETTSLAG",
+  "organisasjonsform": {
+   "kode": "FLI",
+   "beskrivelse": "Forening/lag/innretning",
+   "_links": {
+    "self": {
+     "href": "https://data.brreg.no/enhetsregisteret/api/organisasjonsformer/FLI"
+    }
+   }
+  },
+  "registreringsdatoEnhetsregisteret": "1995-02-20",
+  "registrertIMvaregisteret": true,
+  "antallAnsatte": 0,
+  "harRegistrertAntallAnsatte": false,
+  "registrertIForetaksregisteret": false,
+  "registrertIStiftelsesregisteret": false,
+  "registrertIFrivillighetsregisteret": true,
+  "konkurs": false,
+  "underAvvikling": false,
+  "underTvangsavviklingEllerTvangsopplosning": false,
+  "maalform": "Bokmål",
+  "aktivitet": [
+   "Fiktiv virksomhet for testformål."
+  ],
+  "_links": {
+   "self": {
+    "href": "https://data.brreg.no/enhetsregisteret/api/enheter/999100010"
+   }
+  },
+  "hjemmeside": "www.facebook.com/storbyenil",
+  "naeringskode1": {
+   "kode": "93.120",
+   "beskrivelse": "Drift av idrettsklubber"
+  },
+  "postadresse": {
+   "land": "Norge",
+   "landkode": "NO",
+   "postnummer": "1601",
+   "poststed": "FREDRIKSTAD",
+   "adresse": [
+    "Postboks 55"
+   ],
+   "kommune": "Fredrikstad",
+   "kommunenummer": "3107"
+  }
+ },
+ {
+  "organisasjonsnummer": "999100011",
+  "navn": "PER HANSEN OG KARI HANSEN",
+  "organisasjonsform": {
+   "kode": "IKJP",
+   "beskrivelse": "Andre ikke-juridiske personer",
+   "_links": {
+    "self": {
+     "href": "https://data.brreg.no/enhetsregisteret/api/organisasjonsformer/IKJP"
+    }
+   }
+  },
+  "registreringsdatoEnhetsregisteret": "2004-05-12",
+  "registrertIMvaregisteret": true,
+  "antallAnsatte": 0,
+  "harRegistrertAntallAnsatte": false,
+  "registrertIForetaksregisteret": false,
+  "registrertIStiftelsesregisteret": false,
+  "registrertIFrivillighetsregisteret": false,
+  "konkurs": false,
+  "underAvvikling": false,
+  "underTvangsavviklingEllerTvangsopplosning": false,
+  "maalform": "Bokmål",
+  "aktivitet": [
+   "Fiktiv virksomhet for testformål."
+  ],
+  "_links": {
+   "self": {
+    "href": "https://data.brreg.no/enhetsregisteret/api/enheter/999100011"
+   }
+  },
+  "postadresse": {
+   "land": "Norge",
+   "landkode": "NO",
+   "postnummer": "3580",
+   "poststed": "GEILO",
+   "adresse": [
+    "Hytteveien 1"
+   ],
+   "kommune": "Hol",
+   "kommunenummer": "3324"
+  }
+ },
+ {
+  "organisasjonsnummer": "999100012",
+  "navn": "SVENSK FILIAL NUF",
+  "organisasjonsform": {
+   "kode": "NUF",
+   "beskrivelse": "Norskregistrert utenlandsk foretak",
+   "_links": {
+    "self": {
+     "href": "https://data.brreg.no/enhetsregisteret/api/organisasjonsformer/NUF"
+    }
+   }
+  },
+  "registreringsdatoEnhetsregisteret": "2019-10-10",
+  "registrertIMvaregisteret": true,
+  "antallAnsatte": 3,
+  "harRegistrertAntallAnsatte": true,
+  "registrertIForetaksregisteret": true,
+  "registrertIStiftelsesregisteret": false,
+  "registrertIFrivillighetsregisteret": false,
+  "konkurs": false,
+  "underAvvikling": false,
+  "underTvangsavviklingEllerTvangsopplosning": false,
+  "maalform": "Bokmål",
+  "aktivitet": [
+   "Fiktiv virksomhet for testformål."
+  ],
+  "_links": {
+   "self": {
+    "href": "https://data.brreg.no/enhetsregisteret/api/enheter/999100012"
+   }
+  },
+  "hjemmeside": "https://www.svenskfilial.example/no",
+  "naeringskode1": {
+   "kode": "46.900",
+   "beskrivelse": "Uspesifisert engroshandel"
+  },
+  "forretningsadresse": {
+   "land": "Sverige",
+   "landkode": "SE",
+   "postnummer": "11143",
+   "poststed": "STOCKHOLM",
+   "adresse": [
+    "Kungsgatan 5"
+   ],
+   "kommune": null,
+   "kommunenummer": null
+  }
+ },
+ {
+  "organisasjonsnummer": "999100013",
+  "navn": "HAVBRUK VEST AS",
+  "organisasjonsform": {
+   "kode": "AS",
+   "beskrivelse": "Aksjeselskap",
+   "_links": {
+    "self": {
+     "href": "https://data.brreg.no/enhetsregisteret/api/organisasjonsformer/AS"
+    }
+   }
+  },
+  "registreringsdatoEnhetsregisteret": "2004-05-12",
+  "registrertIMvaregisteret": true,
+  "antallAnsatte": 0,
+  "harRegistrertAntallAnsatte": false,
+  "registrertIForetaksregisteret": true,
+  "registrertIStiftelsesregisteret": false,
+  "registrertIFrivillighetsregisteret": false,
+  "konkurs": false,
+  "underAvvikling": false,
+  "underTvangsavviklingEllerTvangsopplosning": false,
+  "maalform": "Bokmål",
+  "aktivitet": [
+   "Fiktiv virksomhet for testformål."
+  ],
+  "_links": {
+   "self": {
+    "href": "https://data.brreg.no/enhetsregisteret/api/enheter/999100013"
+   }
+  },
+  "naeringskode1": {
+   "kode": "03.211",
+   "beskrivelse": "Produksjon av matfisk og skalldyr i hav- og kystbasert akvakultur"
+  },
+  "forretningsadresse": {
+   "land": "Norge",
+   "landkode": "NO",
+   "postnummer": "6900",
+   "poststed": "FLORØ",
+   "adresse": [
+    "Kaiveien 21"
+   ],
+   "kommune": "Kinn",
+   "kommunenummer": "4602"
+  }
+ }
+]

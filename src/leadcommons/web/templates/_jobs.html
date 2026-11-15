@@ -11,9 +11,12 @@
   <div class="s">
     {{ ago(j.finished_at or j.created_at) }}
     {% if j.status == 'failed' and j.error %} · {{ j.error[:140] }}{% endif %}
+    {% if j.status == 'running' and j.result and j.result.phase %} · {{ j.result.phase }}{% if j.result.total %} {{ (100 * j.result.progress / j.result.total)|round|int }}%{% endif %}{% endif %}
+    {% if j.status == 'done' and j.result and j.result.message %} · {{ j.result.message }}{% endif %}
     {% if j.status == 'done' and j.result %}
       {% if j.result.people is defined %} · {{ j.result.people }} people found{% endif %}
       {% if j.result.emails is defined %} · {{ j.result.emails }} emails{% endif %}
+      {% for src in j.result.sources or [] if src.status != 'ok' %} · {{ src.label }}: {{ src.reason }}{% endfor %}
       {% if j.kind == 'enrich_csv' %} · <a href="/api/enrich/{{ j.id }}/result.csv">Download CSV</a>{% endif %}
     {% endif %}
   </div>

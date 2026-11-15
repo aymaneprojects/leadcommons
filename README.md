@@ -9,7 +9,7 @@ You run it on your own computer (or your own server). Your leads never leave you
 - **Company search** over open data packs (Wikidata, GLEIF, and the French SIRENE registry): include/exclude filters for country, industry, size and keywords, column chooser, saved views.
 - **AI search**: type who you want in plain words (English or French), e.g. "French fintech startups" or "CTOs at German SaaS companies, 50-200", and it fills the filters. Works offline with rules; can use a local model (Ollama) if you set `LEADCOMMONS_LLM_URL`.
 - **People finder**: reads a company's public pages (team, about, legal notice, contact) and lists the people it finds with their job titles.
-- **Email finder and checker**: infers the address pattern from public addresses, then checks syntax, MX records and catch-all behaviour. An optional live SMTP probe is off by default.
+- **Email finder and checker**: learns each company's address format from its public addresses, then checks syntax, MX records, the mail provider and catch-all behaviour. An optional live SMTP probe is off by default. "Valid" means mailbox-level evidence and at least 90% measured precision; the 0-100 score is calibrated ([how we measure it](docs/email-quality.md)).
 - **Lists and saved searches**, stored in a local database.
 - **CSV enrichment**: upload a CSV, get one back with domains, contacts and emails.
 - **Opt-out and suppression list**: a public `/opt-out` page and a list that is checked before anything is returned.
@@ -82,7 +82,8 @@ Details in [docs/vercel.md](docs/vercel.md).
 ## Quick start
 
 ```sh
-leadcommons pack download latest        # real company data (a small sample is bundled)
+leadcommons pack download --country FR  # real company data for a country (a sample is bundled)
+leadcommons pack countries              # the countries you can download
 leadcommons serve                       # web app on http://127.0.0.1:8000
 leadcommons find-people example.com     # people on a company's public pages
 leadcommons find-email "Ada Lovelace" example.com

@@ -49,7 +49,8 @@ class JobRunner:
     find_email:  {"person_id": str}
     enrich_csv:  {"input": str (path), "output": str (path)}
     company_insights: {"company_id": str, "domain": str | None}
-    download_pack: {} (newest published pack; search switches to it when done)
+    download_pack: {} or {"action": "install" | "update" | "remove" | "index" | "latest",
+                   "countries": [...]} (packs.run_pack_job; search switches when done)
     """
 
     def __init__(self, store: Any, search: Any, settings: Any) -> None:
@@ -159,13 +160,34 @@ class JobRunner:
 
         domain = job.payload["domain"]
         company_id = job.payload.get("company_id")
-        people = enrich.find_people(domain)
+        company = self._company(company_id) if company_id else None
+        notes: list[Any] = []  # one entry per source: ok, skipped (with reason) or error
+        people = enrich.find_people(
+            domain,
+            company=company,
+            is_suppressed=self.store.is_suppressed,
+            known_addresses=self._saved_addresses,
+            report=notes,
+        )
         for p in people:
             if company_id:
                 p.company_id = company_id
             self.store.save_person(p)
             workflows.emit("person_found", person_id=p.id, company_id=company_id, domain=domain)
-        return {"people": len(people)}
+        result: dict[str, Any] = {"people": len(people)}
+        if notes:
+            result["sources"] = [n.as_dict() for n in notes]
+        return result
+
+    def _company(self, company_id: str) -> Any:
+        company = self.search.get_company(company_id)
+        if company is None and hasattr(self.store, "get_company"):
+            company = self.store.get_company(company_id)
+        return company
+
+    def _saved_addresses(self, person_id: str) -> list[str]:
+        best = self.store.best_email(person_id) if hasattr(self.store, "best_email") else None
+        return [best.address] if best else []
 
     def _do_find_email(self, job: Job) -> dict[str, Any]:
         from leadcommons import enrich
@@ -223,12 +245,16 @@ class JobRunner:
         }
 
     def _do_download_pack(self, job: Job) -> dict[str, Any]:
-        from leadcommons.packs import DuckDBCompanySearch, install_latest_pack
+        from leadcommons.packs import DuckDBCompanySearch, run_pack_job
 
-        path = install_latest_pack(self.settings.data_dir)
+        def progress(phase: str, done: int, total: int) -> None:
+            with self._lock:
+                job.result = {"phase": phase, "progress": done, "total": total}
+
+        result = run_pack_job(self.settings.data_dir, job.payload, progress)
         fresh = DuckDBCompanySearch(self.settings.data_dir)
         self.search = fresh
         if self._state is not None:
             self._state.search = fresh
-        rows = sum(int(p.get("rows") or 0) for p in fresh.pack_info())
-        return {"pack": path.name, "companies": rows}
+        result["companies"] = sum(int(p.get("rows") or 0) for p in fresh.pack_info())
+        return result

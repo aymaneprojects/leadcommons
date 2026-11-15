@@ -1,0 +1,323 @@
+{
+ "head": {
+  "vars": [
+   "prop",
+   "person",
+   "personLabel",
+   "start",
+   "end",
+   "rank"
+  ]
+ },
+ "results": {
+  "bindings": [
+   {
+    "prop": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/prop/P3320"
+    },
+    "rank": {
+     "type": "uri",
+     "value": "http://wikiba.se/ontology#PreferredRank"
+    },
+    "person": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q80050392"
+    },
+    "personLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Teri List"
+    },
+    "start": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+     "type": "literal",
+     "value": "2014-01-01T00:00:00Z"
+    }
+   },
+   {
+    "prop": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/prop/P3320"
+    },
+    "rank": {
+     "type": "uri",
+     "value": "http://wikiba.se/ontology#PreferredRank"
+    },
+    "person": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q107352040"
+    },
+    "personLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Catherine MacGregor"
+    },
+    "start": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+     "type": "literal",
+     "value": "2023-01-01T00:00:00Z"
+    }
+   },
+   {
+    "prop": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/prop/P3320"
+    },
+    "rank": {
+     "type": "uri",
+     "value": "http://wikiba.se/ontology#PreferredRank"
+    },
+    "person": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q211098"
+    },
+    "personLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Reid Hoffman"
+    },
+    "start": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+     "type": "literal",
+     "value": "2017-01-01T00:00:00Z"
+    }
+   },
+   {
+    "prop": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/prop/P112"
+    },
+    "rank": {
+     "type": "uri",
+     "value": "http://wikiba.se/ontology#NormalRank"
+    },
+    "person": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q5284"
+    },
+    "personLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Bill Gates"
+    }
+   },
+   {
+    "prop": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/prop/P3320"
+    },
+    "rank": {
+     "type": "uri",
+     "value": "http://wikiba.se/ontology#PreferredRank"
+    },
+    "person": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q18386868"
+    },
+    "personLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Charlie Scharf"
+    },
+    "start": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+     "type": "literal",
+     "value": "2014-01-01T00:00:00Z"
+    }
+   },
+   {
+    "prop": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/prop/P3320"
+    },
+    "rank": {
+     "type": "uri",
+     "value": "http://wikiba.se/ontology#PreferredRank"
+    },
+    "person": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7426870"
+    },
+    "personLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Satya Nadella"
+    },
+    "start": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+     "type": "literal",
+     "value": "2014-01-01T00:00:00Z"
+    }
+   },
+   {
+    "prop": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/prop/P3320"
+    },
+    "rank": {
+     "type": "uri",
+     "value": "http://wikiba.se/ontology#PreferredRank"
+    },
+    "person": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q6262563"
+    },
+    "personLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "John W. Stanton"
+    },
+    "start": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+     "type": "literal",
+     "value": "2014-01-01T00:00:00Z"
+    }
+   },
+   {
+    "prop": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/prop/P3320"
+    },
+    "rank": {
+     "type": "uri",
+     "value": "http://wikiba.se/ontology#PreferredRank"
+    },
+    "person": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q20984972"
+    },
+    "personLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Sandi Peterson"
+    },
+    "start": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+     "type": "literal",
+     "value": "2015-12-01T00:00:00Z"
+    }
+   },
+   {
+    "prop": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/prop/P3320"
+    },
+    "rank": {
+     "type": "uri",
+     "value": "http://wikiba.se/ontology#PreferredRank"
+    },
+    "person": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q293365"
+    },
+    "personLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Penny Pritzker"
+    },
+    "start": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+     "type": "literal",
+     "value": "2017-01-01T00:00:00Z"
+    }
+   },
+   {
+    "prop": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/prop/P3320"
+    },
+    "rank": {
+     "type": "uri",
+     "value": "http://wikiba.se/ontology#PreferredRank"
+    },
+    "person": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q107750634"
+    },
+    "personLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Mark Mason"
+    },
+    "start": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+     "type": "literal",
+     "value": "2023-01-01T00:00:00Z"
+    }
+   },
+   {
+    "prop": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/prop/P3320"
+    },
+    "rank": {
+     "type": "uri",
+     "value": "http://wikiba.se/ontology#PreferredRank"
+    },
+    "person": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q27058352"
+    },
+    "personLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Emma Walmsley"
+    },
+    "start": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+     "type": "literal",
+     "value": "2019-01-01T00:00:00Z"
+    }
+   },
+   {
+    "prop": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/prop/P3320"
+    },
+    "rank": {
+     "type": "uri",
+     "value": "http://wikiba.se/ontology#PreferredRank"
+    },
+    "person": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q80049510"
+    },
+    "personLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Hugh Francis Johnston"
+    },
+    "start": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+     "type": "literal",
+     "value": "2017-01-01T00:00:00Z"
+    }
+   },
+   {
+    "prop": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/prop/P169"
+    },
+    "rank": {
+     "type": "uri",
+     "value": "http://wikiba.se/ontology#PreferredRank"
+    },
+    "person": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7426870"
+    },
+    "personLabel": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Satya Nadella"
+    },
+    "start": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#dateTime",
+     "type": "literal",
+     "value": "2014-02-04T00:00:00Z"
+    }
+   }
+  ]
+ }
+}

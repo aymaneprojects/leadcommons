@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+<ownershipDocument>
+  <schemaVersion>X0508</schemaVersion>
+  <documentType>4</documentType>
+  <periodOfReport>2025-03-02</periodOfReport>
+  <notSubjectToSection16>0</notSubjectToSection16>
+  <issuer>
+    <issuerCik>0001234567</issuerCik>
+    <issuerName>Acme Robotics Inc.</issuerName>
+    <issuerTradingSymbol>ACMR</issuerTradingSymbol>
+  </issuer>
+  <reportingOwner>
+    <reportingOwnerId>
+      <rptOwnerCik>0001111111</rptOwnerCik>
+      <rptOwnerName>DOE JANE A</rptOwnerName>
+    </reportingOwnerId>
+    <reportingOwnerAddress>
+      <rptOwnerStreet1>1 EXAMPLE WAY</rptOwnerStreet1>
+      <rptOwnerCity>AUSTIN</rptOwnerCity>
+      <rptOwnerState>TX</rptOwnerState>
+      <rptOwnerZipCode>78701</rptOwnerZipCode>
+    </reportingOwnerAddress>
+    <reportingOwnerRelationship>
+      <isDirector>1</isDirector>
+      <isOfficer>1</isOfficer>
+      <isTenPercentOwner>0</isTenPercentOwner>
+      <isOther>0</isOther>
+      <officerTitle>President and CEO</officerTitle>
+
+    </reportingOwnerRelationship>
+  </reportingOwner>
+  <nonDerivativeTable>
+    <nonDerivativeTransaction>
+      <securityTitle><value>Common Stock</value></securityTitle>
+      <transactionDate><value>2025-03-02</value></transactionDate>
+      <transactionAmounts>
+        <transactionShares><value>1000</value></transactionShares>
+        <transactionAcquiredDisposedCode><value>A</value></transactionAcquiredDisposedCode>
+      </transactionAmounts>
+    </nonDerivativeTransaction>
+  </nonDerivativeTable>
+  <ownerSignature>
+    <signatureName>/s/ Attorney-in-fact</signatureName>
+    <signatureDate>2025-03-02</signatureDate>
+  </ownerSignature>
+</ownershipDocument>
