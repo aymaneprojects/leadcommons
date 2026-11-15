@@ -69,7 +69,9 @@ packs-out/
 Releases published before schema 3 have a single `companies-*.parquet` and no manifest; the app
 must keep reading them.
 
-**Stable company ids**: the merged id comes from the strongest key, in this order: LEI,
-`registry:company_number`, SIREN, CIK, Wikidata id, domain, then name + country. Format
-`co_<16 hex>` from a hash of that key, so the same company keeps its id month after month (saved
-lists and deals point to it).
+**Stable company ids**: the merged id comes from the most permanent key, in this order:
+`registry:company_number` (a SIREN counts as `FR-SIREN:<siren>`), LEI, CIK, Wikidata id, domain,
+then name + country. Build it with `leadcommons.models.make_id("co", kind, value)` using kinds
+`reg`, `lei`, `cik`, `wd`, `domain`, `name`, so the same company keeps its id month after month
+(saved lists and deals point to it). A national register number never changes; an LEI or a Wikidata
+item can appear later, which is why they come after it.
