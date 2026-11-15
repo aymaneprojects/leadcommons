@@ -29,12 +29,15 @@
   </div>
   <h2>Send from your own mailbox, on your terms</h2>
   <p>Connect any mailbox with SMTP, and IMAP for replies. Emails leave from your own address, within your daily limit and sending hours, and every one carries an unsubscribe link.</p>
-  {% if demo %}
-  <button class="btn primary" type="button" disabled title="{{ demo_reason }}">Add a mailbox</button>
-  <p class="hint">{{ demo_reason }}</p>
-  {% else %}
-  <a class="btn primary" href="/settings/mailboxes/new">Add a mailbox</a>
-  {% endif %}
+  <div class="eg-promo-actions">
+    {% if demo %}
+    <button class="btn primary" type="button" disabled aria-disabled="true" title="{{ demo_reason }}">Connect a mailbox</button>
+    {% else %}
+    <a class="btn primary" href="/settings/mailboxes/new">Connect a mailbox</a>
+    {% endif %}
+    <a class="btn" href="/settings/mailboxes">See how it works</a>
+  </div>
+  {% if demo %}<p class="hint">{{ demo_reason }}</p>{% endif %}
 </section>
 {% else %}
 {{ send_bar(demo, demo_reason, mailboxes) }}

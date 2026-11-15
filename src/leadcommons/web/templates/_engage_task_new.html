@@ -1,7 +1,7 @@
 {% from "_engage_macros.html" import eic, task_icon, dlg_head %}
 <dialog class="eg-dlg" data-autoopen data-eg-dlg aria-label="New task">
   <form method="post" action="/tasks" hx-post="/tasks" hx-swap="none" data-quiet>
-    {{ dlg_head("New task", ("For " ~ p.name) if p else (("For " ~ c.name) if c else "A reminder for you"), "square-check-big") }}
+    {{ dlg_head("New task", ("For " ~ p.name ~ ((" at " ~ c.name) if c else "")) if p else (("For " ~ c.name) if c else "A reminder for you"), "square-check-big") }}
     {% if p %}<input type="hidden" name="person_id" value="{{ p.id }}">{% endif %}
     {% if c %}<input type="hidden" name="company_id" value="{{ c.id }}">{% endif %}
     {% if deal_id %}<input type="hidden" name="deal_id" value="{{ deal_id }}">{% endif %}

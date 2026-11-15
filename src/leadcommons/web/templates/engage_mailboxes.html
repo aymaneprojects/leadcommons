@@ -16,7 +16,7 @@
 <div class="eg-set">
 {% call outbound_head("mailboxes", demo, mailboxes) %}
   <form method="post" action="/settings/mailboxes/test-all" class="eg-inline">
-    <button class="btn" type="submit"{% if demo %} disabled title="Connection tests are turned off in the public demo"{% elif not mailboxes %} disabled title="Connect a mailbox first"{% endif %}>{{ eic("plug-zap", "sm") }}<span>Run a check</span></button>
+    <button class="btn" type="submit"{% if demo %} disabled title="Connection tests are turned off in the public demo"{% elif not mailboxes %} disabled title="Connect a mailbox first"{% endif %}>{{ eic("plug-zap", "sm") }}<span>Test all</span></button>
   </form>
   {{ provider_menu() }}
 {% endcall %}
@@ -40,7 +40,7 @@
   <div><b>Not sure which servers to use?</b><span>Pick your provider and the server names, ports and security are filled in for you. Most providers ask for an app password rather than your usual one.</span></div>
   <a class="btn" href="/settings/mailboxes/new?provider=gmail">Choose a provider</a>
 </div>
-<p class="eg-next"><b>What happens next:</b> once a mailbox is connected, we sign in to test it (nothing is sent) and list it here with its status, daily limit and sending window. Read the <a href="{{ guide_url }}" target="_blank" rel="noopener noreferrer">guide to mailboxes</a>.</p>
+<p class="eg-next"><b>After you connect:</b> once a mailbox is connected, we sign in to test it (nothing is sent) and list it here with its status, daily limit and sending window. Read the <a href="{{ guide_url }}" target="_blank" rel="noopener noreferrer">guide to mailboxes</a>.</p>
 {% else %}
 <div class="eg-mbx-list">
   {% for m in mailboxes %}

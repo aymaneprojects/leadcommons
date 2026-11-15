@@ -121,6 +121,7 @@
   }, true);
   doc.addEventListener("change", function (e) {
     var t = e.target;
+    if (t.hasAttribute && t.hasAttribute("data-eg-pref")) { savePrefs(); applyPrefs(); return; }
     var auto = t.closest && t.closest("form[data-eg-autosubmit]");
     if (auto && (t.tagName === "SELECT" || t.type === "checkbox" || t.type === "radio")) { auto.requestSubmit ? auto.requestSubmit() : auto.submit(); return; }
     if (t.hasAttribute && t.hasAttribute("data-eg-toggle")) {
@@ -218,6 +219,25 @@
     } catch (err) { /* keep the server default */ }
   }
 
+  /* ---------------------------------------------------------------- task view options (per viewer) */
+  var PREFS = "lc-eg-task-view";
+  function readPrefs() { try { return JSON.parse(localStorage.getItem(PREFS) || "{}"); } catch (err) { return {}; } }
+  function savePrefs() {
+    var out = {};
+    $$("[data-eg-pref]").forEach(function (b) { out[b.getAttribute("data-eg-pref")] = b.checked; });
+    try { localStorage.setItem(PREFS, JSON.stringify(out)); } catch (err) { /* private window */ }
+  }
+  function applyPrefs() {
+    var table = $("[data-eg-prefs-target]"), prefs = readPrefs();
+    $$("[data-eg-pref]").forEach(function (b) {
+      var k = b.getAttribute("data-eg-pref");
+      if (Object.prototype.hasOwnProperty.call(prefs, k)) b.checked = !!prefs[k];
+      if (!table) return;
+      if (k === "compact") table.classList.toggle("eg-compact", b.checked);
+      else table.classList.toggle("hide-" + k.replace("col-", ""), !b.checked);
+    });
+  }
+
   /* ---------------------------------------------------------------- times in local time */
   function localizeTimes(root) {
     var fmt;
@@ -232,6 +252,7 @@
   function init() {
     localizeTimes(doc);
     defaultTimezone();
+    applyPrefs();
     refreshPreview();
     var nd = $("#eg-new-seq"); if (nd) wire(nd);
   }

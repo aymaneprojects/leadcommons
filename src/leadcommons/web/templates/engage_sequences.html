@@ -5,7 +5,24 @@
 <div class="eg-page">
 <div class="page-head eg-head">
   <h1>Sequences</h1>
-  <button class="btn primary" type="button" data-open-dialog="eg-new-seq">{{ eic("plus", "sm") }}<span>Create sequence</span></button>
+  <div class="eg-split eg-split-primary">
+    <button class="btn primary" type="button" data-open-dialog="eg-new-seq">{{ eic("plus", "sm") }}<span>Create sequence</span></button>
+    <details class="dd eg-split-dd">
+      <summary class="btn primary icon-only" aria-label="Other ways to create a sequence">{{ eic("chevron-down", "sm") }}</summary>
+      <div class="menu eg-menu">
+        {% if ai_off %}
+        <span class="menu-item" aria-disabled="true" title="{{ ai_off }}" data-tip="{{ ai_off }}">{{ eic("sparkles", "sm") }}<span><b>Draft with AI</b><small>{{ ai_off }}</small></span></span>
+        {% else %}
+        <button class="menu-item" type="button" data-open-dialog="eg-ai-seq">{{ eic("sparkles", "sm") }}<span><b>Draft with AI</b><small>Describe the goal; your model writes the steps.</small></span></button>
+        {% endif %}
+        <div class="menu-sep"></div>
+        {% for key, t in templates_list.items() %}
+        <form method="post" action="/sequences"><input type="hidden" name="template" value="{{ key }}">
+          <button class="menu-item" type="submit">{{ eic("plus" if key == "blank" else "layout-list", "sm") }}<span><b>{{ t.label }}</b><small>{{ t.lead }}</small></span></button></form>
+        {% endfor %}
+      </div>
+    </details>
+  </div>
 </div>
 
 <nav class="tabs eg-tabs" role="tablist" aria-label="Sequences views">
@@ -30,12 +47,16 @@
   {% if total == 0 %}
   <section class="eg-hero">
     <span class="eg-hero-ic">{{ eic("send", "lg") }}</span>
-    <h2>Create your first sequence</h2>
+    <h2>Start your first sequence</h2>
     <p>Reach the people you prospect with a series of emails, calls and tasks that runs on a schedule and stops when they answer.</p>
     <div class="eg-hero-actions">
-      <button class="btn" type="button" data-open-dialog="eg-new-seq" data-eg-pick="intro">{{ eic("layout-list", "sm") }}<span>Start from a template</span></button>
+      {% if ai_off %}
+      <button class="btn" type="button" disabled aria-disabled="true" title="{{ ai_off }}" data-tip="{{ ai_off }}">{{ eic("sparkles", "sm") }}<span>Draft with AI</span></button>
+      {% else %}
+      <button class="btn" type="button" data-open-dialog="eg-ai-seq">{{ eic("sparkles", "sm") }}<span>Draft with AI</span></button>
+      {% endif %}
       <div class="eg-split">
-        <button class="btn" type="button" data-open-dialog="eg-new-seq" data-eg-pick="blank">Create manually</button>
+        <button class="btn" type="button" data-open-dialog="eg-new-seq" data-eg-pick="blank">Build from scratch</button>
         <details class="dd eg-split-dd">
           <summary class="btn icon-only" aria-label="More ways to start">{{ eic("chevron-down", "sm") }}</summary>
           <div class="menu eg-menu">
@@ -49,8 +70,8 @@
     </div>
   </section>
   <div class="eg-feats">
-    <div class="eg-feat"><span class="eg-feat-ic">{{ eic("list") }}</span><b>Built step by step</b><span>Mix automatic emails, manual emails, calls, LinkedIn steps and to-dos in one ordered sequence. Reorder any step.</span></div>
-    <div class="eg-feat"><span class="eg-feat-ic">{{ eic("calendar-clock") }}</span><b>Sends on your schedule</b><span>Set the wait between steps, a sending window and a daily limit per mailbox. Emails are spaced out for you.</span></div>
+    <div class="eg-feat"><span class="eg-feat-ic">{{ eic("list") }}</span><b>Plan each step</b><span>Mix automatic emails, manual emails, calls, LinkedIn steps and to-dos in one ordered sequence. Reorder any step.</span></div>
+    <div class="eg-feat"><span class="eg-feat-ic">{{ eic("calendar-clock") }}</span><b>Goes out when you choose</b><span>Set the wait between steps, a sending window and a daily limit per mailbox. Emails are spaced out for you.</span></div>
     <div class="eg-feat"><span class="eg-feat-ic">{{ eic("reply") }}</span><b>Stops when they reply</b><span>Contacts who reply, bounce or unsubscribe leave the sequence on their own, so nobody gets a follow-up by mistake.</span></div>
   </div>
   {% else %}
@@ -175,6 +196,24 @@
       </fieldset>
     </div>
     <footer class="eg-dlg-foot"><button type="button" class="btn close-dlg">Cancel</button><button class="btn primary" type="submit">Create sequence</button></footer>
+  </form>
+</dialog>
+<dialog id="eg-ai-seq" class="eg-dlg" aria-labelledby="eg-ai-seq-t">
+  <form method="post" action="/sequences/ai" hx-post="/sequences/ai" hx-swap="none" data-quiet>
+    <header class="eg-dlg-head">
+      <div class="eg-dlg-title"><span class="eg-dlg-ic">{{ eic("sparkles") }}</span><div><h2 id="eg-ai-seq-t">Draft a sequence with AI</h2><p>Your own model writes a first draft. Only the goal below is sent.</p></div></div>
+      <button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">{{ eic("x") }}</button>
+    </header>
+    <div class="eg-dlg-body">
+      <div class="field"><label for="eg-ai-goal">Goal</label>
+        <textarea id="eg-ai-goal" name="goal" rows="4" maxlength="600" required placeholder="e.g. Book a demo with heads of sales at logistics companies; friendly, short, one call step"></textarea></div>
+      <div class="eg-row2">
+        <div class="field"><label for="eg-ai-name">Name <span class="eg-dim">(optional)</span></label><input id="eg-ai-name" type="text" name="name" maxlength="200" autocomplete="off"></div>
+        <div class="field"><label for="eg-ai-steps">Steps</label><select id="eg-ai-steps" name="steps">{% for n in range(2, 9) %}<option{% if n == 4 %} selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+      </div>
+      <p class="hint">The draft opens in the editor as a draft sequence: review every step before you activate it.</p>
+    </div>
+    <footer class="eg-dlg-foot"><button type="button" class="btn close-dlg">Cancel</button><button class="btn primary" type="submit">{{ eic("sparkles", "sm") }}<span>Draft it</span></button></footer>
   </form>
 </dialog>
 {% endblock %}

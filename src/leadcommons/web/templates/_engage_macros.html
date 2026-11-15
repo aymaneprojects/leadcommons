@@ -98,7 +98,7 @@
 <div class="eg-bar" role="note">{{ eic("triangle-alert") }}<span>No mailbox is connected yet. Connect your own email account to send emails from LeadCommons. <a href="/settings/mailboxes">Connect mailbox</a></span></div>
 {%- else -%}
 {%- for m in mailboxes if m.status == "error" -%}
-<div class="eg-bar" role="note">{{ eic("triangle-alert") }}<span>{{ m.from_email }} cannot send right now: {{ m.last_error or "the last connection test failed" }}. <a href="/settings/mailboxes/{{ m.id }}">Fix mailbox</a></span></div>
+<div class="eg-bar" role="note">{{ eic("triangle-alert") }}<span>{{ m.from_email }} cannot send right now: {{ (m.last_error or "the last connection test failed").rstrip(".") }}. <a href="/settings/mailboxes/{{ m.id }}">Fix mailbox</a></span></div>
 {%- endfor -%}
 {%- endif -%}
 {%- endmacro %}
@@ -109,6 +109,7 @@
   <div class="eg-set-title">
     <h1 class="set-h1">Outbound email</h1>
     {% if demo %}<span class="chip plain">{{ eic("lock", "sm") }} Sending off in the demo</span>
+    {% elif mailboxes and mailboxes|selectattr("status", "equalto", "error")|list %}<span class="chip red">{{ eic("circle-alert", "sm") }} A mailbox needs attention</span>
     {% elif mailboxes and mailboxes|selectattr("status", "equalto", "ok")|list %}<span class="chip ok">{{ eic("shield-check", "sm") }} Ready to send</span>
     {% elif mailboxes %}<span class="chip amber">{{ eic("triangle-alert", "sm") }} Needs a connection test</span>
     {% else %}<span class="chip plain">{{ eic("mail", "sm") }} No mailbox yet</span>{% endif %}

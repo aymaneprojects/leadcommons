@@ -21,6 +21,7 @@ from leadcommons.engage.crypto import decrypt
 
 TIMEOUT = 20.0
 SECURITY = ("ssl", "starttls", "none")
+IMAP_ERROR = imaplib.IMAP4.error
 
 
 class MailboxError(Exception):
@@ -191,7 +192,7 @@ def imap_connect(settings: Any, mailbox: Any) -> imaplib.IMAP4:
         return conn
     except MailboxError:
         raise
-    except imaplib.IMAP4.error as exc:
+    except IMAP_ERROR as exc:
         raise MailboxError(f"IMAP login refused ({_txt(exc)}).") from None
     except OSError as exc:
         raise MailboxError(f"Could not reach {host}:{port} ({exc.__class__.__name__}).") from None

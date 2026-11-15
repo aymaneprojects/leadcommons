@@ -13,6 +13,7 @@ from typing import Any
 from zoneinfo import available_timezones
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from leadcommons.engage import core, crypto, mailer
@@ -214,12 +215,20 @@ CONTACT_STATUS_LABEL = {
     "bounced": "Bounced",
     "unsubscribed": "Unsubscribed",
 }
-TASK_VIEWS = (
-    ("open", "All open"),
-    ("today", "Due today"),
+TASK_TABS = (
+    ("all", "All tasks"),
+    ("call", "Calls"),
+    ("email", "Emails"),
+    ("linkedin", "LinkedIn"),
+    ("action", "To-dos"),
     ("overdue", "Overdue"),
+)
+TASK_VIEWS = (
+    ("open", "Open tasks"),
+    ("today", "Due today"),
     ("upcoming", "Upcoming"),
     ("done", "Completed"),
+    ("all", "Every task"),
 )
 EMAIL_TABS = (
     ("scheduled", "Scheduled"),
@@ -606,7 +615,52 @@ def sequences_page(request: Request) -> Response:
         stats=analytics(r) if tab == "analytics" else None,
         checks=health_checks(request, r, cfg) if tab == "health" else [],
         templates_list=TEMPLATES,
+        ai_off=ai_off_reason(request),
     )
+
+
+def ai_off_reason(request: Request) -> str:
+    """Why "Draft with AI" is unavailable, or "" when it can be used."""
+    from leadcommons.engage.ai import OFF_REASON, llm_ready
+
+    if demo(request):
+        return "Turned off in the public demo."
+    return "" if llm_ready() else OFF_REASON
+
+
+@router.post("/sequences/ai")
+async def sequences_ai(request: Request, _: None = Depends(csrf)) -> Response:
+    """Draft a sequence from a short goal with the user's own model, then open it."""
+    from leadcommons.engage.ai import draft_sequence
+
+    form = await form_values(request)
+    back = "/sequences"
+    off = ai_off_reason(request)
+    if off:
+        return answer(request, off, back, ok=False)
+    goal = str(form.get("goal") or "").strip()
+    if len(goal) < 8:
+        return answer(request, "Describe the goal in a few words first.", back, ok=False)
+    drafted = await run_in_threadpool(draft_sequence, goal, _int(form.get("steps"), 4, 2, 8))
+    if drafted is None:
+        return answer(
+            request,
+            "The model did not return usable steps. Try again, or start from a template.",
+            back,
+            ok=False,
+        )
+    r = repo(request)
+    mailbox = core.default_mailbox(r)
+    name = str(form.get("name") or "").strip()[:200] or drafted["name"]
+    sid = r.create_sequence(
+        name,
+        drafted["steps"],
+        status="draft",
+        mailbox_id=mailbox.id if mailbox else None,
+        stop_on_reply=bool(r.get_settings().get("stop_on_reply", True)),
+    )
+    msg = f"Drafted {name} with {len(drafted['steps'])} steps. Review every step before activating."
+    return answer(request, msg, f"/sequences/{sid}", reload=True)
 
 
 @router.post("/sequences/tip")
@@ -1380,13 +1434,14 @@ async def email_mark_replied(
 
 def task_filters(request: Request) -> dict[str, Any]:
     g = request.query_params
-    view = g.get("view") or "open"
+    view, tab = g.get("view") or "open", g.get("tab") or "all"
     return {
+        "tab": tab if tab in dict(TASK_TABS) else "all",
         "view": view if view in dict(TASK_VIEWS) else "open",
-        "type": [t for t in g.getlist("type") if t in TASK_KINDS],
         "priority": [p for p in g.getlist("priority") if p in PRIORITIES],
         "q": (g.get("q") or "").strip()[:120],
         "sort": g.get("sort") if g.get("sort") in ("due", "created", "priority") else "due",
+        "done": g.get("done") == "1",
     }
 
 
@@ -1396,25 +1451,39 @@ def day_bounds(cfg: dict[str, Any], now: datetime) -> tuple[datetime, datetime]:
 
 
 def query_tasks(
-    r: EngageRepo, f: dict[str, Any], cfg: dict[str, Any], view: str | None = None
+    r: EngageRepo, f: dict[str, Any], cfg: dict[str, Any], tab: str | None = None
 ) -> list[Any]:
+    """Tasks for a tab (type, or overdue) inside the chosen view (open, today, ...)."""
     now = utcnow()
     start, end = day_bounds(cfg, now)
-    view = view or f["view"]
+    tab = tab or f["tab"]
+    view = "open" if tab == "overdue" else f["view"]
     kw: dict[str, Any] = {
-        "kinds": f["type"] or None,
+        "kinds": [tab] if tab in TASK_KINDS else None,
         "priorities": f["priority"] or None,
         "q": f["q"],
     }
     if view == "done":
-        return r.tasks(statuses=["done", "skipped"], sort="done", **kw)
-    rows = r.tasks(statuses=["open"], sort="created" if f["sort"] == "created" else "due", **kw)
-    if view == "today":
-        rows = [t for t in rows if t.due_at is not None and start <= t.due_at < end]
-    elif view == "overdue":
+        statuses = ["done", "skipped"]
+    elif view == "all" or (f["done"] and tab != "overdue"):
+        statuses = ["open", "done", "skipped"]
+    else:
+        statuses = ["open"]
+    rows = r.tasks(
+        statuses=statuses,
+        sort="done" if view == "done" else ("created" if f["sort"] == "created" else "due"),
+        **kw,
+    )
+
+    def open_and(cond: Any) -> list[Any]:
+        return [t for t in rows if t.status != "open" or cond(t)]
+
+    if tab == "overdue":
         rows = [t for t in rows if t.due_at is not None and t.due_at < start]
+    elif view == "today":
+        rows = open_and(lambda t: t.due_at is not None and start <= t.due_at < end)
     elif view == "upcoming":
-        rows = [t for t in rows if t.due_at is None or t.due_at >= end]
+        rows = open_and(lambda t: t.due_at is None or t.due_at >= end)
     if f["sort"] == "priority":
         order = {p: i for i, p in enumerate(PRIORITIES)}
         rows.sort(key=lambda t: (order.get(t.priority, 1), t.due_at or now + timedelta(days=9999)))
@@ -1429,11 +1498,7 @@ def tasks_page(
     cfg = r.get_settings()
     f = task_filters(request)
     rows = query_tasks(r, f, cfg)
-    base = {"type": [], "priority": [], "q": "", "sort": "due", "view": "open"}
-    counts = {
-        v: len(query_tasks(r, {**base, **{k: f[k] for k in ("type", "priority", "q")}}, cfg, v))
-        for v, _ in TASK_VIEWS
-    }
+    counts = {key: len(query_tasks(r, f, cfg, key)) for key, _ in TASK_TABS}
     start, _end = day_bounds(cfg, utcnow())
     seqs = {s.id: s for s in r.sequences()}
     items = []
@@ -1447,19 +1512,30 @@ def tasks_page(
                 "overdue": t.status == "open" and t.due_at is not None and t.due_at < start,
             }
         )
-    any_tasks = bool(r.tasks(limit=1))
+    calls_today = len(
+        query_tasks(r, {**f, "view": "today", "priority": [], "q": "", "done": False}, cfg, "call")
+    )
     return page(
         request,
         "engage_tasks.html",
         "tasks",
         f=f,
+        tabs=TASK_TABS,
         views=TASK_VIEWS,
         counts=counts,
         items=items,
-        any_tasks=any_tasks,
-        kinds=TASK_KINDS,
+        any_tasks=bool(r.tasks(limit=1)),
         priorities=PRIORITIES,
-        filtered=bool(f["type"] or f["priority"] or f["q"]),
+        filtered=bool(f["priority"] or f["q"]),
+        calls_today=calls_today,
+        params={
+            "tab": "" if f["tab"] == "all" else f["tab"],
+            "view": "" if f["view"] == "open" else f["view"],
+            "sort": "" if f["sort"] == "due" else f["sort"],
+            "q": f["q"],
+            "priority": f["priority"],
+            "done": "1" if f["done"] else "",
+        },
     )
 
 
@@ -1695,6 +1771,28 @@ async def mailbox_create(
     return answer(request, message, f"/settings/mailboxes#mbx-{mid}", reload=True)
 
 
+@router.post("/settings/mailboxes/test-all")
+def mailbox_test_all(
+    request: Request, _: None = Depends(csrf), settings: Any = Depends(get_settings)
+) -> Response:
+    r = repo(request)
+    back = "/settings/mailboxes"
+    if core.is_demo(settings):
+        return answer(
+            request, "Connection tests are turned off in the public demo.", back, ok=False
+        )
+    boxes = r.mailboxes()
+    if not boxes:
+        return answer(request, "Connect a mailbox first.", back, ok=False)
+    results = [_test_one(request, settings, r, m) for m in boxes]
+    good = sum(1 for ok, _ in results if ok)
+    msg = f"{good} of {len(results)} mailbox{'es' if len(results) != 1 else ''} passed."
+    failed = [m for ok, m in results if not ok]
+    if failed:
+        msg += " " + failed[0]
+    return answer(request, msg, back, ok=not failed, reload=True)
+
+
 @router.get("/settings/mailboxes/{mid}", response_class=HTMLResponse)
 def mailbox_edit(mid: str, request: Request) -> Response:
     r = repo(request)
@@ -1767,28 +1865,6 @@ def mailbox_test(
         )
     ok, msg = _test_one(request, settings, r, m)
     return answer(request, msg, back, ok=ok, reload=ok)
-
-
-@router.post("/settings/mailboxes/test-all")
-def mailbox_test_all(
-    request: Request, _: None = Depends(csrf), settings: Any = Depends(get_settings)
-) -> Response:
-    r = repo(request)
-    back = "/settings/mailboxes"
-    if core.is_demo(settings):
-        return answer(
-            request, "Connection tests are turned off in the public demo.", back, ok=False
-        )
-    boxes = r.mailboxes()
-    if not boxes:
-        return answer(request, "Connect a mailbox first.", back, ok=False)
-    results = [_test_one(request, settings, r, m) for m in boxes]
-    good = sum(1 for ok, _ in results if ok)
-    msg = f"{good} of {len(results)} mailbox{'es' if len(results) != 1 else ''} passed."
-    failed = [m for ok, m in results if not ok]
-    if failed:
-        msg += " " + failed[0]
-    return answer(request, msg, back, ok=not failed, reload=True)
 
 
 @router.post("/settings/mailboxes/{mid}/poll")

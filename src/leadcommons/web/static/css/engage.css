@@ -159,10 +159,10 @@ html:not(.js) dialog.eg-dlg:not([open]) { display: flex; }
 .eg-dlg .field input, .eg-dlg .field select { width: 100%; }
 fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 fieldset > legend { font-weight: 500; font-size: 13px; margin-bottom: 6px; padding: 0; }
-.eg-note, .eg-warn-line { display: flex; gap: 8px; align-items: flex-start; margin: 0; padding: 9px 12px; border-radius: var(--radius-sm); font-size: 13px; background: var(--raised); border: 1px solid var(--line); }
+.eg-note, .eg-warn-line { display: block; margin: 0; padding: 9px 12px; border-radius: var(--radius-sm); font-size: 13px; background: var(--raised); border: 1px solid var(--line); }
 .eg-warn-line { border-color: color-mix(in srgb, var(--amber) 45%, var(--line)); background: color-mix(in srgb, var(--amber) 10%, var(--surface)); }
-.eg-warn-line .icon { color: var(--amber); margin-top: 1px; }
-.eg-note .icon { color: var(--muted); margin-top: 1px; }
+.eg-warn-line .icon { color: var(--amber); margin-right: 6px; vertical-align: -3px; }
+.eg-note .icon { color: var(--muted); margin-right: 6px; vertical-align: -3px; }
 
 .eg-tpl-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .eg-tpl-grid legend { grid-column: 1 / -1; }
@@ -342,12 +342,12 @@ html.js .eg-rename.dirty [data-eg-rename-save] { display: inline-flex; }
 
 /* ---------- emails ---------- */
 .eg-promo { display: grid; justify-items: center; text-align: center; gap: 10px; max-width: 520px; margin: 40px auto 0; }
-.eg-promo-card { width: min(260px, 100%); padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); text-align: left; margin-bottom: 28px; }
+.eg-promo-card { width: min(300px, 100%); padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); text-align: left; margin-bottom: 28px; }
 .eg-promo-t { display: flex; align-items: center; gap: 10px; font-weight: 500; }
 .eg-promo-t .icon { color: var(--orange-text); }
 .eg-promo-bar { height: 3px; background: var(--line); border-radius: 999px; margin: 12px 0 14px; overflow: hidden; }
 .eg-promo-bar i { display: block; width: 22%; height: 100%; background: var(--orange); }
-.eg-promo-card ul { list-style: none; margin: 0; padding: 0 0 0 30px; display: grid; gap: 10px; font-size: 13px; }
+.eg-promo-card ul { list-style: none; margin: 0; padding: 0 0 0 14px; display: grid; gap: 10px; font-size: 13px; }
 .eg-promo-card li { display: flex; gap: 8px; align-items: center; }
 .eg-promo-card li .icon { color: var(--orange-text); }
 .eg-promo h2 { font-size: 22px; font-weight: 500; max-width: 22ch; }
@@ -444,3 +444,56 @@ html.js .eg-rename.dirty [data-eg-rename-save] { display: inline-flex; }
   .eg-mbx-hero { flex-direction: column; }
   .eg-title-input { width: 100%; }
 }
+
+/* inputs app.css does not style yet */
+.eg-page input[type=url], .eg-set input[type=url], dialog.eg-dlg input[type=date], dialog.eg-dlg input[type=time], .eg-set input[type=date], .eg-set input[type=time] {
+  background: var(--raised); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 10px; font: inherit; min-height: 34px; color-scheme: dark;
+}
+[data-theme="light"] dialog.eg-dlg input[type=date], [data-theme="light"] dialog.eg-dlg input[type=time] { color-scheme: light; }
+.eg-row3:has(.eg-grow2) { grid-template-columns: 2fr 1fr 1.3fr; }
+
+/* row menus must not be clipped by the table wrapper on desktop widths */
+@media (min-width: 901px) { .table-wrap.eg-table { overflow: visible; } .eg-table table.data th:first-child { border-top-left-radius: var(--radius); } .eg-table table.data th:last-child { border-top-right-radius: var(--radius); } }
+.eg-ract .menu { top: calc(100% + 4px); }
+/* search.css clips every table.data cell (max-width + overflow hidden): engage tables wrap and show row menus */
+.eg-table table.data td { max-width: none; overflow: visible; white-space: normal; height: auto; padding: 9px 12px; }
+.eg-table table.data td.eg-ract, .eg-table table.data td.num { white-space: nowrap; }
+.eg-table table.data td.cb { padding: 0 0 0 14px; }
+
+/* tasks: type tabs + views picker on one row, view options */
+.eg-tabrow { display: flex; align-items: flex-end; gap: 12px; border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+.eg-tabrow .eg-tabs { border-bottom: 0; margin-bottom: 0; flex: 1; flex-wrap: wrap; }
+.eg-views { margin-bottom: 4px; }
+.eg-views .menu, .eg-viewopts .menu { right: 0; left: auto; min-width: 240px; }
+.eg-views .menu-item.on { color: var(--orange-text); }
+.eg-views .menu-item[aria-disabled="true"] { color: var(--muted); cursor: not-allowed; }
+.eg-views .menu-item small { display: inline; margin-left: auto; font-size: 11px; }
+.eg-viewopts .menu.pad { display: grid; gap: 6px; padding: 10px 12px; }
+.eg-viewopts .menu-head { padding: 4px 0 0; }
+.eg-opt { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; }
+.eg-opt:has(input:disabled) { color: var(--muted); cursor: default; }
+table.eg-compact td { padding-top: 4px !important; padding-bottom: 4px !important; }
+table.eg-compact .eg-sub { display: none; }
+table.hide-contact [data-col="contact"], table.hide-due [data-col="due"], table.hide-priority [data-col="priority"], table.hide-sequence [data-col="sequence"] { display: none; }
+.eg-head-actions .btn .tab-n { margin-left: 2px; }
+
+/* emails empty state: full height, centred, sized like the reference */
+.eg-promo { min-height: calc(100vh - var(--top-h) - 150px); align-content: center; max-width: 640px; margin: 0 auto; gap: 14px; padding: 24px 0 40px; }
+.eg-promo-card { width: min(380px, 100%); padding: 20px 24px 22px; border-radius: 14px; margin-bottom: 40px; box-shadow: var(--shadow); }
+.eg-promo-t { font-size: 17px; gap: 12px; }
+.eg-promo-t .icon { width: 20px; height: 20px; }
+.eg-promo-bar { height: 4px; margin: 16px 0 18px; }
+.eg-promo-card ul { gap: 14px; font-size: 15px; padding-left: 26px; }
+.eg-promo-card li .icon { width: 18px; height: 18px; }
+.eg-promo h2 { font-size: 32px; line-height: 1.25; max-width: 18ch; }
+.eg-promo > p { font-size: 17px; line-height: 1.6; max-width: 34em; margin: 4px 0 16px; }
+.eg-promo .btn.primary { padding: 11px 24px; font-size: 15px; min-height: 44px; border-radius: 8px; }
+.eg-promo-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.eg-promo-actions .btn:not(.primary) { padding: 11px 20px; font-size: 15px; min-height: 44px; border-radius: 8px; }
+
+/* header split button (Create sequence + other ways) */
+.eg-split-primary .eg-split-dd > summary.btn.primary { background: var(--orange); border-color: var(--orange); border-left: 1px solid color-mix(in srgb, var(--on-orange) 25%, var(--orange)); color: var(--on-orange); }
+.eg-split-primary .eg-split-dd > summary.btn.primary:hover { background: var(--orange-hover); }
+.eg-split-primary .menu { top: calc(100% + 6px); }
+.eg-menu span.menu-item[aria-disabled="true"] { color: var(--muted); cursor: not-allowed; }
+.eg-menu span.menu-item[aria-disabled="true"] small { max-width: 32ch; white-space: normal; }
