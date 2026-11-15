@@ -62,16 +62,27 @@ def _texts(page: Page) -> Iterator[str]:
     yield page.text
 
 
+def _find(text: str, patterns: Sequence[re.Pattern[str]], found: list[str]) -> None:
+    for pattern in patterns:
+        for m in pattern.finditer(text):
+            host = re.sub(_OBF_DOT, ".", m.group("domain"), flags=re.IGNORECASE)
+            address = f"{m.group('local')}@{host}".lower()
+            if address not in found:
+                found.append(address)
+
+
+def addresses_in_text(text: str, domain: str) -> list[str]:
+    """Addresses on `domain` in one piece of plain text (same rules as extract_emails)."""
+    found: list[str] = []
+    _find(text, _patterns(domain), found)
+    return found
+
+
 def extract_emails(pages: Sequence[Page], domain: str) -> list[str]:
     """Unique lowercase addresses on `domain` (or a subdomain), in order of appearance."""
     patterns = _patterns(domain)
     found: list[str] = []
     for page in pages:
         for text in _texts(page):
-            for pattern in patterns:
-                for m in pattern.finditer(text):
-                    host = re.sub(_OBF_DOT, ".", m.group("domain"), flags=re.IGNORECASE)
-                    address = f"{m.group('local')}@{host}".lower()
-                    if address not in found:
-                        found.append(address)
+            _find(text, patterns, found)
     return found
