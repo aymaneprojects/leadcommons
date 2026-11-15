@@ -44,7 +44,6 @@ from email_validator import EmailNotValidError, validate_email
 from leadcommons.enrich.patterns import is_role_mailbox
 from leadcommons.enrich.providers import (
     DISPOSABLE_DOMAINS,
-    PROVIDERS,
     Provider,
     classify_mx,
     is_disposable,
@@ -66,7 +65,7 @@ SMTP_PORT = 25
 SMTP_TIMEOUT = 6.0  # seconds per connect / command
 GREYLIST_DELAYS: tuple[float, ...] = (20.0, 60.0)  # waits before the 2nd and 3rd attempt
 MAX_MX_HOSTS = 2  # MX hosts tried when the best one is unreachable
-_POLICY_HINTS = ("5.7.", "block", "blacklist", "spamhaus", "reputation", "banned", "spam")
+_POLICY_HINTS = ("5.7.", "block", "blacklist", "spamhaus", "reputation", "banned")
 _SYLLABLES = (
     "ba be bi bo da de di do fa fe ka ke ki ko la le li lo ma me mi mo na ne ni no pa pe ra re "
     "ri ro sa se si so ta te ti to va ve vi vo"
@@ -343,9 +342,3 @@ def verify_addresses(addresses: Sequence[str], *, smtp_probe: bool = False) -> l
         status, conf = assess(probability, checks)
         out.append(EmailCandidate(p.address, status, conf, checks=checks))
     return out
-
-
-def provider_label(slug: str | None) -> str:
-    """Human name of a provider slug ("microsoft" -> "Microsoft 365")."""
-    prov = PROVIDERS.get(slug or "")
-    return prov.label if prov else "the mail server"
