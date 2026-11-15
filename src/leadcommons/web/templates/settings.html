@@ -1,6 +1,6 @@
 {% extends "shell_settings_base.html" %}
 {% from "_macros.html" import icon %}
-{% from "_shell_macros.html" import sicon %}
+{% from "_shell_macros.html" import sicon, tic %}
 {% block title %}Settings · LeadCommons{% endblock %}
 {% block settings_body %}
 {% set pk = pack if pack is defined else {"packs": (packs if packs is defined else []), "rows": 0, "files": 0, "sources": [], "built_at": None} %}
@@ -9,7 +9,7 @@
 <div class="set-grid">
 
   <section class="set-card" aria-labelledby="sc-ws">
-    <div class="set-card-head"><h2 id="sc-ws">{{ sicon("layers") }} Your workspace</h2></div>
+    <div class="set-card-head"><h2 id="sc-ws">{{ sicon("layers") }} Your workspace</h2><a class="btn sm" href="/lists">Open lists</a></div>
     <p class="muted">What you have saved on this machine.</p>
     <dl class="set-stats">
       {% if cn.people is not none and cn.people is defined %}<div><dt>People</dt><dd class="mono">{{ fmt_int(cn.people) }}</dd></div>{% endif %}
@@ -21,7 +21,7 @@
   </section>
 
   <section class="set-card" aria-labelledby="sc-packs">
-    <div class="set-card-head"><h2 id="sc-packs">{{ sicon("database") }} Data packs</h2>{% if pk.rows %}<span class="chip plain">{{ fmt_int(pk.rows) }} companies</span>{% endif %}</div>
+    <div class="set-card-head"><h2 id="sc-packs">{{ sicon("database") }} Data packs</h2><span class="set-card-act">{% if pk.rows %}<span class="chip plain">{{ fmt_int(pk.rows) }} companies</span>{% endif %}<a class="btn sm" href="/settings/data-packs">Manage</a></span></div>
     {% if pk.packs %}
     <p class="muted">{{ pk.files }} pack file{{ "s" if pk.files != 1 }} installed{% if pk.built_at %}, newest built {{ pk.built_at[:10] }}{% endif %}.</p>
     <ul class="set-files">{% for p in pk.packs %}<li class="mono">{{ p.file.rsplit("/", 1)[-1] }}</li>{% endfor %}</ul>
@@ -32,28 +32,53 @@
   </section>
 
   <section class="set-card" aria-labelledby="sc-mail">
-    <div class="set-card-head"><h2 id="sc-mail">{{ sicon("mail-check") }} Email verification &amp; health</h2>
-      {% if settings.smtp_probe %}<span class="chip ok">SMTP probe on</span>{% else %}<span class="chip plain">SMTP probe off</span>{% endif %}</div>
-    <p class="muted">{% if settings.smtp_probe %}Addresses are also checked by contacting the mail server.{% else %}Addresses are checked by syntax and DNS only, never by contacting the mail server.{% endif %}</p>
-    <p class="hint">To change this, start LeadCommons with <code>LEADCOMMONS_SMTP_PROBE=1</code>.</p>
-    <div class="set-links"><a href="/settings/email-health">Check a domain's DNS</a><a href="/settings/email-health?tab=mailboxes">Mailboxes (v0.3)</a></div>
+    <div class="set-card-head"><h2 id="sc-mail">{{ sicon("mail-check") }} Email setup and health</h2>
+      <span class="set-card-act">{% if settings.smtp_probe %}<span class="chip ok">SMTP probe on</span>{% else %}<span class="chip plain">SMTP probe off</span>{% endif %}<span class="eh-pill eh-{{ verdict.key }}" title="{{ verdict.tip }}">{{ sicon("shield-check", "sm") }} {{ verdict.label }}</span><a class="btn sm" href="/settings/email-health">Open</a></span></div>
+    <p class="muted">Check MX, SPF, DKIM and DMARC for your sending domains. {% if settings.smtp_probe %}Addresses are also checked by contacting the mail server.{% else %}Addresses are checked by syntax and DNS only, never by contacting the mail server.{% endif %}</p>
+    <p class="hint">Contacting the mail server is {{ "on" if settings.smtp_probe else "off" }}. Change it by starting LeadCommons with <code>LEADCOMMONS_SMTP_PROBE={{ 0 if settings.smtp_probe else 1 }}</code>.</p>
+    <div class="set-links"><a href="/settings/email-health?tab=domains">Domains and mailboxes</a><a href="/settings/email-health#check-domain">Check a domain</a><a href="/settings/email-health?tab=policies">Sending policies</a></div>
   </section>
 
   <section class="set-card" aria-labelledby="sc-priv">
-    <div class="set-card-head"><h2 id="sc-priv">{{ sicon("shield-check") }} Privacy &amp; opt-out</h2></div>
+    <div class="set-card-head"><h2 id="sc-priv">{{ sicon("shield-check") }} Unsubscribes &amp; opt-out</h2><a class="btn sm" href="/settings/privacy">Manage</a></div>
     <p class="muted">Suppressed people are hidden and never exported. Only a hash of each address or domain is stored.</p>
     <div class="set-links"><a href="/settings/privacy">Suppression list</a><a href="/opt-out">Public opt-out page</a></div>
   </section>
 
   <section class="set-card" aria-labelledby="sc-acc">
     <div class="set-card-head"><h2 id="sc-acc">{{ sicon("user") }} Account</h2>
-      {% if settings.auth_required %}<span class="chip ok">Password protected</span>{% else %}<span class="chip plain">Local mode</span>{% endif %}</div>
+      <span class="set-card-act">{% if settings.auth_required %}<span class="chip ok">Password protected</span>{% else %}<span class="chip plain">Local mode</span>{% endif %}<a class="btn sm" href="/settings/account">Open</a></span></div>
     <p class="muted">{% if settings.auth_required %}This instance asks for a password.{% else %}Runs on this machine without a login.{% endif %}</p>
     <div class="set-links"><a href="/settings/account">Account</a></div>
   </section>
 
+
+  <section class="set-card" aria-labelledby="sc-out">
+    <div class="set-card-head"><h2 id="sc-out">{{ tic("mail") }} Outbound</h2><span class="set-card-act"><span class="chip plain">{{ mailbox_count }} mailbox{{ "es" if mailbox_count != 1 }}</span><a class="btn sm" href="/settings/mailboxes">Manage</a></span></div>
+    <p class="muted">Connect the mailboxes you send from, set safe sending rules and keep unsubscribes honoured.</p>
+    <div class="set-links"><a href="/settings/mailboxes">Mailboxes</a><a href="/settings/sending">Sending rules</a><a href="/settings/email-health">Email setup and health</a><a href="/settings/privacy">Unsubscribes</a></div>
+  </section>
+
+  <section class="set-card" aria-labelledby="sc-deals">
+    <div class="set-card-head"><h2 id="sc-deals">{{ tic("kanban") }} Deal stages</h2><a class="btn sm" href="/settings/deal-stages">Open</a></div>
+    <p class="muted">The columns of your deals board and how likely a deal is to close at each.</p>
+    <div class="set-links"><a href="/settings/deal-stages">Deal stages</a><a href="/deals">Open deals</a></div>
+  </section>
+
+  <section class="set-card" aria-labelledby="sc-int">
+    <div class="set-card-head"><h2 id="sc-int">{{ tic("plug") }} Integrations</h2><a class="btn sm" href="/settings/integrations">Open</a></div>
+    <p class="muted">Webhooks, the MCP server for Claude and ChatGPT, and the REST API.</p>
+    <div class="set-links"><a href="/settings/integrations">All integrations</a><a href="/settings/integrations#mcp">MCP</a><a href="/settings/api">API tokens</a></div>
+  </section>
+
+  <section class="set-card" aria-labelledby="sc-auto">
+    <div class="set-card-head"><h2 id="sc-auto">{{ tic("workflow") }} Automation</h2><a class="btn sm" href="/workflows">Open</a></div>
+    <p class="muted">Workflows run steps for you when something happens or on a schedule.</p>
+    <div class="set-links"><a href="/workflows">Workflows</a><a href="/analytics">Analytics</a></div>
+  </section>
+
   <section class="set-card" aria-labelledby="sc-about">
-    <div class="set-card-head"><h2 id="sc-about">{{ sicon("info") }} About</h2><span class="chip plain mono">v{{ version }}</span></div>
+    <div class="set-card-head"><h2 id="sc-about">{{ sicon("info") }} About</h2><span class="set-card-act"><span class="chip plain mono">v{{ version }}</span><a class="btn sm" href="/settings/about">Read</a></span></div>
     <p class="muted">Free and open source, AGPL-3.0-or-later. Company data from Wikidata and GLEIF (both CC0).</p>
     <div class="set-links"><a href="/settings/about">Licences and attribution</a></div>
   </section>

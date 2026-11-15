@@ -19,6 +19,7 @@ import dns.resolver
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
+from leadcommons.models import utcnow
 from leadcommons.search import CompanyFilters, PeopleFilters
 from leadcommons.web.deps import get_jobs, get_search, get_store, templates
 from leadcommons.web.pages import (
@@ -26,7 +27,10 @@ from leadcommons.web.pages import (
     csrf,
     done,
     form_values,
+    is_htmx,
+    load_state,
     render,
+    set_state,
 )
 
 router = APIRouter()
@@ -40,11 +44,26 @@ DNS_TIMEOUT = 5.0
 
 SETTINGS_SECTIONS = [
     ("overview", "/settings", "Workspace overview", "house"),
-    ("packs", "/settings/data-packs", "Data packs", "database"),
-    ("email", "/settings/email-health", "Email verification & health", "mail-check"),
-    ("privacy", "/settings/privacy", "Privacy & opt-out", "shield-check"),
     ("account", "/settings/account", "Account", "user"),
+    ("mailboxes", "/settings/mailboxes", "Mailboxes", "mail"),
+    ("sending", "/settings/sending", "Sending rules", "timer"),
+    ("email", "/settings/email-health", "Email setup and health", "mail-check"),
+    ("packs", "/settings/data-packs", "Data packs", "database"),
+    ("privacy", "/settings/privacy", "Unsubscribes & opt-out", "shield-check"),
+    ("deal-stages", "/settings/deal-stages", "Deal stages", "kanban"),
+    ("integrations", "/settings/integrations", "Integrations", "plug"),
+    ("api", "/settings/api", "API tokens", "key-round"),
     ("about", "/settings/about", "About", "info"),
+]
+# How the settings menu groups its sections (like a collapsible tree).
+SETTINGS_GROUPS = [
+    ("", ["overview"]),
+    ("Personal", ["account"]),
+    ("Outbound", ["mailboxes", "sending", "email", "privacy"]),
+    ("Data management", ["packs"]),
+    ("Deals", ["deal-stages"]),
+    ("Integrations", ["integrations", "api"]),
+    ("About", ["about"]),
 ]
 
 
@@ -101,7 +120,14 @@ def settings_page(request: Request, template: str, section: str, **extra: Any) -
 
 @router.get("/settings", response_class=HTMLResponse)
 def settings_overview(request: Request) -> Response:
-    return settings_page(request, "settings.html", "overview")
+    ctx = email_health_ctx(request)
+    return settings_page(
+        request,
+        "settings.html",
+        "overview",
+        verdict=ctx["verdict"],
+        mailbox_count=len(ctx["mailboxes"]),
+    )
 
 
 @router.get("/settings/data-packs", response_class=HTMLResponse)
@@ -376,11 +402,213 @@ def run_dns_checks(domain: str, selector: str = "") -> list[dict[str, Any]]:
     return rows
 
 
+# DKIM cannot be discovered from the domain alone, so without a selector we try the names the big
+# mail providers use. A miss is reported as "not found", never as a failure.
+COMMON_DKIM_SELECTORS = (
+    "default",
+    "google",
+    "selector1",
+    "selector2",
+    "k1",
+    "s1",
+    "s2",
+    "mail",
+    "dkim",
+    "smtp",
+)
+HEALTH_TABS = ("overview", "domains", "policies")
+SELF_HOST_DOC = f"{REPO_URL}/blob/main/docs/server.md"
+SETUP_PROMPT = "Help me set up a mailbox and authenticate my sending domain"
+LLM_HINT = (
+    "Needs a language model. Start LeadCommons with LEADCOMMONS_LLM_URL and "
+    "LEADCOMMONS_LLM_MODEL set to turn this on."
+)
+DEMO_AI_HINT = "The language model is turned off in the public demo."
+
+
+def llm_available(settings: Any) -> bool:
+    from leadcommons.ai.llm import llm_config
+
+    return settings.mode != "demo" and llm_config() is not None
+
+
+def ai_unavailable_reason(settings: Any) -> str:
+    """Empty when the Assistant can use a language model, else the sentence for the tooltip."""
+    if settings.mode == "demo":
+        return DEMO_AI_HINT
+    return "" if llm_available(settings) else LLM_HINT
+
+
+def run_domain_health(domain: str, selector: str = "") -> list[dict[str, Any]]:
+    """MX, SPF, DMARC and DKIM for one sending domain, with the existing check code.
+
+    With a selector DKIM is checked as is. Without one the common selector names are tried; if
+    none is published the DKIM row says so with state "unknown" (left out of the verdict).
+    """
+    if selector:
+        return run_dns_checks(domain, selector)
+    jobs: dict[str, tuple[str, str]] = {
+        "mx": (domain, "MX"),
+        "spf": (domain, "TXT"),
+        "dmarc": (f"_dmarc.{domain}", "TXT"),
+    }
+    for sel in COMMON_DKIM_SELECTORS:
+        jobs[f"dkim:{sel}"] = (f"{sel}._domainkey.{domain}", "TXT")
+    with ThreadPoolExecutor(max_workers=min(len(jobs), 8)) as pool:
+        futures = {k: pool.submit(_resolve, *v) for k, v in jobs.items()}
+        found = {k: f.result() for k, f in futures.items()}
+    rows = [_check_mx(found["mx"]), _check_spf(found["spf"]), _check_dmarc(found["dmarc"])]
+    dkim_rows = [_check_dkim(found[f"dkim:{sel}"], sel) for sel in COMMON_DKIM_SELECTORS]
+    hit = next((r for r in dkim_rows if r["state"] == "ok"), None)
+    if hit is not None:
+        rows.append(hit)
+    else:
+        broken = all(r["state"] == "error" for r in dkim_rows)
+        rows.append(
+            {
+                "key": "dkim",
+                "label": "DKIM",
+                "what": "A public key receivers use to verify signed mail.",
+                "state": "error" if broken else "unknown",
+                "records": [],
+                "summary": (
+                    dkim_rows[0]["summary"]
+                    if broken
+                    else "No DKIM key found under the usual selector names."
+                ),
+                "hint": "Check the domain with your DKIM selector to be sure.",
+            }
+        )
+    return rows
+
+
+def _sending_domains(store: Any) -> tuple[list[Any], list[str]]:
+    """The mailboxes through the engage store, and the distinct domains they send from."""
+    from leadcommons.store.engage import repo_for as engage_repo
+
+    try:
+        boxes = list(engage_repo(store).mailboxes())
+    except Exception:
+        boxes = []
+    domains: list[str] = []
+    for m in boxes:
+        d = clean_domain(m.from_email or "")
+        if d and d not in domains:
+            domains.append(d)
+    return boxes, domains
+
+
+def health_verdict(domains: list[str], saved: dict[str, Any]) -> dict[str, str]:
+    """Overall deliverability from the saved checks: not set up, not checked, needs work, good."""
+    if not domains:
+        return {
+            "key": "none",
+            "label": "Not set up",
+            "tip": "Connect a mailbox and run a check to see how your domain is set up.",
+        }
+    states: list[str] = []
+    for d in domains:
+        for c in (saved.get(d) or {}).get("checks", []):
+            if c.get("state") != "unknown":
+                states.append(str(c.get("state")))
+    if not states or all(st == "error" for st in states):
+        return {
+            "key": "unchecked",
+            "label": "Not checked yet",
+            "tip": "Press Run a check to look up MX, SPF, DKIM and DMARC for your sending domains.",
+        }
+    if any(st in ("fail", "warn") for st in states):
+        return {
+            "key": "work",
+            "label": "Needs work",
+            "tip": "At least one DNS record is missing or worth reviewing. See the Domains tab.",
+        }
+    return {
+        "key": "good",
+        "label": "Good",
+        "tip": "MX, SPF and DMARC pass for every sending domain.",
+    }
+
+
+def email_health_ctx(request: Request) -> dict[str, Any]:
+    """Mailboxes, domains, saved checks and the verdict, for the page and the overview card."""
+    store = request.app.state.store
+    boxes, domains = _sending_domains(store)
+    saved = load_state(request.app.state.settings).get("email_health") or {}
+    if not isinstance(saved, dict):
+        saved = {}
+    rows = []
+    for d in domains:
+        info = saved.get(d) or {}
+        rows.append(
+            {
+                "domain": d,
+                "selector": str(info.get("selector") or ""),
+                "checked_at": _parse_when(info.get("at")),
+                "checks": list(info.get("checks") or []),
+                "boxes": [m for m in boxes if clean_domain(m.from_email or "") == d],
+            }
+        )
+    return {
+        "mailboxes": boxes,
+        "domain_rows": rows,
+        "verdict": health_verdict(domains, saved),
+    }
+
+
+def _parse_when(value: Any) -> datetime | None:
+    try:
+        return datetime.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
+@router.post("/settings/email-health/run")
+async def email_health_run(request: Request, _: None = Depends(csrf)) -> Response:
+    """Re-run the DNS checks for every sending domain (or one) and keep the result."""
+    form = await form_values(request)
+    back = "/settings/email-health?tab=domains"
+    _, domains = _sending_domains(request.app.state.store)
+    only = clean_domain(str(form.get("domain") or "")) if form.get("domain") else None
+    targets = [only] if only and only in domains else domains
+    if not targets:
+        return done(
+            request, "Connect a mailbox first. Then there is a domain to check.", back, "error"
+        )
+    settings = request.app.state.settings
+    saved = load_state(settings).get("email_health") or {}
+    if not isinstance(saved, dict):
+        saved = {}
+    selectors = {str(k): str(v) for k, v in (saved.get("_selectors") or {}).items()}
+    for d in targets:
+        sel = str(form.get("selector") or "").strip().lower() if len(targets) == 1 else ""
+        if sel and not _SELECTOR_RE.match(sel):
+            return done(request, "That DKIM selector is not valid.", back, "error")
+        sel = sel or selectors.get(d, "")
+        checks = run_domain_health(d, sel)
+        saved[d] = {
+            "at": utcnow().isoformat(),
+            "selector": sel,
+            "checks": [
+                {"key": c["key"], "label": c["label"], "state": c["state"], "summary": c["summary"]}
+                for c in checks
+            ],
+        }
+        if sel:
+            selectors[d] = sel
+    saved["_selectors"] = selectors
+    set_state(settings, email_health=saved, dns_checked=True)
+    n = len(targets)
+    return done(request, f"Checked {n} domain{'s' if n != 1 else ''}.", back)
+
+
 @router.get("/settings/email-health", response_class=HTMLResponse)
 def settings_email(request: Request) -> Response:
     raw = (request.query_params.get("domain") or "").strip()
     selector = (request.query_params.get("selector") or "").strip().lower()
-    tab = request.query_params.get("tab") or "dns"
+    tab = request.query_params.get("tab") or "overview"
+    if tab not in HEALTH_TABS:
+        tab = "overview"
     error: str | None = None
     domain: str | None = None
     checks: list[dict[str, Any]] = []
@@ -388,19 +616,30 @@ def settings_email(request: Request) -> Response:
         error = "The DKIM selector may only contain letters, digits, dots, dashes and underscores."
         selector = ""
     if raw:
+        tab = "overview"
         domain = clean_domain(raw)
         if domain is None:
             error = "That does not look like a domain name. Try something like example.com."
         elif error is None:
             checks = run_dns_checks(domain, selector)
+            set_state(request.app.state.settings, dns_checked=True)
     summary = {
         s: sum(1 for c in checks if c["state"] == s) for s in ("ok", "warn", "fail", "error")
     }
+    cfg: dict[str, Any] = {}
+    if tab == "policies":
+        try:
+            from leadcommons.store.engage import repo_for as engage_repo
+
+            cfg = engage_repo(request.app.state.store).get_settings()
+        except Exception:
+            cfg = {}
+    settings = request.app.state.settings
     return settings_page(
         request,
         "shell_settings_email.html",
         "email",
-        tab="mailboxes" if tab == "mailboxes" else "dns",
+        tab=tab,
         raw_domain=raw,
         selector=selector,
         domain=domain,
@@ -408,6 +647,10 @@ def settings_email(request: Request) -> Response:
         summary=summary,
         error=error,
         roadmap_url=ROADMAP_URL,
+        policy=cfg,
+        ai_reason=ai_unavailable_reason(settings),
+        setup_prompt=SETUP_PROMPT,
+        **email_health_ctx(request),
     )
 
 
@@ -419,132 +662,326 @@ def email_health_redirect() -> Response:
 # ---------------------------------------------------------------- onboarding hub
 
 
+def _count(db: Any, table: str, where: str = "") -> int:
+    return int(db.count(table, where) or 0)
+
+
+def hub_groups(request: Request) -> list[dict[str, Any]]:
+    """The getting-started checklist: groups of tasks, each with one real action."""
+    from leadcommons.store.tools import repo_for
+    from leadcommons.workflows.stats import Db
+
+    app = request.app
+    store, jobs, settings = app.state.store, app.state.jobs, app.state.settings
+    state = load_state(settings)
+    try:
+        recent = jobs.recent(200)
+    except Exception:
+        recent = []
+    db = Db(repo_for(store).engine)
+    try:
+        has_people = any(j.kind == "find_people" for j in recent) or (
+            store.search_people(PeopleFilters(), page=1, per_page=1).total > 0
+        )
+    except Exception:
+        has_people = False
+    try:
+        has_email = _count(db, "emails") > 0
+        if not has_email and not db.has("emails"):
+            has_email = bool(
+                any(
+                    store.best_email(p.id)
+                    for p in store.search_people(PeopleFilters(), 1, 50).items
+                )
+            )
+    except Exception:
+        has_email = False
+    try:
+        saved = sorted(store.saved_company_ids())
+    except Exception:
+        saved = []
+    phone_done = any(j.kind == "company_insights" and j.status == "done" for j in recent)
+    if not phone_done and db.has("company_insights"):
+        phone_done = any(
+            '"number"' in str(r[0]) or '"phones": [{' in str(r[0])
+            for r in db.rows("SELECT data FROM company_insights LIMIT 200")
+        )
+    phone_href = f"/companies/{saved[0]}" if saved else "/companies"
+    try:
+        lists_n, searches_n = len(store.lists()), len(store.saved_searches())
+    except Exception:
+        lists_n = searches_n = 0
+    sent_done = _count(db, "engage_messages", "direction = 'out' AND status = 'sent'") > 0
+    wf_n = _count(db, "workflows")
+    T = lambda key, done, verb, text, label, href: {  # noqa: E731
+        "key": key,
+        "done": bool(done),
+        "verb": verb,
+        "text": text,
+        "label": label,
+        "href": href,
+    }
+    groups = [
+        {
+            "title": "Find the people you want to reach",
+            "desc": "Find people and companies that match your ideal customer profile.",
+            "tasks": [
+                T(
+                    "save-company",
+                    bool(saved),
+                    "Save a company",
+                    "to find the right people inside it",
+                    "Save a company",
+                    "/companies",
+                ),
+                T(
+                    "find-people",
+                    has_people,
+                    "Find people",
+                    "at a company you saved",
+                    "Find people",
+                    "/companies",
+                ),
+                T(
+                    "find-email",
+                    has_email,
+                    "Find an email",
+                    "for a person on your list",
+                    "Find emails",
+                    "/people",
+                ),
+                T(
+                    "company-phone",
+                    phone_done,
+                    "Find a company phone number",
+                    "to reach a business by phone",
+                    "Find numbers",
+                    phone_href,
+                ),
+                T(
+                    "create-list",
+                    lists_n > 0,
+                    "Create a list",
+                    "to keep your prospects organised",
+                    "Create a list",
+                    "/lists?create=people",
+                ),
+                T(
+                    "save-search",
+                    searches_n > 0,
+                    "Save your search",
+                    "and reuse it, or let a workflow watch it",
+                    "Search companies",
+                    "/companies",
+                ),
+            ],
+        },
+        {
+            "title": "Prepare your mailbox for sending",
+            "desc": "Make sure your emails land in the inbox.",
+            "tasks": [
+                T(
+                    "dns-check",
+                    state.get("dns_checked"),
+                    "Check your domain",
+                    "for SPF, DKIM and DMARC",
+                    "Run a check",
+                    "/settings/email-health",
+                ),
+                T(
+                    "mailbox",
+                    _count(db, "engage_mailboxes") > 0,
+                    "Connect a mailbox",
+                    "you already own to send from",
+                    "Add a mailbox",
+                    "/settings/mailboxes",
+                ),
+                T(
+                    "sending-limits",
+                    state.get("sending_visited") or _count(db, "engage_settings") > 0,
+                    "Set your sending limits",
+                    "so you ramp up safely",
+                    "Open sending",
+                    "/settings/sending",
+                ),
+            ],
+        },
+        {
+            "title": "Scale your outreach",
+            "desc": "Send personalised emails at scale and automate the routine.",
+            "tasks": [
+                T(
+                    "sequence",
+                    _count(db, "engage_sequences") > 0,
+                    "Create a sequence",
+                    "of emails and follow-up steps",
+                    "New sequence",
+                    "/sequences",
+                ),
+                T(
+                    "first-email",
+                    sent_done,
+                    "Send your first email",
+                    "from a sequence or the compose window",
+                    "Open emails",
+                    "/emails",
+                ),
+                T(
+                    "workflow",
+                    wf_n > 0,
+                    "Automate a step",
+                    "with a workflow, for example adding new matches to a list",
+                    "New workflow",
+                    "/workflows/new",
+                ),
+            ],
+        },
+        {
+            "title": "Book meetings from your outreach",
+            "desc": "Make it easy to follow up and book time.",
+            "tasks": [
+                T(
+                    "task",
+                    _count(db, "engage_tasks") > 0,
+                    "Create a task",
+                    "so no follow-up slips",
+                    "New task",
+                    "/tasks",
+                ),
+                T(
+                    "meeting",
+                    _count(db, "meetings") > 0,
+                    "Log a meeting",
+                    "with a prospect",
+                    "Open meetings",
+                    "/meetings",
+                ),
+                T(
+                    "deal",
+                    _count(db, "deals") > 0,
+                    "Create a deal",
+                    "to follow an opportunity",
+                    "Open deals",
+                    "/deals",
+                ),
+            ],
+        },
+        {
+            "title": "Bring your own data, and your own tools",
+            "desc": "Import a file, export your work, or connect an AI assistant.",
+            "tasks": [
+                T(
+                    "csv-enrich",
+                    any(j.kind == "enrich_csv" for j in recent) or state.get("enriched"),
+                    "Try CSV enrichment",
+                    "with a file of names and companies",
+                    "Enrich a CSV",
+                    "/enrich",
+                ),
+                T(
+                    "export-list",
+                    state.get("exported"),
+                    "Export a list",
+                    "as a CSV file",
+                    "Open lists",
+                    "/lists",
+                ),
+                T(
+                    "connect-ai",
+                    state.get("api_token_created") or state.get("mcp_card_dismissed"),
+                    "Connect an AI assistant or the API",
+                    "with a token or the MCP server",
+                    "Open integrations",
+                    "/settings/integrations",
+                ),
+            ],
+        },
+    ]
+    first = next((t for g in groups for t in g["tasks"] if not t["done"]), None)
+    for g in groups:
+        for t in g["tasks"]:
+            t["primary"] = t is first
+        g["done"] = sum(1 for t in g["tasks"] if t["done"])
+    return groups
+
+
+def hub_stats(request: Request) -> tuple[int, int]:
+    """(done, total) of the checklist; computed once per request."""
+    cached = getattr(request.state, "hub_stats", None)
+    if cached is None:
+        try:
+            groups = hub_groups(request)
+            cached = (
+                sum(g["done"] for g in groups),
+                sum(len(g["tasks"]) for g in groups),
+            )
+        except Exception:
+            cached = (0, 1)
+        request.state.hub_stats = cached
+    return cached
+
+
+templates.env.globals["hub_stats"] = hub_stats
+templates.env.globals["self_host_doc"] = SELF_HOST_DOC
+templates.env.globals["settings_sections"] = lambda: SETTINGS_SECTIONS
+templates.env.globals["settings_groups"] = lambda: SETTINGS_GROUPS
+
+
 @router.get("/onboarding", response_class=HTMLResponse)
 def onboarding_hub(request: Request) -> Response:
-    return render(request, "shell_onboarding.html", active="onboarding")
+    groups = hub_groups(request)
+    return render(
+        request,
+        "shell_onboarding.html",
+        active="onboarding",
+        groups=groups,
+        hub_done=sum(g["done"] for g in groups),
+        hub_total=sum(len(g["tasks"]) for g in groups),
+    )
 
 
-# ---------------------------------------------------------------- engage empty states
+@router.get("/", response_class=HTMLResponse)
+def home(request: Request) -> Response:
+    from leadcommons.store.tools import repo_for
 
-ENGAGE = {
-    "sequences": {
-        "title": "Sequences",
-        "icon": "send",
-        "headline": "Sequences are coming in v0.3",
-        "lead": "Reach out to the people on your lists with a series of emails sent on a schedule.",
-        "cta": "Create sequence",
-        "mailbox_note": True,
-        "features": [
-            (
-                "list",
-                "Built step by step",
-                "Chain emails with delays between them. Planned for v0.3.",
-            ),
-            (
-                "clock",
-                "Sends on your schedule",
-                "Pick sending windows and daily limits. Planned for v0.3.",
-            ),
-            (
-                "corner-down-left",
-                "Stops when they reply",
-                "Contacts who answer leave the sequence. Planned for v0.3.",
-            ),
-        ],
-        "meanwhile": ("Export a list as CSV and use your own mailer.", "/lists", "Open lists"),
-    },
-    "emails": {
-        "title": "Emails",
-        "icon": "mail",
-        "headline": "Sending from LeadCommons is coming in v0.3",
-        "lead": (
-            "A single place for the emails you send and the replies you get back. "
-            "Nothing is sent from LeadCommons today."
-        ),
-        "cta": "Compose email",
-        "mailbox_note": True,
-        "features": [
-            (
-                "mail-check",
-                "Your own mailbox",
-                "Connect a mailbox you already own. Planned for v0.3.",
-            ),
-            (
-                "inbox",
-                "One inbox for replies",
-                "See answers next to the person they came from. Planned for v0.3.",
-            ),
-            (
-                "shield-check",
-                "Respects opt-outs",
-                "Suppressed addresses will never be emailed. Already true for exports.",
-            ),
-        ],
-        "meanwhile": (
-            "Check that your domain is set up to send mail.",
-            "/settings/email-health",
-            "Run a DNS check",
-        ),
-    },
-    "tasks": {
-        "title": "Tasks",
-        "icon": "square-check-big",
-        "headline": "Tasks are coming in v0.3",
-        "lead": "Follow-ups and reminders tied to the people you prospect, so nothing slips.",
-        "cta": "New task",
-        "mailbox_note": False,
-        "features": [
-            ("calendar-check", "Due dates", "Give every follow-up a day. Planned for v0.3."),
-            (
-                "users",
-                "Tied to people",
-                "Open a task from the person or company it is about. Planned for v0.3.",
-            ),
-            (
-                "clipboard-list",
-                "One list to work through",
-                "Everything due today in one place. Planned for v0.3.",
-            ),
-        ],
-        "meanwhile": ("Group the people to follow up with in a list.", "/lists", "Open lists"),
-    },
-    "deals": {
-        "title": "Deals",
-        "icon": "handshake",
-        "headline": "Deals are coming in v0.3",
-        "lead": "A light pipeline to follow opportunities from first contact to a close.",
-        "cta": "New deal",
-        "mailbox_note": False,
-        "features": [
-            ("kanban", "Pipeline stages", "Move deals across stages you define. Planned for v0.3."),
-            (
-                "building-2",
-                "Linked to companies",
-                "Each deal points to a company you saved. Planned for v0.3.",
-            ),
-            ("file-text", "Notes", "Keep context next to every deal. Planned for v0.3."),
-        ],
-        "meanwhile": ("Save the companies you want to work on.", "/companies", "Find companies"),
-    },
-}
+    state = load_state(request.app.state.settings)
+    groups = hub_groups(request)
+    last = None
+    try:
+        last = repo_for(request.app.state.store).latest_conversation()
+    except Exception:
+        last = None
+    dismissed = str(state.get("assistant_banner_seen") or "")
+    show = bool(last) and dismissed != f"{last.id}:{last.updated_at.isoformat()}"
+    return render(
+        request,
+        "home.html",
+        active="home",
+        groups=groups,
+        last_chat=last if show else None,
+        hub_done=sum(g["done"] for g in groups),
+        hub_total=sum(len(g["tasks"]) for g in groups),
+    )
 
 
-def _engage_route(slug: str) -> None:
-    @router.get(f"/{slug}", response_class=HTMLResponse, name=f"engage_{slug}")
-    def engage(request: Request) -> Response:
-        return render(
-            request,
-            "shell_engage.html",
-            active=slug,
-            slug=slug,
-            page=ENGAGE[slug],
-            roadmap_url=ROADMAP_URL,
-            issues_url=ISSUES_URL,
+@router.post("/dismiss-banner")
+async def dismiss_banner(request: Request, _: None = Depends(csrf)) -> Response:
+    from leadcommons.store.tools import repo_for
+
+    form = await form_values(request)
+    try:
+        last = repo_for(request.app.state.store).latest_conversation()
+    except Exception:
+        last = None
+    if last:
+        set_state(
+            request.app.state.settings,
+            assistant_banner_seen=f"{last.id}:{last.updated_at.isoformat()}",
         )
-
-
-for _slug in ENGAGE:
-    _engage_route(_slug)
+    set_state(request.app.state.settings, banner_dismissed=True)
+    if is_htmx(request) or form.get("hx") == "1":
+        return Response("", status_code=200)
+    return RedirectResponse("/", status_code=303)
 
 
 # ---------------------------------------------------------------- command palette
@@ -598,10 +1035,30 @@ def palette_partial(
             )[:5]
         except Exception:
             companies = []
+    flows: list[Any] = []
+    people_hits: list[Any] = []
+    try:
+        from leadcommons.store.tools import repo_for
+
+        flows = [w for w in repo_for(store).workflows() if not ql or ql in w.name.lower()][:4]
+    except Exception:
+        flows = []
+    if len(q) >= 2:
+        try:
+            people_hits = list(store.search_people(PeopleFilters(text=q), page=1, per_page=4).items)
+        except Exception:
+            people_hits = []
     return templates.TemplateResponse(
         request,
         "_shell_palette_results.html",
-        {"request": request, "recent": recent, "companies": companies},
+        {
+            "request": request,
+            "recent": recent,
+            "companies": companies,
+            "workflows": flows,
+            "people": people_hits,
+            "q": q,
+        },
     )
 
 
@@ -632,8 +1089,22 @@ def _job_detail(job: Any) -> str:
     return " · ".join(bits)
 
 
+def _activity_href(a: Any) -> str | None:
+    if a.person_id:
+        return f"/people/{a.person_id}"
+    if a.company_id:
+        return f"/companies/{a.company_id}"
+    if a.deal_id:
+        return f"/deals/{a.deal_id}"
+    return None
+
+
 @router.get("/partials/notifications", response_class=HTMLResponse)
 def notifications_partial(request: Request, jobs: Any = Depends(get_jobs)) -> Response:
+    from leadcommons.store.pipeline import ActivityRepo
+    from leadcommons.store.tools import repo_for
+
+    store = request.app.state.store
     try:
         recent = [j for j in jobs.recent(100) if j.status in ("done", "failed")]
     except Exception:
@@ -643,20 +1114,112 @@ def notifications_partial(request: Request, jobs: Any = Depends(get_jobs)) -> Re
         return j.finished_at or j.created_at
 
     recent.sort(key=when, reverse=True)
-    items = []
+    items: list[dict[str, Any]] = []
     for j in recent[:20]:
         link = _job_link(j)
         items.append(
             {
-                "id": j.id,
+                "id": f"job-{j.id}",
                 "label": j.label,
                 "status": j.status,
                 "ts": when(j),
                 "detail": _job_detail(j),
                 "href": link[0] if link else None,
                 "href_label": link[1] if link else None,
+                "icon": "circle-check" if j.status == "done" else "circle-alert",
             }
         )
+    activities: list[Any] = []
+    try:
+        repo = repo_for(store)
+        for r in repo.runs(None, 10):
+            ok = r.status in ("success", "skipped")
+            name = (repo.get_workflow(r.workflow_id) or None) and repo.get_workflow(
+                r.workflow_id
+            ).name
+            items.append(
+                {
+                    "id": f"run-{r.id}",
+                    "label": f"Workflow “{name or r.workflow_id}” {'ran' if ok else r.status}",
+                    "status": "done" if ok else "failed",
+                    "ts": r.finished_at or r.started_at,
+                    "detail": r.summary,
+                    "href": f"/workflows/{r.workflow_id}#runs",
+                    "href_label": "View run",
+                    "icon": "workflow",
+                }
+            )
+        for n in repo.notifications(15):
+            items.append(
+                {
+                    "id": f"n-{n.id}",
+                    "label": n.title,
+                    "status": "done",
+                    "ts": n.created_at,
+                    "detail": n.body,
+                    "href": n.href,
+                    "href_label": "Open" if n.href else None,
+                    "icon": "bell",
+                }
+            )
+    except Exception:
+        pass
+    engine = getattr(store, "engine", None)
+    if engine is not None:
+        try:
+            acts = ActivityRepo(engine).list_for(limit=30)
+            activities = [
+                {
+                    "id": f"act-{a.id}",
+                    "kind": a.kind,
+                    "summary": a.summary,
+                    "ts": a.created_at,
+                    "href": _activity_href(a),
+                }
+                for a in acts
+            ]
+            for a in acts:
+                if a.kind == "email_reply":
+                    items.append(
+                        {
+                            "id": f"act-{a.id}",
+                            "label": "New reply",
+                            "status": "done",
+                            "ts": a.created_at,
+                            "detail": a.summary,
+                            "href": _activity_href(a),
+                            "href_label": "Open",
+                            "icon": "mail",
+                        }
+                    )
+        except Exception:
+            activities = []
+    try:
+        has_hooks = bool(repo_for(store).webhooks())
+    except Exception:
+        has_hooks = True
+    if not has_hooks:  # a standing notice, always in the "Older" group
+        items.append(
+            {
+                "id": "sys-integrations",
+                "label": "No webhook or integration is connected yet.",
+                "status": "done",
+                "ts": datetime(2000, 1, 1, tzinfo=utcnow().tzinfo),
+                "detail": "",
+                "href": "/settings/integrations",
+                "href_label": "Go to Integrations",
+                "icon": "plug",
+                "system": True,
+            }
+        )
+    items.sort(key=lambda i: i["ts"], reverse=True)
     return templates.TemplateResponse(
-        request, "_shell_notifications.html", {"request": request, "items": items}
+        request,
+        "_shell_notifications.html",
+        {
+            "request": request,
+            "items": items[:30],
+            "activities": activities,
+            "today": utcnow().date(),
+        },
     )

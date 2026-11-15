@@ -1,0 +1,37 @@
+{% from "_engage_macros.html" import eic, step_icon, seq_chip, dlg_head %}
+<dialog class="eg-dlg" data-autoopen data-eg-dlg aria-label="Add to a sequence">
+  <form method="post" action="/sequences/enroll" hx-post="/sequences/enroll" hx-swap="none" data-quiet class="eg-picker">
+    {{ dlg_head("Add to a sequence", ids|length ~ " " ~ ("person" if ids|length == 1 else "people") ~ " selected", "send") }}
+    <input type="hidden" name="ids_csv" value="{{ ids|join(',') }}">
+    {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+    {% if refresh %}<input type="hidden" name="refresh" value="1">{% endif %}
+    <div class="eg-dlg-body">
+      {% if not ids %}
+      <p class="eg-warn-line">{{ eic("triangle-alert", "sm") }} Select people first.</p>
+      {% elif usable < ids|length %}
+      <p class="eg-note">{{ eic("info", "sm") }} {{ usable }} of {{ ids|length }} can be emailed. People without a valid email, already in the sequence or on the do-not-contact list are skipped.</p>
+      {% endif %}
+      {% if sequences %}
+      <label class="eg-search eg-search-full">{{ eic("search", "sm") }}<span class="sr-only">Find a sequence</span>
+        <input type="search" placeholder="Find a sequence" data-eg-filter=".eg-pick-row" autocomplete="off"></label>
+      {% endif %}
+      <div class="eg-pick-list" role="radiogroup" aria-label="Sequences">
+        {% for row in sequences %}{% set s = row.seq %}
+        <label class="eg-pick-row" data-eg-text="{{ s.name|lower }}">
+          <input type="radio" name="sequence_id" value="{{ s.id }}"{% if loop.first %} checked{% endif %}>
+          <span class="eg-pick-main"><b>{{ s.name }}</b><span class="eg-sub">{{ row.steps }} step{{ "s" if row.steps != 1 }} · {{ row.enrolled }} enrolled</span></span>
+          {{ seq_chip(s.status) }}
+        </label>
+        {% endfor %}
+        <label class="eg-pick-row eg-pick-new">
+          <input type="radio" name="sequence_id" value="__new__"{% if not sequences %} checked{% endif %}>
+          <span class="eg-pick-main"><b>{{ eic("plus", "sm") }} New sequence</b>
+            <input type="text" name="new_name" placeholder="Name of the new sequence" maxlength="200" autocomplete="off" aria-label="Name of the new sequence" data-eg-check-parent></span>
+        </label>
+      </div>
+      {% if demo %}<p class="hint">{{ demo_reason }} You can still build sequences and enroll people here.</p>
+      {% elif not has_mailbox %}<p class="hint">No mailbox is connected yet: email steps wait until you <a href="/settings/mailboxes">connect one</a>.</p>{% endif %}
+    </div>
+    <footer class="eg-dlg-foot"><button type="button" class="btn close-dlg">Cancel</button><button class="btn primary" type="submit"{% if not ids %} disabled{% endif %}>{{ eic("send", "sm") }}<span>Add to sequence</span></button></footer>
+  </form>
+</dialog>

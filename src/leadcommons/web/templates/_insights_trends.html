@@ -1,0 +1,29 @@
+{% set t = ins.trends %}
+{% if t.employees %}
+  <div class="ins-stats">
+    {% set last = t.employees[-1] %}
+    <div><span class="muted">Latest count</span><strong>{{ fmt_int(last.count) }}</strong>{% if last.date %}<span class="muted">{{ last.date }}</span>{% endif %}</div>
+    <div><span class="muted">Growth, 1 year</span><strong>{% if growth_1y is not none %}{{ "%+.1f"|format(growth_1y) }}%{% else %}n/a{% endif %}</strong></div>
+    <div><span class="muted">Growth, 2 years</span><strong>{% if growth_2y is not none %}{{ "%+.1f"|format(growth_2y) }}%{% else %}n/a{% endif %}</strong></div>
+  </div>
+  {% if chart %}
+  <figure class="ins-chart">
+    <svg viewBox="0 0 {{ chart.w }} {{ chart.h }}" role="img" aria-label="Employee count over time, from {{ chart.points[0].date }} to {{ chart.points[-1].date }}">
+      <line class="axis" x1="{{ chart.left }}" y1="{{ chart.bottom }}" x2="{{ chart.right }}" y2="{{ chart.bottom }}"/>
+      <text class="tick" x="{{ chart.left - 8 }}" y="{{ chart.top + 4 }}" text-anchor="end">{{ fmt_int(chart.hi) }}</text>
+      <text class="tick" x="{{ chart.left - 8 }}" y="{{ chart.bottom }}" text-anchor="end">{{ fmt_int(chart.lo) }}</text>
+      <text class="tick" x="{{ chart.left }}" y="{{ chart.h - 8 }}" text-anchor="start">{{ chart.points[0].date }}</text>
+      <text class="tick" x="{{ chart.right }}" y="{{ chart.h - 8 }}" text-anchor="end">{{ chart.points[-1].date }}</text>
+      <polyline class="line" points="{{ chart.line }}"/>
+      {% for p in chart.points %}<circle class="pt" cx="{{ p.x }}" cy="{{ p.y }}" r="3.5"><title>{{ p.date }}: {{ fmt_int(p.count) }} employees</title></circle>{% endfor %}
+    </svg>
+  </figure>
+  {% else %}<p class="muted ins-intro">A chart needs at least two counts with a date; Wikidata has fewer.</p>{% endif %}
+  <div class="table-wrap ins-table"><table class="data">
+    <thead><tr><th>As of</th><th>Employees</th></tr></thead>
+    <tbody>{% for p in t.employees|reverse %}<tr><td>{{ p.date or "Date unknown" }}</td><td>{{ fmt_int(p.count) }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <p class="muted ins-intro">Source: <a href="{{ t.wikidata_url }}" target="_blank" rel="noopener noreferrer">Wikidata {{ t.wikidata_id }}</a> (CC0). These are reported figures, not live headcount.</p>
+{% else %}
+  <div class="ins-empty"><h4>No public data</h4><p class="muted">{% if t.wikidata_id %}Wikidata lists no employee counts for this company.{% else %}No matching Wikidata entry was found.{% endif %} Headcount trends are only shown when a public source reports them.</p></div>
+{% endif %}

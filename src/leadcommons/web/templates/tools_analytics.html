@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{% from "_shell_macros.html" import tic %}
+{% macro tile(label, value, sub="", href="") -%}
+<div class="tile">{% if href %}<a class="tile-l" href="{{ href }}">{{ label }}</a>{% else %}<span class="tile-l">{{ label }}</span>{% endif %}
+  <b class="tile-v">{% if value is none %}<span class="muted" title="Not available: this feature has no data yet">n/a</span>{% else %}{{ value }}{% endif %}</b>{% if sub %}<span class="tile-s muted">{{ sub }}</span>{% endif %}</div>
+{%- endmacro %}
+{% macro rate(v) -%}{% if v is none %}n/a{% else %}{{ v }}%{% endif %}{%- endmacro %}
+{% block title %}Analytics · LeadCommons{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Analytics</h1><p>Real numbers from your own database. Nothing is estimated. {{ d.range_label }}.</p></div>
+  <div class="seg-range" role="group" aria-label="Date range">
+    {% for k, lab in ranges.items() %}<a href="/analytics?range={{ k }}"{% if k == rng %} aria-current="true"{% endif %}>{{ lab }}</a>{% endfor %}
+  </div>
+</div>
+
+<h2 class="an-h">Prospecting</h2>
+<div class="tiles">
+  {{ tile("People found", fmt_int(d.people_found) if d.people_found is not none else none, "of " ~ fmt_int(d.people_total) ~ " in total" if d.people_total is not none else "", "/people") }}
+  {{ tile("Emails found", fmt_int(d.emails_found) if d.emails_found is not none else none, "checked in this range") }}
+  {{ tile("Companies saved", fmt_int(d.companies_saved) if d.companies_saved is not none else none, "of " ~ fmt_int(d.companies_saved_total) ~ " in total" if d.companies_saved_total is not none else "", "/companies") }}
+  {{ tile("Lists", fmt_int(d.lists_total) if d.lists_total is not none else none, fmt_int(d.lists_new) ~ " created in this range" if d.lists_new is not none else "", "/lists") }}
+  {{ tile("Saved searches", fmt_int(d.searches_total) if d.searches_total is not none else none, fmt_int(d.searches_saved) ~ " new in this range" if d.searches_saved is not none else "") }}
+</div>
+<div class="an-grid">
+  <section class="card"><h3>People found per day</h3>{{ svg_line(d.people_series, "People found per day") }}{% if not d.people_series %}<p class="muted">No data.</p>{% endif %}</section>
+  <section class="card"><h3>Emails found, by status</h3>
+    {% if d.email_status %}{{ svg_bars([("Valid", d.email_status.get("valid", 0), "ok"), ("Catch-all", d.email_status.get("catch_all", 0), "amber"), ("Unknown", d.email_status.get("unknown", 0), "amber"), ("Invalid", d.email_status.get("invalid", 0), "red")], "Emails found by status") }}
+    {% else %}<p class="muted">No email checked in this range.</p>{% endif %}</section>
+</div>
+
+<h2 class="an-h">Outreach</h2>
+{% if d.sequences %}
+<div class="tiles">
+  {{ tile("Emails sent", fmt_int(d.sequences.sent), fmt_int(d.sequences.contacted) ~ " people contacted", "/emails") }}
+  {{ tile("Reply rate", rate(d.sequences.reply_rate), (fmt_int(d.sequences.replied) if d.sequences.replied is not none else "no") ~ " replied") }}
+  {{ tile("Bounce rate", rate(d.sequences.bounce_rate), (fmt_int(d.sequences.bounced) if d.sequences.bounced is not none else "no") ~ " bounced") }}
+  {{ tile("Unsubscribe rate", rate(d.sequences.unsub_rate), (fmt_int(d.sequences.unsubscribed) if d.sequences.unsubscribed is not none else "no") ~ " unsubscribed") }}
+  {{ tile("Sequences", fmt_int(d.sequences_total) if d.sequences_total is not none else none, fmt_int(d.sequences_active) ~ " active" if d.sequences_active is not none else "", "/sequences") }}
+  {{ tile("Tasks completed", fmt_int(d.tasks_done) if d.tasks_done is not none else none, fmt_int(d.tasks_open) ~ " still open" if d.tasks_open is not none else "", "/tasks") }}
+</div>
+<section class="card"><h3>Emails sent per day</h3>{{ svg_line(d.sequences.series, "Emails sent per day") }}<p class="hint">Reply and unsubscribe rates are shares of people contacted; the bounce rate is a share of emails sent.</p></section>
+{% else %}
+<div class="empty"><h3>No outreach data yet</h3><p>Sequences are not installed in this build, or nothing was sent.</p></div>
+{% endif %}
+
+<h2 class="an-h">Pipeline</h2>
+<div class="tiles">
+  {{ tile("Deals", fmt_int(d.deals_total) if d.deals_total is not none else none, fmt_int(d.deals_new) ~ " created in this range" if d.deals_new is not none else "", "/deals") }}
+  {{ tile("Open and won value", d.currency ~ " " ~ fmt_int(d.deals_value|round|int) if d.deals_value is not none else none, "lost deals excluded") }}
+  {{ tile("Won value", d.currency ~ " " ~ fmt_int(d.deals_won_value|round|int) if d.deals_won_value is not none else none) }}
+  {{ tile("Meetings", fmt_int(d.meetings) if d.meetings is not none else none, fmt_int(d.meetings_upcoming) ~ " upcoming" if d.meetings_upcoming is not none else "", "/meetings") }}
+  {{ tile("Calls logged", fmt_int(d.calls) if d.calls is not none else none, "", "/calls") }}
+</div>
+{% if d.deals %}
+<div class="an-grid">
+  <section class="card"><h3>Deals by stage</h3>{{ svg_bars(d.deals_bars, "Deals by stage") }}</section>
+  <section class="card"><h3>Deal value by stage ({{ d.currency }})</h3>{{ svg_bars(d.deals_value_bars, "Deal value by stage", money="") }}</section>
+</div>
+{% endif %}
+
+<h2 class="an-h">Automation</h2>
+<div class="tiles">
+  {{ tile("Workflows on", fmt_int(d.workflows_enabled) if d.workflows_enabled is not none else none, "", "/workflows") }}
+  {{ tile("Workflow runs", fmt_int(d.workflow_runs) if d.workflow_runs is not none else none, fmt_int(d.workflow_failed) ~ " with a failed step" if d.workflow_failed is not none else "", "/workflows?tab=runs") }}
+</div>
+{% endblock %}

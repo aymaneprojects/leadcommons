@@ -1,8 +1,38 @@
-{% from "_macros.html" import ic %}
+{% from "_results_macros.html" import ri %}
+{# Import menu of the search pages: one record by hand, or a CSV (Data enrichment). The single
+   contact window posts to /people/new; companies come from the open data packs instead. #}
+{% set people_kind = s is defined and s.kind == "people" %}
 <details class="dd imp-dd">
-  <summary class="btn">{{ ic("upload") }}<span>Import</span>{{ ic("chevron-down", "sm") }}</summary>
-  <div class="menu">
-    <a class="menu-item" href="/enrich">{{ ic("file-up", "sm") }}<span>Upload a CSV</span></a>
-    <button type="button" class="menu-item" disabled aria-disabled="true" title="Coming in a later version">{{ ic("link", "sm") }}<span>From a list of URLs</span><span class="badge soon-badge">Soon</span></button>
+  <summary class="btn">{{ ri("upload") }}<span>Import</span>{{ ri("chevron-down", "sm") }}</summary>
+  <div class="menu imp-menu">
+    {% if people_kind %}
+    <button type="button" class="menu-item" data-open-dialog="contact-dialog">{{ ri("user-plus", "sm") }}<span>Single contact</span></button>
+    {% else %}
+    <span class="menu-item" aria-disabled="true" tabindex="0" data-tip="Companies come from the open data packs (Wikidata, GLEIF, SIRENE), so there is nothing to type in. Add people to a company from Find people instead." aria-describedby="imp-co-why">{{ ri("building-2", "sm") }}<span>Single company</span></span>
+    <span class="sr-only" id="imp-co-why">Companies come from the open data packs, so there is nothing to type in.</span>
+    {% endif %}
+    <a class="menu-item" href="/enrich">{{ ri("file-spreadsheet", "sm") }}<span>CSV</span></a>
   </div>
 </details>
+{% if people_kind %}
+<dialog id="contact-dialog" class="sd narrow" aria-labelledby="ct-title">
+  <form method="post" action="/people/new" hx-post="/people/new" hx-swap="none" hx-push-url="false">
+    <header class="allf-head"><h2 id="ct-title">Add one contact</h2><button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">{{ ri("x") }}</button></header>
+    <div class="sd-body">
+      <label class="flabel" for="ct-name">Full name</label>
+      <input id="ct-name" type="text" name="full_name" required maxlength="120" placeholder="e.g. Jordan Lee" autocomplete="off">
+      <label class="flabel" for="ct-domain">Company website</label>
+      <input id="ct-domain" type="text" name="domain" required maxlength="200" placeholder="e.g. example.com" autocomplete="off">
+      <label class="flabel" for="ct-title">Job title <span class="muted">(optional)</span></label>
+      <input id="ct-title" type="text" name="title" maxlength="160" placeholder="e.g. Head of Sales" autocomplete="off">
+      <label class="flabel" for="ct-email">Email <span class="muted">(optional)</span></label>
+      <input id="ct-email" type="text" name="email" maxlength="200" placeholder="Leave empty to look for one later" autocomplete="off">
+      <span class="fnote">Kept on this computer only. Without an email, open the person and choose Find email.</span>
+    </div>
+    <footer class="sd-foot">
+      <button type="button" class="btn close-dlg">Cancel</button>
+      <button type="submit" class="btn primary">Add contact</button>
+    </footer>
+  </form>
+</dialog>
+{% endif %}

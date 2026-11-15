@@ -1,0 +1,51 @@
+{% from "_macros.html" import status_dot %}
+{% from "_results_macros.html" import ri %}
+{# Right column of the save window (POST /partials/save-summary). Context: kind, plan, opts,
+   keep, list_name, default_list, sequence, export, demo. The status boxes are part of form
+   #bulk, so Save sends exactly what is shown here. #}
+{% set people_kind = kind == "people" %}
+{% set kept = plan.kept|length %}
+<div class="sum-head">
+  <b>Saving <span class="mono">{{ kept }}</span> of <span class="mono">{{ plan.selected }}</span> selected</b>
+  {% if people_kind %}
+  <div class="meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ plan.valid_share }}" aria-label="Share with a valid email"><i class="ok" style="width: {{ plan.valid_share }}%"></i></div>
+  <span class="sum-sub"><span>With a valid email</span><span class="mono">{{ plan.valid_share }}%</span></span>
+  {% endif %}
+</div>
+{% if people_kind %}
+<fieldset class="sum-status">
+  <legend>Keep people whose email is</legend>
+  <input type="hidden" name="keep_sent" value="1">
+  {% for key in rx.STATUS_KEYS %}
+  <label class="opt"><input type="checkbox" name="keep" value="{{ key }}" data-save-opt {% if key in keep %}checked{% endif %}>{% if key != "none" %}{{ status_dot(key) }}{% else %}<span class="dot"></span>{% endif %}<span class="ol">{{ rx.STATUS_LABELS[key] }}</span><span class="tip" tabindex="0" data-tip="{{ rx.STATUS_HELP[key] }}">{{ ri("info", "sm") }}</span><span class="n">{{ plan.counts[key] }}</span></label>
+  {% endfor %}
+</fieldset>
+{% else %}
+<div class="sum-status">
+  <p class="sum-line"><span>With a known website</span><span class="mono">{{ kept - plan.no_domain }}</span></p>
+  {% if plan.no_domain %}<p class="fnote">{{ plan.no_domain }} {{ "has" if plan.no_domain == 1 else "have" }} no known website, so no people can be looked for there.</p>{% endif %}
+</div>
+{% endif %}
+<section class="sum-card" aria-label="What Save will do">
+  <h3>What happens</h3>
+  <div class="sum-stats">
+    <div><b class="mono">{{ kept }}</b><span>To save</span></div>
+    <div><b class="mono">{{ plan.new }}</b><span>{{ "Not in a list yet" if people_kind else "Not saved yet" }}</span></div>
+  </div>
+  <ul class="sum-steps">
+    <li>{{ ri("list-plus", "sm") }}<span>{% if list_name %}Added to <b>{{ list_name }}</b>{% elif people_kind %}Added to <b>{{ default_list }}</b>{% else %}Kept in your saved companies{% endif %}</span></li>
+    {% if demo and opts.find %}
+    <li class="off">{{ ri("ban", "sm") }}<span>No look-ups: they are off in the public demo</span></li>
+    {% elif people_kind %}
+    <li>{{ ri("mail-check", "sm") }}<span>{% if plan.jobs.find_email %}Email look-up for <b>{{ plan.jobs.find_email }}</b> {{ "person" if plan.jobs.find_email == 1 else "people" }} without a valid address{% elif opts.find %}No email look-up needed{% else %}No email look-up{% endif %}</span></li>
+    {% if opts.phones %}<li>{{ ri("phone", "sm") }}<span>{% if plan.jobs.company_insights %}Phone search on <b>{{ plan.jobs.company_insights }}</b> company {{ "website" if plan.jobs.company_insights == 1 else "websites" }}{% else %}Phone numbers already looked for, or no company website known{% endif %}</span></li>{% endif %}
+    {% else %}
+    <li>{{ ri("user-search", "sm") }}<span>{% if plan.jobs.find_people %}People search on <b>{{ plan.jobs.find_people }}</b> {{ "website" if plan.jobs.find_people == 1 else "websites" }}{% else %}No people search{% endif %}</span></li>
+    {% if opts.phones %}<li>{{ ri("phone", "sm") }}<span>{% if plan.jobs.company_insights %}Phone search on <b>{{ plan.jobs.company_insights }}</b> {{ "website" if plan.jobs.company_insights == 1 else "websites" }}{% else %}Phone numbers already looked for{% endif %}</span></li>{% endif %}
+    {% endif %}
+    {% if sequence %}<li>{{ ri("send", "sm") }}<span>Added to the sequence <b>{{ sequence }}</b>; anyone without a usable email is skipped</span></li>{% endif %}
+    {% if export %}<li>{{ ri("download", "sm") }}<span>A CSV downloads when saving is done</span></li>{% endif %}
+    {% if plan.suppressed %}<li class="off">{{ ri("ban", "sm") }}<span>{{ plan.suppressed }} on your do-not-contact list: saved, never looked up</span></li>{% endif %}
+  </ul>
+  <p class="sum-time">{{ ri("clock", "sm") }}<span>Time estimate</span><b>{{ plan.estimate }}</b></p>
+</section>

@@ -20,6 +20,7 @@ from urllib.parse import quote
 
 from fastapi import Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from starlette.concurrency import run_in_threadpool
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -29,7 +30,7 @@ SCRYPT_P = 1
 SALT_BYTES = 16
 
 PUBLIC_PATHS = ("/login", "/logout", "/opt-out", "/healthz")
-PUBLIC_PREFIXES = ("/static/",)
+PUBLIC_PREFIXES = ("/static/", "/u/")
 
 RATE_LIMIT_FAILURES = 5
 RATE_LIMIT_WINDOW = 60.0
@@ -106,6 +107,26 @@ def _is_public(path: str) -> bool:
     return path in PUBLIC_PATHS or path.startswith(PUBLIC_PREFIXES)
 
 
+def _token_path(path: str) -> bool:
+    """Paths that API tokens (Authorization: Bearer) may open: the JSON API and /mcp."""
+    return path == "/api" or path.startswith("/api/") or path == "/mcp" or path.startswith("/mcp/")
+
+
+def bearer_token(request: Request) -> str | None:
+    scheme, _, value = (request.headers.get("authorization") or "").partition(" ")
+    return value.strip() if scheme.lower() == "bearer" and value.strip() else None
+
+
+def token_valid(app: Any, token: str) -> bool:
+    """True for a live API token created in Settings > API tokens (only hashes are stored)."""
+    try:
+        from leadcommons.store.tools import repo_for
+
+        return repo_for(app.state.store).verify_token(token)
+    except Exception:
+        return False
+
+
 def _render_login(
     request: Request, error: str | None, next_url: str, status: int = 200
 ) -> Response:
@@ -135,12 +156,22 @@ def install_auth(app: Any, settings: Any) -> None:
     limiter = _RateLimiter()
     required = bool(settings.auth_required)
 
+    # Workflows and the assistant reach the running app's store through this binding.
+    from leadcommons import workflows
+    from leadcommons.workflows import scheduler
+
+    workflows.bind_app(app)
+    scheduler.install(app)
+
     if required:
 
         class AuthGuard(BaseHTTPMiddleware):
             async def dispatch(self, request: Request, call_next: Any) -> Response:
                 path = request.url.path
                 if _is_public(path) or request.session.get("auth") is True:
+                    return await call_next(request)
+                token = bearer_token(request) if _token_path(path) else None
+                if token and await run_in_threadpool(token_valid, request.app, token):
                     return await call_next(request)
                 if path.startswith("/api/") or path == "/api":
                     return JSONResponse({"detail": "Authentication required"}, status_code=401)

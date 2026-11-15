@@ -91,15 +91,10 @@ def dns_zone(monkeypatch: pytest.MonkeyPatch) -> dict[tuple[str, str], Any]:
         "/settings",
         "/settings/data-packs",
         "/settings/email-health",
-        "/settings/email-health?tab=mailboxes",
         "/settings/privacy",
         "/settings/account",
         "/settings/about",
         "/assistant",
-        "/sequences",
-        "/emails",
-        "/tasks",
-        "/deals",
         "/partials/palette",
         "/partials/notifications",
     ],
@@ -122,7 +117,7 @@ def test_shell_markup(client: TestClient) -> None:
     assert client.get("/assistant").text.count("<dialog") == 1
     assert "data-notif-toggle" in html and 'hx-get="/partials/notifications"' in html
     assert 'href="/onboarding"' in html
-    assert "Ctrl K" in html and "Email health" in html
+    assert "Ctrl K" in html and "Email setup and health" in html
     for hint in ("Navigate", "Close", "Select"):
         assert hint in html
     for group in ("Pages", "Actions"):
@@ -134,8 +129,8 @@ def test_settings_menu_replaces_sidebar(client: TestClient) -> None:
     for label in (
         "Workspace overview",
         "Data packs",
-        "Email verification &amp; health",
-        "Privacy &amp; opt-out",
+        "Email setup and health",
+        "Unsubscribes &amp; opt-out",
         "Account",
         "About",
     ):
@@ -198,7 +193,10 @@ def add_job(app: FastAPI, status: str, kind: str = "find_people", **kw: Any) -> 
 
 def test_notifications_empty_state(client: TestClient) -> None:
     html = client.get("/partials/notifications").text
-    assert "all caught up" in html and "data-notif-id" not in html
+    assert "all caught up" in html
+    assert (
+        html.count("data-notif-id") == 1 and "sys-integrations" in html
+    )  # only the standing notice
 
 
 def test_notifications_list_finished_jobs_only(app: FastAPI, client: TestClient) -> None:
@@ -208,18 +206,18 @@ def test_notifications_list_finished_jobs_only(app: FastAPI, client: TestClient)
     csv_job = add_job(app, "done", kind="enrich_csv", label="Enrich a.csv", payload={})
     html = client.get("/partials/notifications").text
     assert "Still running" not in html
-    assert f'data-notif-id="{done.id}"' in html and "4 people found" in html
+    assert f'data-notif-id="job-{done.id}"' in html and "4 people found" in html
     assert "/companies/co_1" in html
     assert "Broken job" in html and "Failed" in html and "boom" in html
     assert f"/api/enrich/{csv_job.id}/result.csv" in html and "Download CSV" in html
-    assert html.count("data-notif-id") == 3
+    assert html.count("data-notif-id") == 3 + 1  # plus the standing integrations notice
 
 
 def test_notifications_most_recent_first_and_capped(app: FastAPI, client: TestClient) -> None:
     for i in range(25):
         add_job(app, "done", label=f"Job number {i:02d}")
     html = client.get("/partials/notifications").text
-    assert html.count("data-notif-id") == 20
+    assert html.count("data-notif-id") == 20 + 1  # plus the standing integrations notice
     assert html.index("Job number 24") < html.index("Job number 10")
 
 
@@ -401,10 +399,9 @@ def test_email_health_rejects_bad_input_without_dns(
     assert "DKIM selector may only contain" in html and FakeResolver.seen == []
 
 
-def test_email_health_mailboxes_tab_is_honest(client: TestClient) -> None:
-    html = client.get("/settings/email-health?tab=mailboxes").text
-    assert "No mailboxes connected" in html and "arrives in v0.3" in html
-    assert re.search(r"<button[^>]*disabled[^>]*>Add email &amp; domain", html)
+def test_email_health_mailboxes_tab_links_to_mailboxes(client: TestClient) -> None:
+    html = client.get("/settings/email-health").text
+    assert 'href="/settings/mailboxes"' in html and "arrives in v0.3" not in html
 
 
 # ---------------------------------------------------------------- onboarding + home
@@ -412,22 +409,26 @@ def test_email_health_mailboxes_tab_is_honest(client: TestClient) -> None:
 
 def test_onboarding_hub_groups_and_progress(app: FastAPI, client: TestClient) -> None:
     html = client.get("/onboarding").text
-    assert "Get started with LeadCommons" in html and "0 of 7 steps done" in html
-    assert "Start reaching the right prospects" in html and "0 of 3 completed" in html
-    assert "More resources" in html and "hub-progress" in html and "btn primary" in html
+    assert "Your first steps with LeadCommons" in html and "0 of 18</b> done" in html
+    assert "Find the people you want to reach" in html and "0 of 6 completed" in html
+    assert "Find a company phone number" in html and "save a mobile" not in html.lower()
+    assert (
+        "More help for getting the most" in html
+        and "hub-progress" in html
+        and "btn primary" in html
+    )
     store = app.state.store
     store.save_company(app.state.search.companies[0])
     store.create_list("x", "people")
     html = client.get("/onboarding").text
-    assert "2 of 7 steps done" in html and "1 of 3 completed" in html
-    assert 'aria-valuenow="2"' in html
-    assert client.get("/").text.count("hub-group") >= 3
-    assert "2 of 7 steps done" in client.get("/").text
+    assert "2 of 6 completed" in html
+    assert client.get("/").text.count("hub-group") >= 4
 
 
 def test_sidebar_getting_started_links_to_hub(client: TestClient) -> None:
     html = client.get("/lists").text
     assert re.search(r'<a class="gs-card[^"]*" href="/onboarding"', html)
+    assert "Onboarding hub" in html and "% Completed" in html
 
 
 # ---------------------------------------------------------------- lists
@@ -435,10 +436,9 @@ def test_sidebar_getting_started_links_to_hub(client: TestClient) -> None:
 
 def test_lists_empty_state(client: TestClient) -> None:
     html = client.get("/lists").text
-    assert "Welcome to your lists" in html
+    assert "Your lists start here" in html and "How lists work" in html
     assert "Create a people list" in html and "Create a company list" in html
     assert 'data-create-list="people"' in html and 'action="/lists"' in html
-    assert "People <span" in html and "Companies <span" in html
     assert "<table" not in html
 
 
@@ -524,24 +524,33 @@ def test_list_export_never_contains_suppressed_emails(app: FastAPI, client: Test
 # ---------------------------------------------------------------- assistant + engage
 
 
-def test_assistant_links_real_flows_and_composer_disabled(client: TestClient) -> None:
+def test_assistant_page_has_working_composer(client: TestClient) -> None:
     html = client.get("/assistant").text
-    for href in ('href="/companies"', 'href="/enrich"'):
-        assert href in html
-    assert "Find companies to sell to" in html and "Find people at a company" in html
-    assert "Enrich a CSV" in html
-    assert re.search(r"<input[^>]*id=\"ask\"[^>]*disabled", html)
-    assert "The AI assistant arrives in v0.2" in html
-    assert re.search(r"<button[^>]*disabled[^>]*>.*Send", html, re.S)
+    assert "Find companies I could sell to" in html and "type / to see commands" in html
+    assert (
+        'action="/assistant/send"' in html
+        and "disabled" not in html.split('id="composer"')[1][:600]
+    )
+    assert "bring your own AI" in html
 
 
-@pytest.mark.parametrize("slug", ["sequences", "emails", "tasks", "deals"])
-def test_engage_pages_are_honest(client: TestClient, slug: str) -> None:
-    html = client.get(f"/{slug}").text
-    assert "Coming in v0.3" in html and "#roadmap" in html and "/issues" in html
-    buttons = re.findall(r"<button[^>]*>", html.split('class="content"')[1])
-    assert buttons and all("disabled" in b and 'title="Arrives in v0.3"' in b for b in buttons)
-    body = html.split('class="content"')[1]
-    assert "<table" not in body and "0 of" not in body
-    assert ("No mailbox is connected" in html) == (slug in ("sequences", "emails"))
-    assert 'rel="noopener noreferrer"' in html
+def test_sidebar_matches_contract(client: TestClient) -> None:
+    html = client.get("/lists").text
+    for label in (
+        "Prospect and enrich",
+        "Data enrichment",
+        "Engage",
+        "Calls",
+        "Win deals",
+        "Meetings",
+        "Conversations",
+        "Tools and automation",
+        "Workflows",
+        "Analytics",
+        "Integrations",
+        "Onboarding hub",
+        "Email setup and health",
+        "Settings",
+    ):
+        assert label in html, label
+    assert ">Soon<" not in html and "badge" not in html.split("</aside>")[0]

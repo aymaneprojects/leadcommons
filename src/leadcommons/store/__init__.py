@@ -301,10 +301,12 @@ class Store:
                 )
                 or 0
             )
+            added: list[str] = []
             for record_id in record_ids:
                 if record_id in present:
                     continue
                 present.add(record_id)
+                added.append(record_id)
                 position += 1
                 s.add(
                     ListItemRow(
@@ -314,6 +316,11 @@ class Store:
                         position=position,
                     )
                 )
+            kind = s.scalar(select(ListRow.kind).where(ListRow.id == list_id))
+        if added:
+            from leadcommons import workflows  # local import: workflows reads the store
+
+            workflows.emit("added_to_list", list_id=list_id, record_ids=added, kind=kind)
 
     def remove_from_list(self, list_id: str, record_ids: list[str]) -> None:
         if not record_ids:
@@ -404,6 +411,16 @@ class Store:
             row.kind = kind
             row.reason = reason
             row.added_at = utcnow()
+
+    def remove_suppression(self, email_or_domain: str) -> bool:
+        """Take one address or domain off the suppression list. True if it was listed."""
+        value, _kind = _normalise_target(email_or_domain)
+        with self._sessions.begin() as s:
+            row = s.get(SuppressionRow, _digest(value))
+            if row is None:
+                return False
+            s.delete(row)
+            return True
 
     def is_suppressed(self, email: str) -> bool:
         address = email.strip().lower()

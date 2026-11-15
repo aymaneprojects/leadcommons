@@ -1,19 +1,97 @@
 {% from "_macros.html" import ic %}
+{% from "_results_macros.html" import ri, segmented %}
 {# Everything that floats above the results. Lives inside #workspace (outside form #f) so it is
-   re-rendered with the results and never nests forms. #}
-<form id="bulk" method="post" action="/lists/save-to">
+   re-rendered with the results and never nests forms. The row checkboxes belong to #bulk. #}
+{% set people_kind = s.kind == "people" %}
+{% set noun = "people" if people_kind else "companies" %}
+<form id="bulk" method="post" action="/bulk/save">
   <input type="hidden" name="kind" value="{{ s.kind }}">
   <input type="hidden" name="next" value="{{ current_url }}">
-  <dialog id="save-dialog" class="sd" aria-labelledby="sd-title">
-    <header class="allf-head"><h2 id="sd-title">Save to list</h2><button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">{{ ic("x") }}</button></header>
+
+  {# The save window. The right column is filled by POST /partials/save-summary and refreshed
+     whenever a choice changes, so the counts and the estimate always match the selection. #}
+  <dialog id="save-dialog" class="sd save-xl" aria-labelledby="sd-title" data-kind="{{ s.kind }}">
+    <header class="allf-head"><h2 id="sd-title">{{ "Save people" if people_kind else "Save companies" }}</h2><button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">{{ ri("x") }}</button></header>
+    <div class="save-grid">
+      <div class="save-left">
+        <section class="save-card" aria-labelledby="sv-find-h">
+          <header class="save-card-head">
+            <label class="switch-wrap"{% if s.demo %} data-tip="{{ demo_reason }}"{% endif %}>
+              <span class="switch"><input type="checkbox" name="find" value="1" role="switch" data-save-opt aria-labelledby="sv-find-h"{% if s.demo %} disabled aria-describedby="sv-demo-why"{% else %} checked{% endif %}><i></i></span>
+            </label>
+            <h3 id="sv-find-h">{{ "Look up missing details" if people_kind else "Look for people and contact details" }}</h3>
+            <span class="tip" tabindex="0" data-tip="{{ 'Starts background jobs that read public pages to find what is missing. You can keep working; the jobs menu shows progress.' }}">{{ ri("info", "sm") }}</span>
+            <span class="chip plain src-badge">{{ ri("globe", "sm") }}Public web</span>
+          </header>
+          {% if people_kind %}
+            {{ segmented("find_mode", [("emails", "Emails only"), ("emails_phones", "Emails and phone numbers")], "emails", s.demo, demo_reason) }}
+          {% else %}
+            {{ segmented("find_mode", [("people", "People only"), ("people_phones", "People and phone numbers")], "people", s.demo, demo_reason) }}
+          {% endif %}
+          <dl class="save-detail">
+            <div><dt>Where we look</dt><dd>{{ "The company website: team, about and contact pages" if people_kind else "Each company's own website: team, about and contact pages" }}</dd></div>
+            <div><dt>{{ "How an email is checked" if people_kind else "What you get" }}</dt><dd>{{ "Likely address pattern, then the mail server's answer" if people_kind else "Names and roles of the people listed there" }}</dd></div>
+            <div><dt>Phone numbers</dt><dd>Business lines the company publishes. Never personal numbers.</dd></div>
+          </dl>
+          {% if s.demo %}<p class="fnote warn" id="sv-demo-why">{{ demo_reason }}</p>{% endif %}
+        </section>
+
+        <div class="save-tiles">
+          <div class="save-tile">
+            <label class="tile-head" for="sv-list">{{ ri("list-plus") }}<span>Add to list</span></label>
+            <select id="sv-list" name="dest_list" data-save-opt>
+              <option value="">{{ "Saved people (default)" if people_kind else "No list, just save" }}</option>
+              {% for li in lists %}<option value="{{ li.id }}">{{ li.name }} ({{ li.size }})</option>{% endfor %}
+              <option value="new">New list…</option>
+            </select>
+            <input type="text" name="dest_new" maxlength="120" placeholder="Name of the new list" aria-label="Name of the new list" autocomplete="off" data-save-new data-save-opt hidden>
+          </div>
+          <div class="save-tile{% if not people_kind %} off{% endif %}"{% if not people_kind %} aria-disabled="true" data-tip="Sequences send emails to people. Save the people at these companies first, then add them from Find people."{% endif %}>
+            <label class="tile-head" for="sv-seq">{{ ri("send") }}<span>Add to sequence</span></label>
+            {% set seqs = rx.sequence_choices(request.app.state.store) if people_kind else [] %}
+            {% if people_kind and seqs %}
+            <select id="sv-seq" name="sequence_id" data-save-opt>
+              <option value="">No sequence</option>
+              {% for q in seqs %}<option value="{{ q.id }}">{{ q.name }}{% if q.status != "active" %} ({{ q.status }}){% endif %}</option>{% endfor %}
+            </select>
+            {% elif people_kind %}
+            <p class="fnote">No sequence yet. <a href="/sequences">Create one</a>, then come back.</p>
+            {% else %}
+            <select id="sv-seq" disabled aria-describedby="sv-seq-why"><option>Not for companies</option></select>
+            <span class="sr-only" id="sv-seq-why">Sequences send emails to people. Save the people at these companies first.</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <section class="save-note">
+          <h3>{{ ri("shield-check", "sm") }} Stays on this computer</h3>
+          <p>Saved records go to your local database. Nothing is uploaded or shared with anyone.</p>
+        </section>
+      </div>
+      <aside class="save-right">
+        <div class="save-summary" data-save-summary aria-live="polite"><p class="muted">Working out what Save will do…</p></div>
+        <p class="save-data">{{ ri("info", "sm") }}<span>Details come only from public pages and open registries. Anyone on your do-not-contact list is skipped: never looked up, never exported.</span></p>
+      </aside>
+    </div>
+    <footer class="sd-foot save-foot">
+      <label class="opt export-opt"><input type="checkbox" name="export" value="1" data-save-opt><span>Also download a CSV of what is saved</span></label>
+      <span class="grow"></span>
+      <button type="button" class="btn close-dlg">Cancel</button>
+      <button type="submit" class="btn primary" formaction="/bulk/save" hx-post="/bulk/save" hx-swap="none" hx-push-url="false" data-save-go>Save</button>
+    </footer>
+  </dialog>
+
+  {# Quick "Add to list" from the selection bar. #}
+  <dialog id="list-dialog" class="sd narrow" aria-labelledby="ld-title">
+    <header class="allf-head"><h2 id="ld-title">Add to list</h2><button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">{{ ri("x") }}</button></header>
     <div class="sd-body">
-      <p class="sd-sub"><b data-sel-count>0</b> selected {{ s.kind }}. Add them to an existing list or start a new one.</p>
-      <label class="searchbox">{{ ic("search", "sm") }}<input type="search" data-list-search placeholder="Search lists" aria-label="Search lists" form="ui-only" autocomplete="off"></label>
+      <p class="sd-sub"><b data-sel-count>0</b> selected {{ noun }}. Add them to an existing list or start a new one.</p>
+      <label class="searchbox">{{ ri("search", "sm") }}<input type="search" data-list-search placeholder="Search lists" aria-label="Search lists" form="ui-only" autocomplete="off"></label>
       <div class="opts list-opts" role="radiogroup" aria-label="Lists" data-checklist-opts>
         {% for li in lists %}
         <label class="opt" data-text="{{ li.name|lower }}"><input type="radio" name="list_id" value="{{ li.id }}"><span class="ol">{{ li.name }}</span><span class="n">{{ li.size }}</span></label>
         {% endfor %}
-        {% if not lists %}<span class="fnote nolists">No {{ s.kind }} lists yet. Create the first one below.</span>{% endif %}
+        {% if not lists %}<span class="fnote nolists">No {{ noun }} lists yet. Create the first one below.</span>{% endif %}
       </div>
       <div class="newlist">
         <label class="opt"><input type="radio" name="list_id" value="new" data-new-radio><span class="ol">Create a new list</span></label>
@@ -22,7 +100,39 @@
     </div>
     <footer class="sd-foot">
       <button type="button" class="btn close-dlg">Cancel</button>
-      <button type="submit" class="btn primary" formaction="/lists/save-to" hx-post="/lists/save-to" hx-swap="none" hx-push-url="false">Save</button>
+      <button type="submit" class="btn primary" formaction="/lists/save-to" hx-post="/lists/save-to" hx-swap="none" hx-push-url="false">Add</button>
+    </footer>
+  </dialog>
+
+  <dialog id="task-dialog" class="sd narrow" aria-labelledby="td-title">
+    <header class="allf-head"><h2 id="td-title">Create tasks</h2><button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">{{ ri("x") }}</button></header>
+    <div class="sd-body">
+      <p class="sd-sub">One task for each of the <b data-sel-count>0</b> selected {{ noun }}.</p>
+      <label class="flabel" for="td-name">Task</label>
+      <input id="td-name" type="text" name="title" maxlength="200" placeholder="{{ 'e.g. Send intro email' if people_kind else 'e.g. Research this account' }}" autocomplete="off">
+      <label class="flabel" for="td-kind">Type</label>
+      <select id="td-kind" name="task_kind"><option value="action">To do</option><option value="email">Email</option><option value="call">Call</option><option value="linkedin">Social message</option></select>
+      <label class="flabel" for="td-due">Due in</label>
+      <select id="td-due" name="due_days"><option value="">No due date</option><option value="0">Today</option><option value="1">1 day</option><option value="3">3 days</option><option value="7">1 week</option><option value="14">2 weeks</option></select>
+    </div>
+    <footer class="sd-foot">
+      <button type="button" class="btn close-dlg">Cancel</button>
+      <button type="submit" class="btn primary" formaction="/bulk/create-tasks" hx-post="/bulk/create-tasks" hx-swap="none" hx-push-url="false">Create tasks</button>
+    </footer>
+  </dialog>
+
+  <dialog id="ai-dialog" class="sd" aria-labelledby="ai-title" data-kind="{{ s.kind }}">
+    <header class="allf-head"><h2 id="ai-title" data-ai-title>Run a custom prompt</h2><button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">{{ ri("x") }}</button></header>
+    <div class="sd-body">
+      <p class="sd-sub" data-ai-sub>Asks your model about each of the <b data-sel-count>0</b> selected {{ noun }} (at most 25) and shows the answers in a temporary column.</p>
+      <label class="flabel" for="ai-prompt" data-ai-label>Your prompt</label>
+      <textarea id="ai-prompt" rows="4" maxlength="500" data-ai-prompt placeholder="{{ 'e.g. In one line, what does this company sell?' if not people_kind else 'e.g. Write a one-line opener that mentions their role.' }}"></textarea>
+      <span class="fnote">Sent to your model: for each row its name, {{ 'domain, industry, country, size' if not people_kind else 'title, company and domain' }}. Nothing else leaves this machine.</span>
+      <p class="ai-status muted" data-ai-status role="status" aria-live="polite"></p>
+    </div>
+    <footer class="sd-foot">
+      <button type="button" class="btn close-dlg">Cancel</button>
+      <button type="button" class="btn primary" data-ai-run>{{ ic("wand-sparkles", "sm") }}<span>Run on selected rows</span></button>
     </footer>
   </dialog>
 </form>
@@ -32,15 +142,36 @@
   <input type="hidden" name="query" value="{{ s.base_qs }}">
   <input type="hidden" name="next" value="{{ current_url }}">
   <dialog id="savesearch-dialog" class="sd narrow" aria-labelledby="ss-title">
-    <header class="allf-head"><h2 id="ss-title">Save current view</h2><button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">{{ ic("x") }}</button></header>
+    <header class="allf-head"><h2 id="ss-title">New saved search</h2><button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">{{ ri("x") }}</button></header>
     <div class="sd-body">
       <label class="flabel" for="ss-name">Name this search</label>
-      <input id="ss-name" type="text" name="name" required maxlength="120" placeholder="{{ 'e.g. German software, 11-50' if s.kind == 'companies' else 'e.g. Founders with a valid email' }}" autocomplete="off">
-      <span class="fnote">The filters you applied are saved. Find it again in the view menu.</span>
+      <input id="ss-name" type="text" name="name" required maxlength="120" placeholder="{{ 'e.g. German software, 11-50' if not people_kind else 'e.g. Founders with a valid email' }}" autocomplete="off">
+      <span class="fnote">Keeps the filters you applied ({{ s.active_total }} now). Find it again in the view menu, next to the built-in views.</span>
     </div>
     <footer class="sd-foot">
       <button type="button" class="btn close-dlg">Cancel</button>
       <button type="submit" class="btn primary">Save search</button>
+    </footer>
+  </dialog>
+</form>
+
+{# Row actions of the view menu without JavaScript: the menu buttons submit this form. #}
+<form id="viewact" method="post" action="/searches" hidden>
+  <input type="hidden" name="kind" value="{{ s.kind }}">
+  <input type="hidden" name="next" value="{{ current_url }}">
+</form>
+<form id="viewrename" method="post" action="/searches" data-view-rename-form>
+  <input type="hidden" name="kind" value="{{ s.kind }}">
+  <input type="hidden" name="next" value="{{ current_url }}">
+  <dialog id="rename-dialog" class="sd narrow" aria-labelledby="rn-title">
+    <header class="allf-head"><h2 id="rn-title">Rename saved search</h2><button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">{{ ri("x") }}</button></header>
+    <div class="sd-body">
+      <label class="flabel" for="rn-name">New name</label>
+      <input id="rn-name" type="text" name="name" required maxlength="120" autocomplete="off">
+    </div>
+    <footer class="sd-foot">
+      <button type="button" class="btn close-dlg">Cancel</button>
+      <button type="submit" class="btn primary">Rename</button>
     </footer>
   </dialog>
 </form>

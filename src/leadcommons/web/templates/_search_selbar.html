@@ -1,29 +1,72 @@
-{% from "_macros.html" import ic %}
 {% from "_search_macros.html" import ai_menu %}
-{# Action bar shown while rows are selected. app.js keeps ".count" and ".active" in sync. #}
-{% if s.kind == "companies" %}
-  {% set export_tip = "Exports the selected companies as a CSV file: name, domain, country, city, industry, size, LEI and Wikidata id." %}
-{% else %}
-  {% set export_tip = "Exports the selected people as a CSV file: name, title, company domain, email, status, confidence and sources. Opted-out addresses are never included." %}
-{% endif %}
-<div class="bulk selbar" role="region" aria-label="Bulk actions">
+{% from "_results_macros.html" import ri, tipbtn %}
+{# Action bar shown while rows are selected (icon buttons with short tips above them).
+   app.js keeps ".count" and ".active" in sync. Buttons with data-dlg-ids / data-dlg-one open
+   another feature's dialog for the selection. A disabled action sits in a .tipwrap so its
+   reason shows on hover in every browser, and is also linked with aria-describedby. #}
+{% set noun = "companies" if s.kind == "companies" else "people" %}
+<div class="bulk selbar" role="region" aria-label="Actions for the selected {{ noun }}">
   <button type="button" class="btn ghost clearsel" data-clear-selection title="Clear the selection"><span>Clear </span><span class="count">0 selected</span></button>
-  <button type="button" class="btn primary" data-open-dialog="save-dialog">{{ ic("plus") }}<span>Save to list</span></button>
-  {% if s.kind == "companies" %}
-  <button type="submit" form="bulk" formaction="/bulk/find-people" class="btn" hx-post="/bulk/find-people" hx-include="#bulk" hx-swap="none" hx-push-url="false">{{ ic("user-search") }}<span>Find people</span></button>
-  {% else %}
-  <button type="submit" form="bulk" formaction="/bulk/find-emails" class="btn" hx-post="/bulk/find-emails" hx-include="#bulk" hx-swap="none" hx-push-url="false">{{ ic("mail") }}<span>Find emails</span></button>
+  <button type="button" class="btn primary sel-save" data-open-dialog="save-dialog" data-tip="Save, look up details, add to a list or sequence">{{ ri("plus") }}<span>Save</span></button>
+  {% if s.kind == "people" %}
+  {{ tipbtn("mail", "Email (one person)", 'data-dlg-one="/partials/email-compose?person_id={id}" data-need-msg="Select one person to write an email. To reach several people, add them to a sequence."', "Write an email") }}
+  <details class="dd sel-dd">
+    <summary class="btn sel-split" data-tip="Sequence" aria-label="Sequence">{{ ri("send") }}{{ ri("chevron-down", "sm") }}</summary>
+    <div class="menu left">
+      <button type="button" class="menu-item" data-dlg-ids="/partials/sequence-picker?ids={ids}">{{ ri("send", "sm") }}<span>Add to a sequence</span></button>
+      <a class="menu-item" href="/sequences">{{ ri("list", "sm") }}<span>Your sequences</span></a>
+    </div>
+  </details>
   {% endif %}
-  <button type="submit" form="bulk" formaction="/bulk/export.csv" class="btn" data-tip="{{ export_tip }}">{{ ic("download") }}<span>Export CSV</span></button>
-  <span class="tb-gap"></span>
-  {{ ai_menu("Research with AI", True) }}
-  <details class="dd more-dd">
-    <summary class="btn icon-only" aria-label="More actions" title="More actions">{{ ic("ellipsis") }}</summary>
-    <div class="menu">
-      <button type="button" class="menu-item" data-select-all>{{ ic("check", "sm") }}<span>Select all on this page</span></button>
-      <button type="button" class="menu-item" data-clear-selection>{{ ic("x", "sm") }}<span>Clear selection</span></button>
+  <details class="dd sel-dd">
+    <summary class="btn sel-split" data-tip="Workflow" aria-label="Workflow">{{ ri("zap") }}{{ ri("chevron-down", "sm") }}</summary>
+    <div class="menu left">
+      <a class="menu-item" href="{{ s.workflow_url }}">{{ ri("workflow", "sm") }}<span>Create a workflow from this search</span></a>
+      <a class="menu-item" href="/workflows">{{ ri("list", "sm") }}<span>Your workflows</span></a>
+    </div>
+  </details>
+  {% if s.kind == "people" %}
+  {{ tipbtn("phone", "Log a call (one person)", 'data-dlg-one="/partials/call-log?person_id={id}" data-need-msg="Select one person to log a call."', "Log a call") }}
+  {% else %}
+  {{ tipbtn("square-check-big", "Create tasks", 'data-open-dialog="task-dialog"') }}
+  {% endif %}
+  {{ tipbtn("list-plus", "Add to list", 'data-open-dialog="list-dialog"') }}
+  <button type="submit" form="bulk" formaction="/bulk/export.csv" class="btn icon-only" data-tip="Export CSV" aria-label="Export CSV" aria-describedby="export-what">{{ ri("download") }}</button>
+  <span class="sr-only" id="export-what">{% if s.kind == "companies" %}A CSV with name, domain, country, city, industry, size, LEI and Wikidata id.{% else %}A CSV with name, title, company domain, email, status, confidence and sources. Opted-out addresses are left out.{% endif %}</span>
+  {{ ai_menu("Research with AI", True, kind=s.kind, llm=s.llm, demo=s.demo) }}
+  <details class="dd sel-dd">
+    <summary class="btn sel-split" data-tip="Send to another tool" aria-label="Send to another tool">{{ ri("cloud-upload") }}{{ ri("chevron-down", "sm") }}</summary>
+    <div class="menu right">
+      <button type="submit" form="bulk" formaction="/bulk/export.csv" class="menu-item">{{ ri("file-spreadsheet", "sm") }}<span>Download a CSV for your CRM</span></button>
+      <a class="menu-item" href="/settings/integrations">{{ ri("link", "sm") }}<span>Set up an integration</span></a>
+    </div>
+  </details>
+  <details class="dd more-dd sel-dd">
+    <summary class="btn icon-only" data-tip="More actions" aria-label="More actions">{{ ri("ellipsis") }}</summary>
+    <div class="menu right">
+      <button type="button" class="menu-item" data-select-all>{{ ri("check", "sm") }}<span>Select all on this page</span></button>
+      <button type="button" class="menu-item" data-clear-selection>{{ ri("x", "sm") }}<span>Clear selection</span></button>
       <div class="menu-sep"></div>
-      <button type="button" class="menu-item" disabled aria-disabled="true">{{ ic("send", "sm") }}<span>Add to sequence</span><span class="badge soon-badge">Soon</span></button>
+      {% if s.kind == "people" %}
+      <button type="button" class="menu-item" data-dlg-ids="/partials/sequence-picker?ids={ids}">{{ ri("send", "sm") }}<span>Add to a sequence</span></button>
+      <button type="button" class="menu-item" data-open-dialog="task-dialog">{{ ri("square-check-big", "sm") }}<span>Create tasks</span></button>
+      {% if s.demo %}
+      <span class="tipwrap" data-tip="{{ demo_reason }}" tabindex="0"><button type="button" class="menu-item" disabled aria-describedby="sel-demo-why">{{ ri("mail-check", "sm") }}<span>Find emails</span></button></span>
+      {% else %}
+      <button type="submit" form="bulk" formaction="/bulk/find-emails" class="menu-item" hx-post="/bulk/find-emails" hx-include="#bulk" hx-swap="none" hx-push-url="false">{{ ri("mail-check", "sm") }}<span>Find emails</span></button>
+      {% endif %}
+      {% else %}
+      {% if s.demo %}
+      <span class="tipwrap" data-tip="{{ demo_reason }}" tabindex="0"><button type="button" class="menu-item" disabled aria-describedby="sel-demo-why">{{ ri("user-search", "sm") }}<span>Find people</span></button></span>
+      <span class="tipwrap" data-tip="{{ demo_reason }}" tabindex="0"><button type="button" class="menu-item" disabled aria-describedby="sel-demo-why">{{ ri("refresh-cw", "sm") }}<span>Refresh company insights</span></button></span>
+      {% else %}
+      <button type="submit" form="bulk" formaction="/bulk/find-people" class="menu-item" hx-post="/bulk/find-people" hx-include="#bulk" hx-swap="none" hx-push-url="false">{{ ri("user-search", "sm") }}<span>Find people</span></button>
+      <button type="submit" form="bulk" formaction="/bulk/refresh-insights" class="menu-item" hx-post="/bulk/refresh-insights" hx-include="#bulk" hx-swap="none" hx-push-url="false">{{ ri("refresh-cw", "sm") }}<span>Refresh company insights</span></button>
+      {% endif %}
+      {% endif %}
+      {% if s.demo %}<span class="sr-only" id="sel-demo-why">{{ demo_reason }}</span>{% endif %}
+      <div class="menu-sep"></div>
+      <button type="submit" form="bulk" formaction="/bulk/suppress" class="menu-item danger" hx-post="/bulk/suppress" hx-include="#bulk" hx-swap="none" hx-push-url="false" hx-confirm="Add the selected {{ noun }} to your do-not-contact list? They will never be exported or contacted.">{{ ri("ban", "sm") }}<span>Mark as do not contact</span></button>
     </div>
   </details>
 </div>

@@ -395,3 +395,14 @@ def test_postgres_round_trip():
         assert store.list_members(list_id) == []
     finally:
         store.close()
+
+
+def test_remove_suppression(store):
+    store.add_suppression("ada@acme.example")
+    store.add_suppression("@globex.example")
+    assert store.remove_suppression("  Ada@Acme.example ") is True
+    assert not store.is_suppressed("ada@acme.example")
+    assert store.remove_suppression("ada@acme.example") is False  # already gone
+    assert store.is_suppressed("x@globex.example")  # other entries stay
+    assert store.remove_suppression("globex.example") is True
+    assert not store.is_suppressed("x@globex.example")

@@ -1,8 +1,11 @@
 {# ic(): icon from the base sprite, or from search-sprite.svg for the search screens' extras #}
 {% macro ic(name, cls="") -%}
 {%- set extra = ["pin","briefcase","map-pin","factory","arrow-up-down","columns-3","table","chevron-up","chevron-left","check","copy","ellipsis","upload","link","tag","globe","clock","graduation-cap","phone","trending-up","zap","dollar-sign","user-round","hash","calendar","arrow-left","list-plus","shield-alert","maximize-2","building","circle-dot","gauge","info"] -%}
+{%- set prof = ["workflow","refresh-cw","square-pen","ban","calendar-plus","square-function","shield-check","shield-off","phone-call","file-text"] -%}
 {%- if name in extra -%}
 <svg class="icon {{ cls }}" aria-hidden="true" focusable="false"><use href="/static/icons/search-sprite.svg#s-{{ name }}"></use></svg>
+{%- elif name in prof -%}
+<svg class="icon {{ cls }}" aria-hidden="true" focusable="false"><use href="/static/icons/profile-sprite.svg#p-{{ name }}"></use></svg>
 {%- else -%}
 <svg class="icon {{ cls }}" aria-hidden="true" focusable="false"><use href="/static/icons/sprite.svg#i-{{ name }}"></use></svg>
 {%- endif -%}

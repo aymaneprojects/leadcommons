@@ -1,0 +1,8 @@
+[
+ {"id": "a1", "text": "Product Designer", "hostedUrl": "https://jobs.lever.co/acme/a1",
+  "createdAt": 1760000000000, "workplaceType": "remote",
+  "categories": {"team": "Design", "department": "Product", "location": "Paris", "commitment": "Full-time"}},
+ {"id": "a2", "text": "Support Specialist", "hostedUrl": "https://jobs.lever.co/acme/a2",
+  "createdAt": 1760100000000, "workplaceType": "on-site",
+  "categories": {"team": "Support", "location": "Lyon"}}
+]

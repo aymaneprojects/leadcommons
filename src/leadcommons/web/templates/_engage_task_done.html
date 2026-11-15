@@ -1,0 +1,16 @@
+{% from "_engage_macros.html" import eic, dlg_head %}
+{% set url = "/tasks/" ~ t.id ~ "/" ~ action %}
+<dialog class="eg-dlg" data-autoopen data-eg-dlg aria-label="{{ 'Complete task' if action == 'complete' else 'Skip task' }}">
+  <form method="post" action="{{ url }}" hx-post="{{ url }}" hx-swap="none" data-quiet>
+    {{ dlg_head("Complete task" if action == "complete" else "Skip task", t.title, "circle-check" if action == "complete" else "skip-forward") }}
+    <input type="hidden" name="next" value="{{ next_url }}">
+    <div class="eg-dlg-body">
+      {% if p %}<p class="eg-dim">{{ p.name }}{% if p.company %} · {{ p.company }}{% endif %}</p>{% endif %}
+      <div class="field"><label for="eg-td-note">Note <span class="eg-dim">(optional)</span></label>
+        <textarea id="eg-td-note" name="note" rows="3" maxlength="2000" autofocus placeholder="{{ 'What happened? e.g. Left a voicemail' if action == 'complete' else 'Why skip it?' }}"></textarea></div>
+      {% if t.enrollment_id %}<p class="hint">{{ eic("send", "sm") }} The sequence moves on to its next step for this contact.</p>{% endif %}
+    </div>
+    <footer class="eg-dlg-foot"><button type="button" class="btn close-dlg">Cancel</button>
+      <button class="btn primary" type="submit">{{ eic("check" if action == "complete" else "skip-forward", "sm") }}<span>{{ "Complete" if action == "complete" else "Skip task" }}</span></button></footer>
+  </form>
+</dialog>

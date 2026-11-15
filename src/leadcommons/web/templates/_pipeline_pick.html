@@ -1,0 +1,7 @@
+{% for r in results %}
+<button type="button" class="pl-pick-item" role="option" data-id="{{ r.id }}" data-label="{{ r.label }}"{% if r.company_id is defined %} data-company-id="{{ r.company_id }}" data-company-name="{{ r.company_name }}"{% endif %}>
+  <b>{{ r.label }}</b>{% if r.sub %}<span class="muted">{{ r.sub }}</span>{% endif %}
+</button>
+{% else %}
+<div class="pl-pick-none muted">{% if q|length < 2 %}Type at least 2 letters.{% else %}No match. The text you typed is kept as the name.{% endif %}</div>
+{% endfor %}

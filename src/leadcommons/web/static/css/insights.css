@@ -1,0 +1,90 @@
+/* insights feature styles; tokens come from app.css */
+.ins { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.ins-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px 4px; }
+.ins-head h3 { font-size: 15px; margin: 0; }
+.ins-state { margin: 2px 0 0; font-size: 12px; display: flex; align-items: center; gap: 6px; }
+.ins-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+.ins-dot.ok { background: var(--ok); }
+.ins-dot.off { background: var(--muted); opacity: .6; }
+.ins-dot.busy { background: var(--amber); animation: pulse 1.4s infinite; }
+@keyframes ins-spin { to { transform: rotate(360deg); } }
+.ins .icon.spin { animation: ins-spin 1s linear infinite; }
+.ins-note { margin: 8px 18px 0; padding: 8px 12px; border: 1px solid var(--line); background: var(--raised); border-radius: var(--radius-sm); font-size: 12.5px; }
+.ins-note.err { border-color: var(--red); color: var(--red); }
+.ins-tabs { display: flex; gap: 2px; padding: 0 12px; border-bottom: 1px solid var(--line); overflow-x: auto; margin-top: 8px; }
+.ins-tabs a { padding: 9px 11px; color: var(--muted); font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
+.ins-tabs a:hover { color: var(--text); text-decoration: none; }
+.ins-tabs a[aria-selected="true"] { color: var(--text); border-bottom-color: var(--orange); }
+.ins-tabs .n, .ins-group h4 .n { font-size: 11px; color: var(--muted); background: var(--raised); border-radius: 999px; padding: 0 6px; font-weight: 400; }
+.ins-body { padding: 14px 18px 18px; }
+.ins-intro { font-size: 12.5px; margin: 0 0 10px; }
+.ins-group + .ins-intro, .ins-rows + .ins-intro, .ins-table + .ins-intro { margin-top: 14px; margin-bottom: 0; }
+.ins-empty { padding: 26px 8px; text-align: center; }
+.ins-empty h4 { margin: 0 0 6px; font-size: 15px; font-family: var(--font-head); }
+.ins-empty p { max-width: 520px; margin: 0 auto; }
+.ins-limits { margin: 14px 0 0; padding: 10px 12px 10px 28px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12.5px; }
+
+/* Overview rows, like the label / value list of the company insights card */
+.ins-rows { margin: 0; }
+.ins-row { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.ins-row:last-child { border-bottom: 0; }
+.ins-row dt { color: var(--muted); }
+.ins-row dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.ins-chips { margin-top: 6px; }
+.ins-row dd > .ins-chips:first-child { margin-top: 0; }
+.ins-plain { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.ins-src { margin-left: 8px; font-size: 11px; }
+
+/* Technologies */
+.ins-group + .ins-group { margin-top: 16px; }
+.ins-group h4 { margin: 0 0 6px; font-size: 13px; font-family: var(--font-head); display: flex; align-items: center; gap: 8px; }
+.ins-tech { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+.ins-tech li { display: grid; grid-template-columns: minmax(130px, 200px) minmax(0, 1fr); gap: 12px; padding: 7px 12px; border-bottom: 1px solid var(--line); align-items: baseline; }
+.ins-tech li:last-child { border-bottom: 0; }
+.ins-tech-name { font-weight: 500; }
+.ins-evidence { color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Jobs */
+.ins-bars { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 6px; }
+.ins-bars li { display: grid; grid-template-columns: minmax(110px, 200px) minmax(0, 1fr) 32px; gap: 10px; align-items: center; }
+.ins-bars .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ins-bars .bar { background: var(--raised); border-radius: 4px; height: 10px; overflow: hidden; }
+.ins-bars .bar i { display: block; height: 100%; background: var(--orange); border-radius: 4px; }
+.ins-bars .num { text-align: right; font-family: var(--font-mono); font-size: 12px; }
+.ins-table { max-height: 380px; overflow: auto; }
+
+/* Employee trends */
+.ins-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+.ins-stats > div { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 9px 12px; display: grid; gap: 2px; }
+.ins-stats strong { font: 600 20px var(--font-head); }
+.ins-chart { margin: 0 0 14px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px; }
+.ins-chart svg { width: 100%; max-width: 680px; height: auto; display: block; }
+.ins-chart .axis { stroke: var(--line); stroke-width: 1; }
+.ins-chart .tick { fill: var(--muted); font: 11px var(--font-mono); }
+.ins-chart .line { fill: none; stroke: var(--orange); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.ins-chart .pt { fill: var(--surface); stroke: var(--orange); stroke-width: 2; }
+
+@media (max-width: 640px) {
+  .ins-row { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .ins-tech li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .ins-stats { grid-template-columns: minmax(0, 1fr); }
+  .ins-head { flex-wrap: wrap; }
+}
+
+/* header tools (gear menu + collapse), disabled tabs in the strip, folded state */
+.ins-tools { display: flex; align-items: center; gap: 4px; flex: none; }
+.ins-tools form { margin: 0; }
+.ins-gear .menu { min-width: 270px; }
+.ins-gear .menu form { margin: 0; }
+.ins-what { margin: 0; padding: 8px 12px 12px; line-height: 1.45; }
+.ins-fold .icon { transition: transform .15s; }
+.ins.folded .ins-fold .icon { transform: rotate(180deg); }
+.ins.folded .ins-fold-body { display: none; }
+.ins.folded .ins-head { padding-bottom: 14px; }
+.ins-tab-off { padding: 9px 11px; color: var(--muted); white-space: nowrap; display: inline-flex; align-items: center; opacity: .5; cursor: not-allowed; border-bottom: 2px solid transparent; margin-bottom: -1px; position: relative; }
+.ins-tabs { overflow: visible; flex-wrap: wrap; }
+.ins-tab-off[data-tip]:hover::after, .ins-tab-off[data-tip]:focus-visible::after { top: calc(100% + 6px); }
+.ins-empty-act { margin-top: 12px; display: flex; justify-content: center; }
+.ins-empty-act form { margin: 0; }
+.ins-tabs a, .ins-tab-off { padding: 9px 8px; font-size: 13px; }
+.ins-tab-off { opacity: 1; color: color-mix(in srgb, var(--muted) 55%, transparent); }

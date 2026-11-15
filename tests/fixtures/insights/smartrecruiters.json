@@ -1,0 +1,7 @@
+{"offset": 0, "limit": 100, "totalFound": 2, "content": [
+ {"id": "743999", "name": "Financial Controller", "releasedDate": "2026-10-08T10:00:00.000Z",
+  "department": {"label": "Finance"},
+  "location": {"city": "Zurich", "country": "ch", "remote": false, "fullLocation": "Zurich, Switzerland"}},
+ {"id": "744000", "name": "Data Analyst", "releasedDate": "2026-10-09T10:00:00.000Z",
+  "department": {"label": "Data"}, "location": {"city": "Geneva", "country": "ch", "remote": true}}
+]}

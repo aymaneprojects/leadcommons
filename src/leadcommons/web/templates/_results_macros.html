@@ -1,0 +1,30 @@
+{# Building blocks of the results screens (toolbar menus, selection bar, save window, drawers).
+   ri(): an icon from results-sprite.svg (Lucide, ISC licence). #}
+{% macro ri(name, cls="") -%}
+<svg class="icon {{ cls }}" aria-hidden="true" focusable="false"><use href="/static/icons/results-sprite.svg#r-{{ name }}"></use></svg>
+{%- endmacro %}
+
+{# A control that cannot work here: focusable, aria-disabled, and its reason is both a hover
+   tip and a screen-reader description (disabled buttons get no hover in some browsers). #}
+{% macro off_reason(uid, reason) -%}
+<span class="sr-only" id="{{ uid }}">{{ reason }}</span>
+{%- endmacro %}
+
+{# Icon-only button of the selection bar with a short tip above it. #}
+{% macro tipbtn(icon, tip, attrs="", label=none) -%}
+<button type="button" class="btn icon-only" data-tip="{{ tip }}" aria-label="{{ label or tip }}" {{ attrs|safe }}>{{ ri(icon) }}</button>
+{%- endmacro %}
+
+{# Segmented control (radio buttons styled as one bar). options = [(value, label)] #}
+{% macro segmented(name, options, value, disabled=False, reason="") -%}
+<div class="seg2{% if disabled %} off{% endif %}" role="radiogroup"{% if disabled %} aria-disabled="true" data-tip="{{ reason }}"{% endif %}>
+  {% for v, label in options %}<label class="seg2-opt"><input type="radio" name="{{ name }}" value="{{ v }}" {% if v == value %}checked{% endif %}{% if disabled %} disabled{% endif %}><span>{{ label }}</span></label>{% endfor %}
+</div>
+{%- endmacro %}
+
+{# Wrap a control that may be disabled: the reason shows on hover of the wrapper (disabled
+   buttons get no hover in some browsers) and is read out next to it.
+   {% call tipwrap(reason, is_off) %}<button ... {% if is_off %}disabled{% endif %}>..</button>{% endcall %} #}
+{% macro tipwrap(reason, on=True, inline=True) -%}
+{%- if on and reason %}<span class="tipwrap{% if inline %} inline{% endif %}" data-tip="{{ reason }}" tabindex="0">{{ caller() }}<span class="sr-only">{{ reason }}</span></span>{% else %}{{ caller() }}{% endif -%}
+{%- endmacro %}

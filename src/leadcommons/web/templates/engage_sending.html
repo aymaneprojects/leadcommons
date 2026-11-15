@@ -1,0 +1,67 @@
+{% extends "shell_settings_base.html" %}
+{% from "_engage_macros.html" import eic, outbound_head %}
+{% block title %}Sending rules · LeadCommons{% endblock %}
+{% block settings_body %}
+<div class="eg-set">
+{% call outbound_head("sending", demo, mailboxes) %}
+  <form method="post" action="/settings/sending/run" class="eg-inline">
+    <button class="btn" type="submit"{% if demo %} disabled title="{{ demo_reason }}"{% elif not mailboxes %} disabled title="Connect a mailbox first"{% else %} title="Run the sender once now instead of waiting up to a minute"{% endif %}>{{ eic("refresh-cw", "sm") }}<span>Send due emails now</span></button>
+  </form>
+{% endcall %}
+{% if demo %}<div class="eg-bar" role="note">{{ eic("lock") }}<span>{{ demo_reason }}</span></div>{% endif %}
+
+<form class="eg-form" method="post" action="/settings/sending">
+  <section class="eg-card">
+    <h2>{{ eic("mail-x", "sm") }} Unsubscribe footer <span class="chip">Always on</span></h2>
+    <p class="eg-dim">Added under every email LeadCommons sends, with a personal unsubscribe link. One click adds the address to your do-not-contact list and stops every sequence for it.</p>
+    <div class="field"><label for="eg-x-footer">Footer text</label>
+      <textarea id="eg-x-footer" name="footer_text" rows="3" maxlength="1000" required>{{ cfg.footer_text }}</textarea></div>
+    <div class="field"><label for="eg-x-address">Postal address</label>
+      <input id="eg-x-address" type="text" name="postal_address" value="{{ cfg.postal_address }}" maxlength="300" placeholder="Your Company, 10 Example Street, 75001 Paris, France">
+      <span class="hint">Many anti-spam laws ask for one in every prospecting email.</span></div>
+    <div class="eg-foot-preview" aria-label="Footer preview"><span class="eg-label">Preview</span><pre>{{ sample }}</pre></div>
+  </section>
+
+  <section class="eg-card">
+    <h2>{{ eic("external-link", "sm") }} Address of this app</h2>
+    <p class="eg-dim">Unsubscribe links point here, so recipients must be able to open it. Leave it empty to use the address you are browsing from.</p>
+    <div class="field"><label for="eg-x-url">Public address</label>
+      <div class="eg-inline-field"><input id="eg-x-url" type="url" name="public_url" value="{{ cfg.public_url }}" maxlength="300" placeholder="https://leads.yourcompany.com">
+        <button class="btn sm" type="button" data-eg-fill="#eg-x-url" data-eg-value="{{ suggested_url }}">Use {{ suggested_url }}</button></div>
+      <span class="hint">Links currently start with <span class="mono">{{ link_base }}/u/…</span>.
+        {% if "localhost" in link_base or "127.0.0.1" in link_base %}<span class="eg-err">Recipients cannot open this address.</span> They can still reply "unsubscribe", which LeadCommons detects when IMAP is set up, and every email carries a mailto unsubscribe header.{% endif %}</span></div>
+  </section>
+
+  <section class="eg-card">
+    <h2>{{ eic("calendar-clock", "sm") }} Timing</h2>
+    <div class="eg-row2">
+      <div class="field"><label for="eg-x-delay">Default wait between steps</label>
+        <div class="eg-suffix"><input id="eg-x-delay" type="number" name="default_delay_days" min="0" max="60" value="{{ cfg.default_delay_days }}"><span>days</span></div></div>
+      <div class="field"><label for="eg-x-gap">Space emails from one mailbox by at least</label>
+        <div class="eg-suffix"><input id="eg-x-gap" type="number" name="gap_minutes" min="0" max="120" value="{{ cfg.gap_minutes }}"><span>minutes</span></div></div>
+      <div class="field"><label for="eg-x-poll">Check for replies every</label>
+        <div class="eg-suffix"><input id="eg-x-poll" type="number" name="reply_poll_minutes" min="1" max="1440" value="{{ cfg.reply_poll_minutes }}"><span>minutes</span></div></div>
+      <div class="field"><label for="eg-x-tz">Your time zone</label>
+        <select id="eg-x-tz" name="timezone">{% for z in timezones %}<option{% if z == cfg.timezone %} selected{% endif %}>{{ z }}</option>{% endfor %}</select>
+        <span class="hint">Used for task due dates and scheduled emails. Each mailbox keeps its own sending window.</span></div>
+    </div>
+  </section>
+
+  <section class="eg-card">
+    <h2>{{ eic("reply", "sm") }} Replies and bounces</h2>
+    <label class="eg-check-row"><input type="checkbox" name="stop_on_reply"{% if cfg.stop_on_reply %} checked{% endif %}> Stop a sequence for a contact as soon as they reply <span class="eg-dim">(default for new sequences; each sequence can change it)</span></label>
+    <fieldset class="eg-radio-col"><legend class="eg-label">When an email bounces</legend>
+      <label><input type="radio" name="bounce_action" value="suppress"{% if cfg.bounce_action == "suppress" %} checked{% endif %}> Stop the sequence and add the address to the do-not-contact list <span class="chip plain">Recommended</span></label>
+      <label><input type="radio" name="bounce_action" value="stop"{% if cfg.bounce_action == "stop" %} checked{% endif %}> Only stop the sequence for that contact</label>
+    </fieldset>
+  </section>
+
+  <section class="eg-card eg-card-quiet">
+    <h2>{{ eic("eye-off", "sm") }} Tracking <span class="chip ok">Off, always</span></h2>
+    <p class="eg-dim">LeadCommons adds no open-tracking pixel and rewrites no links. It counts replies (through IMAP), bounces and unsubscribes, which is what matters and respects the people you write to.</p>
+  </section>
+
+  <div class="eg-form-foot"><button class="btn primary" type="submit">{{ eic("check", "sm") }}<span>Save sending rules</span></button></div>
+</form>
+</div>
+{% endblock %}

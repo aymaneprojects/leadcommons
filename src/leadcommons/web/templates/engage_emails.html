@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% from "_engage_macros.html" import eic, msg_chip, when, send_bar, dlg_link, person_cell, post_btn %}
+{% block title %}Emails · LeadCommons{% endblock %}
+{% block content %}
+<div class="eg-page">
+<div class="page-head eg-head">
+  <h1>Emails</h1>
+  {% if mailboxes or rows %}
+  <div class="eg-head-actions">
+    <form method="post" action="/settings/sending/run?next=/emails" class="eg-inline">
+      <button class="btn" type="submit"{% if demo %} disabled title="{{ demo_reason }}"{% elif not mailboxes %} disabled title="Connect a mailbox first"{% else %} title="Send what is due now instead of waiting for the next pass"{% endif %}>{{ eic("refresh-cw", "sm") }}<span>Send due now</span></button>
+    </form>
+    {{ dlg_link("/partials/email-compose?refresh=1", "Compose", "square-pen", "btn primary") }}
+  </div>
+  {% endif %}
+</div>
+
+{% if not mailboxes and not (tab_counts.sent or tab_counts.replies or tab_counts.failed or tab_counts.scheduled) %}
+<section class="eg-promo">
+  <div class="eg-promo-card">
+    <div class="eg-promo-t">{{ eic("rocket") }}<b>Get your outreach going</b></div>
+    <div class="eg-promo-bar"><i></i></div>
+    <ul>
+      <li>{{ eic("circle-check", "sm") }} Connect the mailbox you already own</li>
+      <li>{{ eic("circle-check", "sm") }} Send one-off emails and sequences</li>
+      <li>{{ eic("circle-check", "sm") }} See replies next to each contact</li>
+      <li>{{ eic("circle-check", "sm") }} Opt-outs honored automatically</li>
+    </ul>
+  </div>
+  <h2>Send from your own mailbox, on your terms</h2>
+  <p>Connect any mailbox with SMTP, and IMAP for replies. Emails leave from your own address, within your daily limit and sending hours, and every one carries an unsubscribe link.</p>
+  <div class="eg-promo-actions">
+    {% if demo %}
+    <button class="btn primary" type="button" disabled aria-disabled="true" title="{{ demo_reason }}">Connect a mailbox</button>
+    {% else %}
+    <a class="btn primary" href="/settings/mailboxes/new">Connect a mailbox</a>
+    {% endif %}
+    <a class="btn" href="/settings/mailboxes">See how it works</a>
+  </div>
+  {% if demo %}<p class="hint">{{ demo_reason }}</p>{% endif %}
+</section>
+{% else %}
+{{ send_bar(demo, demo_reason, mailboxes) }}
+<nav class="tabs eg-tabs" role="tablist" aria-label="Email folders">
+  {% for key, label in tabs %}
+  <a class="tab" role="tab" href="/emails?tab={{ key }}" {% if tab == key %}aria-selected="true"{% endif %}>{{ label }} <span class="tab-n">{{ tab_counts[key] }}</span></a>
+  {% endfor %}
+</nav>
+<form class="eg-toolbar" method="get" action="/emails" data-eg-autosubmit>
+  <input type="hidden" name="tab" value="{{ tab }}">
+  <label class="eg-search">{{ eic("search", "sm") }}<span class="sr-only">Search emails</span>
+    <input type="search" name="q" value="{{ q }}" placeholder="Search subject or address" autocomplete="off"></label>
+  <span class="grow"></span>
+  {% for m in mailboxes %}
+  <span class="eg-usage" title="Sent today from {{ m.from_email }} (daily limit {{ m.daily_limit }})">{{ eic("mail", "sm") }}<span class="mono">{{ m.from_email }}</span><span class="eg-meter sm"><i style="width: {{ [100, (today.get(m.id, 0) * 100 // (m.daily_limit or 1))]|min }}%"></i></span><span class="mono">{{ today.get(m.id, 0) }}/{{ m.daily_limit }}</span></span>
+  {% endfor %}
+</form>
+
+{% if rows %}
+<div class="table-wrap eg-table">
+  <table class="data">
+    <thead><tr>
+      <th scope="col">{{ "From" if tab == "replies" else "To" }}</th><th scope="col">Subject</th><th scope="col">Sequence</th>
+      <th scope="col">{{ {"scheduled": "Goes out", "replies": "Received", "failed": "When"}.get(tab, "Sent") }}</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td>{{ person_cell(r.p, r.to, r.to) }}</td>
+        <td class="eg-subj">
+          {% if r.kind == "message" or r.kind == "one-off" %}
+          <a href="/partials/email/{{ r.id }}" data-eg-dialog="/partials/email/{{ r.id }}">{{ r.subject or "(no subject)" }}</a>
+          {% else %}<a href="/sequences/{{ r.seq.id }}?tab=contacts">{{ r.subject }}</a>{% endif %}
+          {% if r.error %}<span class="eg-sub eg-err">{{ r.error }}</span>{% endif %}
+        </td>
+        <td>{% if r.seq %}<a href="/sequences/{{ r.seq.id }}">{{ r.seq.name }}</a>{% else %}<span class="eg-dim">One-off</span>{% endif %}</td>
+        <td>{{ when(r.at, tab == "scheduled") }}</td>
+        <td>{{ msg_chip(r.status, r.replied) }}</td>
+        <td class="eg-ract">
+          {% if r.kind == "one-off" %}
+            {{ post_btn("/emails/" ~ r.id ~ "/cancel", "", "circle-x", "btn ghost icon-only sm", {}, "Cancel this email") }}
+          {% elif r.kind == "message" %}
+            {% if r.status == "failed" %}{{ post_btn("/emails/" ~ r.id ~ "/retry", "", "refresh-cw", "btn ghost icon-only sm", {}, "Try again", disabled=demo) }}{% endif %}
+            {{ dlg_link("/partials/email/" ~ r.id, "", "eye", "btn ghost icon-only sm", "Open") }}
+          {% else %}
+            <a class="btn ghost icon-only sm" href="/sequences/{{ r.seq.id }}?tab=contacts" title="Open the sequence" aria-label="Open the sequence">{{ eic("send", "sm") }}</a>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="eg-empty">
+  <span class="eg-empty-ic">{{ eic({"scheduled": "calendar-clock", "sent": "send", "replies": "inbox", "failed": "mail-warning"}[tab], "lg") }}</span>
+  <h2>{{ {"scheduled": "Nothing scheduled", "sent": "No emails sent yet", "replies": "No replies yet", "failed": "No failed or bounced emails"}[tab] }}</h2>
+  <p>{{ {"scheduled": "Emails waiting in active sequences and emails you scheduled show up here.", "sent": "Every email that leaves your mailbox is listed here.", "replies": "Replies are matched to your emails through IMAP. Add IMAP details to a mailbox to see them.", "failed": "Good news. Hard bounces stop the sequence and are kept off future sends."}[tab] }}</p>
+  {% if q %}<p><a href="/emails?tab={{ tab }}">Clear the search</a></p>{% endif %}
+</div>
+{% endif %}
+{% endif %}
+</div>
+{% endblock %}

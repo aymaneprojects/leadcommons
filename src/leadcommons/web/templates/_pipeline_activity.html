@@ -1,0 +1,17 @@
+{% from "_pipeline_macros.html" import pi %}
+{% if rows %}
+<ol class="pl-tl" aria-label="Activity timeline">
+  {% for r in rows %}
+  <li class="pl-tl-item k-{{ r.a.kind }}">
+    <span class="pl-tl-ic" aria-hidden="true">{{ pi(r.icon, "sm") }}</span>
+    <div class="pl-tl-body">
+      <div class="pl-tl-top"><b>{{ r.label }}</b><time datetime="{{ r.a.created_at.isoformat() }}" title="{{ r.a.created_at.strftime('%Y-%m-%d %H:%M') }} UTC">{{ ago(r.a.created_at) }}</time></div>
+      <p class="pl-tl-sum">{{ r.a.summary }}</p>
+      {% if r.links %}<div class="pl-tl-links">{% for ico, name, href in r.links %}<a class="chip plain" href="{{ href }}">{{ pi(ico, "sm") }}{{ name }}</a>{% endfor %}</div>{% endif %}
+    </div>
+  </li>
+  {% endfor %}
+</ol>
+{% else %}
+<p class="pl-tl-empty muted">Nothing logged yet. Notes, calls, meetings and emails will appear here.</p>
+{% endif %}

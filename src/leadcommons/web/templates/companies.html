@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 {% from "_macros.html" import ic, hxf, pager, avatar %}
+{% from "_search_macros.html" import row_actions %}
 {% block title %}Find companies · LeadCommons{% endblock %}
 {% block content %}
+<link rel="stylesheet" href="/static/css/search-filters.css">
 <div class="page-head">
   <h1>Find companies</h1>
   {% include "_search_import.html" %}
@@ -14,13 +16,9 @@
     {% include "_search_panel.html" %}
 
     <section class="results" aria-label="Results">
-      {% if not has_filters and p.tab == 'all' and total and s.countries %}
-      <div class="qf"><b>Top countries</b><span class="chips">
-        {% for code, name, n in s.countries[:6] %}<a class="chip" href="/companies?country={{ code }}" {{ hxf("/companies?country=" ~ code) }}>{{ name }} <span class="n">{{ fmt_int(n) }}</span></a>{% endfor %}
-      </span></div>
-      {% endif %}
-
-      {% if items %}
+      {% if landing %}
+      {% include "_search_landing.html" %}
+      {% elif items %}
       <div class="table-wrap tbl">
         <table class="data" data-cols="companies">
           <thead><tr>
@@ -30,7 +28,7 @@
           </tr></thead>
           <tbody>
           {% for c in items %}
-            <tr>
+            <tr data-id="{{ c.id }}">
               <td class="cb"><input type="checkbox" class="rowcb" name="ids" value="{{ c.id }}" form="bulk" aria-label="Select {{ c.name }}"></td>
               {% for col in s.columns %}
               <td data-col="{{ col.key }}"{% if not col.default %} hidden{% endif %}>
@@ -41,6 +39,7 @@
                 {%- elif col.key == "industry" -%}{{ c.industry_label or isic.get(c.industry) or c.industry or "" }}
                 {%- elif col.key == "size" -%}<span class="mono">{{ c.size_range or "" }}</span>
                 {%- elif col.key == "sources" -%}<span class="chips">{% for src in (c.sources | map(attribute="source") | unique) %}<span class="chip src">{{ src }}</span>{% endfor %}</span>
+                {%- elif col.key == "phone" -%}{% set ph = phones.get(c.id) %}{% if ph %}<a class="mono phone" href="{{ ph|tel }}" title="Business line from the company website">{{ ph }}</a>{% endif %}
                 {%- elif col.key == "country" -%}{{ country_name(c.country) }}
                 {%- elif col.key == "city" -%}{{ c.city or "" }}
                 {%- elif col.key == "region" -%}{{ c.region or "" }}
@@ -51,12 +50,7 @@
                 {%- endif -%}
               </td>
               {% endfor %}
-              <td class="ract">
-                <span class="ract-in">
-                  <button class="btn ghost icon-only sm" type="submit" formmethod="post" formaction="/companies/{{ c.id }}/find-people" hx-post="/companies/{{ c.id }}/find-people" hx-swap="none" hx-push-url="false" title="{% if c.domain %}Find people at {{ c.domain }}{% else %}No known domain{% endif %}" aria-label="Find people at {{ c.name }}"{% if not c.domain %} disabled{% endif %}>{{ ic("user-search", "sm") }}</button>
-                  <button class="btn ghost icon-only sm" type="button" data-row-save title="Save to list" aria-label="Save {{ c.name }} to a list">{{ ic("list-plus", "sm") }}</button>
-                </span>
-              </td>
+              <td class="ract">{{ row_actions("companies", c.id, c.name, none, phones.get(c.id), s.demo, c.domain is not none) }}</td>
             </tr>
           {% endfor %}
           </tbody>
@@ -80,3 +74,4 @@
 {% include "_search_dialogs.html" %}
 </div>
 {% endblock %}
+{% block dialogs %}<script src="/static/js/search-filters.js" defer></script>{% endblock %}

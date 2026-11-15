@@ -1,0 +1,15 @@
+{% if ins.technologies %}
+  <p class="muted ins-intro">{{ ins.technologies|length }} technologies spotted from public signals: page source, script addresses, response headers, cookie names and DNS records. Hover a name to see what matched.</p>
+  {% for category, items in ins.technologies_by_category() %}
+  <section class="ins-group">
+    <h4>{{ category }} <span class="n">{{ items|length }}</span></h4>
+    <ul class="ins-tech">
+      {% for t in items %}
+      <li><span class="ins-tech-name">{{ t.name }}</span><code class="ins-evidence" title="{{ t.evidence }}">{{ t.evidence }}</code></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+{% else %}
+  <div class="ins-empty"><h4>No technologies detected</h4><p class="muted">{% if ins.pages_crawled %}None of the public signals on {{ ins.pages_crawled }} page{{ "" if ins.pages_crawled == 1 else "s" }} matched a known technology.{% else %}The website could not be read, so there was nothing to check.{% endif %}</p></div>
+{% endif %}

@@ -311,6 +311,34 @@ def optout(
     typer.echo(f"{target} added to the suppression list.")
 
 
+@app.command()
+def worker(
+    interval: Annotated[
+        float, typer.Option(help="Seconds between two passes of the email sender.")
+    ] = 60.0,
+    once: Annotated[bool, typer.Option("--once", help="Run a single pass, then exit.")] = False,
+) -> None:
+    """Send due sequence emails, create due tasks and check for replies, in a loop.
+
+    Use it when the web app runs elsewhere (a Docker worker service). Set
+    LEADCOMMONS_ENGAGE_SCHEDULER=0 on the web service to leave sending to the worker only;
+    both are safe together because a database lease lets one pass run at a time."""
+    import logging
+
+    from leadcommons.store import Store
+
+    settings = _settings()
+    if settings.mode == "demo":
+        raise _fail("the public demo never sends email.", "Set LEADCOMMONS_MODE=local or server.")
+    settings.ensure_dirs()
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    store = Store(settings.database_url)
+    typer.echo(f"LeadCommons worker ({settings.mode} mode): one pass every {interval:g}s")
+    from leadcommons.engage.scheduler import loop_forever
+
+    _guard("the worker", lambda: loop_forever(store, settings, max(5.0, interval), once))
+
+
 @app.command("mcp")
 def mcp_cmd(
     http: Annotated[

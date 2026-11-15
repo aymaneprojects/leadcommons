@@ -1,0 +1,16 @@
+{% from "_engage_macros.html" import eic %}
+{% if rows %}
+<ul class="eg-res-list">
+  {% for row in rows %}{% set p = row.p %}
+  <li><label class="eg-res{% if row.reason %} off{% endif %}">
+    <input type="checkbox" name="ids" value="{{ p.id }}"{% if row.reason %} disabled{% endif %}>
+    <span class="av pe tone-{{ tone(p.name) }}" aria-hidden="true">{{ initials(p.name) }}</span>
+    <span class="eg-res-t"><b>{{ p.name }}</b><span class="eg-sub">{{ p.title }}{% if p.title and p.company %} · {% endif %}{{ p.company }}</span></span>
+    <span class="eg-res-r">{% if row.reason %}<span class="chip plain">{{ {"duplicate": "Already in it", "no_email": "No email", "invalid_email": "Invalid email", "suppressed": "Do not contact", "missing": "Not found"}.get(row.reason, row.reason) }}</span>{% else %}<span class="mono eg-dim">{{ p.email }}</span>{% endif %}</span>
+  </label></li>
+  {% endfor %}
+</ul>
+{% if total > rows|length %}<p class="hint">Showing {{ rows|length }} of {{ total }}. Search to narrow it down.</p>{% endif %}
+{% else %}
+<p class="eg-dim">{% if q %}Nobody saved matches "{{ q }}".{% else %}You have no saved people yet. Find some in <a href="/people">People</a>.{% endif %}</p>
+{% endif %}

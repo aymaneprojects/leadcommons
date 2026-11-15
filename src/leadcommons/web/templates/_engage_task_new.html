@@ -1,0 +1,32 @@
+{% from "_engage_macros.html" import eic, task_icon, dlg_head %}
+<dialog class="eg-dlg" data-autoopen data-eg-dlg aria-label="New task">
+  <form method="post" action="/tasks" hx-post="/tasks" hx-swap="none" data-quiet>
+    {{ dlg_head("New task", ("For " ~ p.name ~ ((" at " ~ c.name) if c else "")) if p else (("For " ~ c.name) if c else "A reminder for you"), "square-check-big") }}
+    {% if p %}<input type="hidden" name="person_id" value="{{ p.id }}">{% endif %}
+    {% if c %}<input type="hidden" name="company_id" value="{{ c.id }}">{% endif %}
+    {% if deal_id %}<input type="hidden" name="deal_id" value="{{ deal_id }}">{% endif %}
+    {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+    {% if refresh %}<input type="hidden" name="refresh" value="1">{% endif %}
+    <div class="eg-dlg-body">
+      <fieldset class="eg-kind-pick eg-kind-4"><legend>Type</legend>
+        {% for k in kinds %}
+        <label class="eg-kind-opt"><input type="radio" name="kind" value="{{ k }}"{% if k == kind %} checked{% endif %}>
+          <span><span class="eg-task-kind k-{{ k }}">{{ task_icon(k, "sm") }}</span>{{ eg_task_labels[k] }}</span></label>
+        {% endfor %}
+      </fieldset>
+      <div class="field"><label for="eg-t-title">Title</label>
+        <input id="eg-t-title" type="text" name="title" required maxlength="300" autocomplete="off" autofocus
+               placeholder="{% if p %}e.g. Follow up with {{ p.name.split(' ')[0] }}{% else %}e.g. Prepare the pricing deck{% endif %}"></div>
+      <div class="eg-row3">
+        <div class="field"><label for="eg-t-date">Due date</label><input id="eg-t-date" type="date" name="due_date" value="{{ today }}"></div>
+        <div class="field"><label for="eg-t-time">Time</label><input id="eg-t-time" type="time" name="due_time" value="09:00"></div>
+        <div class="field"><label for="eg-t-prio">Priority</label>
+          <select id="eg-t-prio" name="priority">{% for pr in priorities %}<option value="{{ pr }}"{% if pr == "medium" %} selected{% endif %}>{{ pr|capitalize }}</option>{% endfor %}</select></div>
+      </div>
+      <div class="field"><label for="eg-t-body">Notes <span class="eg-dim">(optional)</span></label>
+        <textarea id="eg-t-body" name="body" rows="3" maxlength="4000" placeholder="Context, talking points, links…"></textarea></div>
+      <p class="hint">Times are in {{ tz }}. Change your time zone in Settings, Sending rules.</p>
+    </div>
+    <footer class="eg-dlg-foot"><button type="button" class="btn close-dlg">Cancel</button><button class="btn primary" type="submit">{{ eic("plus", "sm") }}<span>Create task</span></button></footer>
+  </form>
+</dialog>

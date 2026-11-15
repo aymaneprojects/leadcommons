@@ -15,11 +15,12 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal
 
+from leadcommons import workflows
 from leadcommons.models import utcnow
 
 log = logging.getLogger(__name__)
 
-JobKind = Literal["find_people", "find_email", "enrich_csv"]
+JobKind = Literal["find_people", "find_email", "enrich_csv", "company_insights"]
 JobStatus = Literal["queued", "running", "done", "failed"]
 
 MAX_JOBS = 200
@@ -47,6 +48,7 @@ class JobRunner:
     find_people: {"domain": str, "company_id": str | None}
     find_email:  {"person_id": str}
     enrich_csv:  {"input": str (path), "output": str (path)}
+    company_insights: {"company_id": str, "domain": str | None}
     """
 
     def __init__(self, store: Any, search: Any, settings: Any) -> None:
@@ -157,6 +159,7 @@ class JobRunner:
             if company_id:
                 p.company_id = company_id
             self.store.save_person(p)
+            workflows.emit("person_found", person_id=p.id, company_id=company_id, domain=domain)
         return {"people": len(people)}
 
     def _do_find_email(self, job: Job) -> dict[str, Any]:
@@ -175,6 +178,7 @@ class JobRunner:
             return {"suppressed": True}
         self.store.save_email(person.id, cand)
         status = getattr(cand.status, "value", cand.status)
+        workflows.emit("email_found", person_id=person.id, address=cand.address, status=str(status))
         return {"email": cand.address, "status": str(status), "confidence": cand.confidence}
 
     def _do_enrich_csv(self, job: Job) -> dict[str, Any]:
@@ -193,3 +197,22 @@ class JobRunner:
             progress=progress,
         )
         return {"output": res["output"], "rows": res["rows"], "found": res["found"]}
+
+    def _do_company_insights(self, job: Job) -> dict[str, Any]:
+        from leadcommons import insights
+        from leadcommons.models import Company
+
+        company_id = job.payload["company_id"]
+        company = self.search.get_company(company_id)
+        if company is None and hasattr(self.store, "get_company"):
+            company = self.store.get_company(company_id)
+        if company is None:
+            company = Company(id=company_id, name=job.payload.get("domain") or company_id)
+        if not company.domain and job.payload.get("domain"):
+            company.domain = job.payload["domain"]
+        res = insights.refresh(self.store, company, settings=self.settings)
+        return {
+            "technologies": len(res.technologies),
+            "jobs": len(res.jobs.postings),
+            "phones": len(res.contact.phones),
+        }

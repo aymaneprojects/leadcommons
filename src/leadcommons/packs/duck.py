@@ -9,11 +9,17 @@ from typing import Any
 
 import duckdb
 
-from leadcommons.models import Company, Provenance
+from leadcommons.models import SIZE_RANGES, Company, Provenance
 from leadcommons.packs.domains import normalize_domain
-from leadcommons.search import PACK_COLUMNS, CompanyFilters, Page
+from leadcommons.search import KEYWORD_FIELDS, PACK_COLUMNS, CompanyFilters, Page
 
-FACETS = {"country": "country", "industry": "industry", "size_range": "size_range"}
+FACETS = {
+    "country": "country",
+    "industry": "industry",
+    "size_range": "size_range",
+    "region": "region",
+    "city": "city",
+}
 _COLS = ", ".join(PACK_COLUMNS)
 _REG_COLS = (("lei", "lei"), ("wikidata", "wikidata_id"), ("siren", "siren"), ("cik", "cik"))
 _TYPES = {"founded_year": "INTEGER"}
@@ -88,41 +94,84 @@ class DuckDBCompanySearch:
     def _where(f: CompanyFilters, skip: str | None = None) -> tuple[str, list[Any]]:
         conds: list[str] = []
         params: list[Any] = []
+
+        def like_any(cols: tuple[str, ...], term: str) -> str:
+            like = _like(term)
+            params.extend([like] * len(cols))
+            return "(" + " OR ".join(f"lower({c}) LIKE ? ESCAPE '\\'" for c in cols) + ")"
+
+        def is_in(expr: str, values: list[str]) -> str:
+            params.extend(values)
+            return f"{expr} IN ({','.join('?' * len(values))})"
+
         if f.text and f.text.strip():
-            like = _like(f.text.strip())
-            conds.append(
-                "(lower(name) LIKE ? ESCAPE '\\' OR lower(legal_name) LIKE ? ESCAPE '\\' "
-                "OR lower(domain) LIKE ? ESCAPE '\\')"
-            )
-            params += [like] * 3
+            conds.append(like_any(("name", "legal_name", "domain"), f.text.strip()))
+        cols = KEYWORD_FIELDS.get(f.keyword_fields, KEYWORD_FIELDS["all"])
         kws = [k.strip() for k in f.keywords if k and k.strip()]
         if kws:
-            parts = []
-            for k in kws:
-                like = _like(k)
-                parts.append(
-                    "(lower(name) LIKE ? ESCAPE '\\' OR lower(legal_name) LIKE ? ESCAPE '\\' "
-                    "OR lower(domain) LIKE ? ESCAPE '\\' "
-                    "OR lower(industry_label) LIKE ? ESCAPE '\\')"
-                )
-                params += [like] * 4
-            conds.append("(" + " OR ".join(parts) + ")")
-        if f.countries and skip != "country":
-            conds.append(f"country IN ({','.join('?' * len(f.countries))})")
-            params += [c.strip().upper() for c in f.countries]
-        if f.regions:
-            conds.append(f"lower(region) IN ({','.join('?' * len(f.regions))})")
-            params += [r.strip().lower() for r in f.regions]
-        if f.industries and skip != "industry":
-            conds.append(f"industry IN ({','.join('?' * len(f.industries))})")
-            params += [i.strip().upper() for i in f.industries]
+            joiner = " AND " if f.keyword_mode == "all" else " OR "
+            conds.append("(" + joiner.join(like_any(cols, k) for k in kws) + ")")
+        for k in (k.strip() for k in f.exclude_keywords if k and k.strip()):
+            conds.append(f"NOT coalesce({like_any(cols, k)}, false)")
+        if skip not in ("country", "region", "city"):
+            places = []
+            if f.countries:
+                places.append(is_in("country", [c.strip().upper() for c in f.countries]))
+            if f.regions:
+                places.append(is_in("lower(region)", [r.strip().lower() for r in f.regions]))
+            if f.cities:
+                places.append(is_in("lower(city)", [c.strip().lower() for c in f.cities]))
+            if places:
+                conds.append("(" + " OR ".join(places) + ")")
+            if f.exclude_countries:
+                xs = [c.strip().upper() for c in f.exclude_countries]
+                conds.append("country IS NOT NULL AND NOT " + is_in("country", xs))
+            if f.exclude_regions:
+                xs = [r.strip().lower() for r in f.exclude_regions]
+                conds.append("NOT " + is_in("coalesce(lower(region), '')", xs))
+            if f.exclude_cities:
+                xs = [c.strip().lower() for c in f.exclude_cities]
+                conds.append("NOT " + is_in("coalesce(lower(city), '')", xs))
+        if skip != "industry":
+            if f.industries:
+                conds.append(is_in("industry", [i.strip().upper() for i in f.industries]))
+            if f.exclude_industries:
+                xs = [i.strip().upper() for i in f.exclude_industries]
+                conds.append("industry IS NOT NULL AND NOT " + is_in("industry", xs))
         if f.size_ranges and skip != "size_range":
-            conds.append(f"size_range IN ({','.join('?' * len(f.size_ranges))})")
-            params += list(f.size_ranges)
+            conds.append(is_in("size_range", list(f.size_ranges)))
         if f.domains:
-            conds.append(f"domain IN ({','.join('?' * len(f.domains))})")
-            params += [normalize_domain(d) or d.strip().lower() for d in f.domains]
+            conds.append(
+                is_in("domain", [normalize_domain(d) or d.strip().lower() for d in f.domains])
+            )
         return (" WHERE " + " AND ".join(conds)) if conds else "", params
+
+    def suggest_places(self, text: str, limit: int = 12) -> list[tuple[str, str, str, int]]:
+        """Countries, regions and cities whose name starts with `text` (any word of it):
+        (kind, value, country, companies), most companies first. Country names are matched
+        by the caller, which knows their English names; here countries match on the code."""
+        term = text.strip().lower()
+        if not term:
+            return []
+        esc = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        start, word = f"{esc}%", f"% {esc}%"
+        out: list[tuple[str, str, str, int]] = []
+        for kind, col in (("city", "city"), ("region", "region")):
+            rows = self._query(
+                f"SELECT {col}, mode(country), COUNT(*) AS n FROM companies "
+                f"WHERE {col} IS NOT NULL AND (lower({col}) LIKE ? ESCAPE '\\' "
+                f"OR lower({col}) LIKE ? ESCAPE '\\') GROUP BY {col} ORDER BY n DESC, {col} "
+                "LIMIT ?",
+                [start, word, max(1, int(limit))],
+            )
+            out += [(kind, str(v), str(cc or ""), int(n)) for v, cc, n in rows]
+        if len(term) == 2:
+            rows = self._query(
+                "SELECT country, COUNT(*) FROM companies WHERE country = ? GROUP BY country",
+                [term.upper()],
+            )
+            out += [("country", str(v), str(v), int(n)) for v, n in rows]
+        return sorted(out, key=lambda r: -r[3])[: max(1, int(limit))]
 
     def _query(self, sql: str, params: list[Any]) -> list[tuple]:
         cur = self._con.cursor()  # one cursor per call: safe across FastAPI worker threads
@@ -151,6 +200,34 @@ class DuckDBCompanySearch:
     def get_company(self, company_id: str) -> Company | None:
         rows = self._query(f"SELECT {_COLS} FROM companies WHERE id = ? LIMIT 1", [company_id])
         return self._to_company(rows[0]) if rows else None
+
+    def lookalike_companies(self, company: Company, limit: int = 25) -> list[Company]:
+        """Companies like `company`: same ISIC industry, same or neighbouring size bucket, the
+        same country first, then closer size, then rows with a known domain, then name."""
+        if not company.industry:
+            return []
+        conds = ["industry = ?", "id <> ?"]
+        params: list[Any] = [company.industry.strip().upper(), company.id]
+        order: list[str] = []
+        order_params: list[Any] = []
+        if company.size_range in SIZE_RANGES:
+            idx = SIZE_RANGES.index(company.size_range)
+            near = [s for i, s in enumerate(SIZE_RANGES) if abs(i - idx) <= 1]
+            conds.append(f"size_range IN ({','.join('?' * len(near))})")
+            params += near
+        if company.country:
+            order.append("(country IS DISTINCT FROM ?)")
+            order_params.append(company.country.upper())
+        if company.size_range in SIZE_RANGES:
+            order.append("(size_range <> ?)")
+            order_params.append(company.size_range)
+        order += ["(domain IS NULL)", "lower(name)", "id"]
+        rows = self._query(
+            f"SELECT {_COLS} FROM companies WHERE {' AND '.join(conds)} "
+            f"ORDER BY {', '.join(order)} LIMIT ?",
+            [*params, *order_params, max(0, int(limit))],
+        )
+        return [self._to_company(r) for r in rows]
 
     def facet_counts(self, facet: str, filters: CompanyFilters, limit: int = 10) -> dict[str, int]:
         col = FACETS.get(facet)

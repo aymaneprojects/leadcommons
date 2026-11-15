@@ -39,7 +39,8 @@ def create_app(
 
         jobs = JobRunner(store, search, settings)
 
-    app = FastAPI(title="LeadCommons", version=__version__, docs_url="/api/docs")
+    # /api/docs is our own server-rendered page (pages_apiref): Swagger UI needs a CDN.
+    app = FastAPI(title="LeadCommons", version=__version__, docs_url=None, redoc_url=None)
     app.state.settings = settings
     app.state.search = search
     app.state.store = store
@@ -47,18 +48,30 @@ def create_app(
 
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-    from leadcommons.web import api, pages, pages_engage, pages_extra, pages_pipeline, pages_tools
+    from leadcommons.web import (
+        api,
+        pages,
+        pages_apiref,
+        pages_engage,
+        pages_extra,
+        pages_insights,
+        pages_pipeline,
+        pages_tools,
+    )
     from leadcommons.web.auth import install_auth
 
     install_auth(app, settings)
+    app.include_router(pages_apiref.router)
     app.include_router(api.router, prefix="/api")
-    # pages_extra first: shell pages (settings, onboarding, notifications, engage) may take over
-    # routes still present in pages.py.
-    app.include_router(pages_extra.router)
+    # First match wins: real feature pages before the shell's placeholders, and the shell
+    # (settings, onboarding, notifications) before the older handlers still in pages.py.
     app.include_router(pages_engage.router)
     app.include_router(pages_pipeline.router)
     app.include_router(pages_tools.router)
+    app.include_router(pages_insights.router)
+    app.include_router(pages_extra.router)
     app.include_router(pages.router)
+    pages_engage.install_sender(app)  # background email sender; off in demo and with sync_jobs
 
     @app.get("/healthz", include_in_schema=False)
     def healthz() -> dict[str, str]:

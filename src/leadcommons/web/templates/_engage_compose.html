@@ -1,0 +1,48 @@
+{% from "_engage_macros.html" import eic, dlg_head, var_chips, demo_send_button %}
+{% set blocked = problem or (not mailboxes and "Connect a mailbox first in Settings, Mailboxes.") or "" %}
+<dialog class="eg-dlg eg-dlg-wide" data-autoopen data-eg-dlg aria-label="Write an email">
+  <form method="post" action="/emails/send" hx-post="/emails/send" hx-swap="none" data-quiet class="eg-compose">
+    {{ dlg_head("New email", ("to " ~ p.name) if p else "One email, sent from your own mailbox", "mail") }}
+    {% if p %}<input type="hidden" name="person_id" value="{{ p.id }}">{% endif %}
+    {% if task %}<input type="hidden" name="task_id" value="{{ task.id }}">{% endif %}
+    {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+    {% if refresh %}<input type="hidden" name="refresh" value="1">{% endif %}
+    <div class="eg-dlg-body">
+      {% if demo %}<p class="eg-note">{{ eic("lock", "sm") }} {{ demo_reason }}</p>
+      {% elif problem %}<p class="eg-warn-line">{{ eic("triangle-alert", "sm") }} {{ problem }}</p>
+      {% elif not mailboxes %}<p class="eg-warn-line">{{ eic("triangle-alert", "sm") }} No mailbox is connected. <a href="/settings/mailboxes">Connect your mailbox</a> to send.</p>{% endif %}
+      <div class="eg-mailrow"><label for="eg-c-to">To</label>
+        {% if p %}
+        <span class="eg-to"><span class="av pe tone-{{ tone(p.name) }}" aria-hidden="true">{{ initials(p.name) }}</span><b>{{ p.name }}</b><span class="mono eg-dim">{{ to or "no email" }}</span></span>
+        <input id="eg-c-to" type="hidden" name="to" value="{{ to }}">
+        {% else %}
+        <input id="eg-c-to" type="email" name="to" value="{{ to }}" placeholder="name@company.com" required autocomplete="off">
+        {% endif %}
+      </div>
+      <div class="eg-mailrow"><label for="eg-c-from">From</label>
+        {% if mailboxes %}
+        <select id="eg-c-from" name="mailbox_id">{% for m in mailboxes %}<option value="{{ m.id }}"{% if mailbox and m.id == mailbox.id %} selected{% endif %}>{{ (m.from_name ~ " <" ~ m.from_email ~ ">") if m.from_name else m.from_email }}</option>{% endfor %}</select>
+        {% else %}<span class="eg-dim">No mailbox yet</span>{% endif %}
+      </div>
+      <div class="eg-mailrow"><label for="eg-c-subject">Subject</label>
+        <input id="eg-c-subject" type="text" name="subject" value="{{ task.subject if task else '' }}" maxlength="500" required autocomplete="off" placeholder="Subject"></div>
+      <div class="field">
+        <label class="sr-only" for="eg-c-body">Message</label>
+        <textarea id="eg-c-body" name="body" rows="10" required maxlength="20000" placeholder="Write your message…">{{ task.body if task else '' }}</textarea>
+        {{ var_chips("eg-c-body", variables) }}
+      </div>
+      <fieldset class="eg-when"><legend class="sr-only">When</legend>
+        <label><input type="radio" name="when" value="now" checked data-eg-toggle="#eg-c-later" data-eg-toggle-off> Send now</label>
+        <label><input type="radio" name="when" value="later" data-eg-toggle="#eg-c-later"> Schedule</label>
+        <span id="eg-c-later" class="eg-later" hidden>
+          <input type="date" name="date" aria-label="Date"> <input type="time" name="time" value="09:00" aria-label="Time"> <span class="eg-dim">{{ tz }}</span>
+        </span>
+      </fieldset>
+      <p class="hint">Your signature, the unsubscribe footer and a one-click unsubscribe header are added. No tracking pixel is ever added.</p>
+    </div>
+    <footer class="eg-dlg-foot">
+      <button type="button" class="btn close-dlg">Cancel</button>
+      {{ demo_send_button(demo, demo_reason, "Send", "send", blocked) }}
+    </footer>
+  </form>
+</dialog>

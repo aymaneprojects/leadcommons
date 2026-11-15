@@ -1,0 +1,57 @@
+{% from "_pipeline_macros.html" import pi, dlg_btn %}
+{% from "_macros.html" import avatar %}
+{% if page_mode is not defined %}<div class="drawer-scrim" data-close-drawer></div>{% endif %}
+<article class="pl-drawer drawer-inner" aria-label="Deal">
+  <nav class="crumb pl-crumb" aria-label="Breadcrumb">
+    <a href="/deals">Deals</a><span class="sep">{{ pi("chevron-right", "sm") }}</span><span class="cur">{{ deal.name }}</span>
+    <span class="grow"></span>
+    {% if page_mode is not defined %}<a class="btn ghost icon-only sm" href="/deals/{{ deal.id }}" title="Open as a full page" aria-label="Open as a full page">{{ pi("external-link", "sm") }}</a>
+    <button class="btn ghost icon-only sm" type="button" data-close-drawer aria-label="Close">{{ pi("x") }}</button>{% endif %}
+  </nav>
+  <header class="pl-drawer-head">
+    {{ avatar(deal.company_name or deal.name, "co", "lg") }}
+    <div class="pl-drawer-id">
+      <h2>{{ deal.name }}</h2>
+      <p class="muted">{% if deal.company_id %}<a href="/companies/{{ deal.company_id }}">{{ deal.company_name }}</a>{% elif deal.company_name %}{{ deal.company_name }}{% else %}No company{% endif %}{% if deal.person_name %} · {% if deal.person_id %}<a href="/people/{{ deal.person_id }}">{{ deal.person_name }}</a>{% else %}{{ deal.person_name }}{% endif %}{% endif %}</p>
+    </div>
+    <div class="pl-drawer-sum">
+      <b>{{ pl_money(deal.amount, deal.currency) }}</b>
+      {% if stage %}<span class="chip {{ 'ok' if stage.kind == 'won' else ('red' if stage.kind == 'lost' else '') }}">{{ stage.name }}</span>{% endif %}
+    </div>
+  </header>
+  <div class="pl-stagebar" role="group" aria-label="Move deal to a stage">
+    {% for s in stages %}
+    <form method="post" action="/deals/{{ deal.id }}/move" hx-post="/deals/{{ deal.id }}/move" hx-swap="none" hx-push-url="false" data-quiet>
+      <input type="hidden" name="stage_id" value="{{ s.id }}"><input type="hidden" name="next" value="/deals/{{ deal.id }}">
+      <button type="submit" class="pl-stagebtn{% if s.id == deal.stage_id %} on{% endif %}"{% if s.id == deal.stage_id %} aria-current="true"{% endif %}>{{ s.name }}</button>
+    </form>
+    {% endfor %}
+  </div>
+  <div class="pl-drawer-body">
+    <section class="card pl-sec"><h3>Deal details</h3>{% include "_pipeline_deal_fields.html" %}</section>
+    <section class="card pl-sec">
+      <div class="pl-sec-head"><h3>Linked tasks</h3>{{ dlg_btn("/partials/task-new?deal_id=" ~ deal.id, "Add task", "plus", "btn sm") }}</div>
+      {% if deal_tasks %}
+      <ul class="pl-mini">{% for t in deal_tasks %}<li>{{ pi("circle-check" if t.kind == "task_done" else "list-checks", "sm") }}<span>{{ t.summary }}</span><time class="muted">{{ ago(t.created_at) }}</time></li>{% endfor %}</ul>
+      {% else %}<p class="muted">No tasks yet. Add one so this deal always has a next step.</p>{% endif %}
+    </section>
+    <section class="card pl-sec">
+      <div class="pl-sec-head"><h3>Meetings</h3>{{ dlg_btn("/partials/meeting-new?deal_id=" ~ deal.id, "Schedule", "calendar-plus", "btn sm") }}</div>
+      {% if meetings %}
+      <ul class="pl-mini">{% for m in meetings %}<li>{{ pi("calendar", "sm") }}<span>{{ m.title }}</span><time class="muted">{{ pl_when(m.start) }}</time></li>{% endfor %}</ul>
+      {% else %}<p class="muted">No meetings linked to this deal.</p>{% endif %}
+    </section>
+    <section class="card pl-sec">
+      <div class="pl-sec-head"><h3>Notes and activity</h3></div>
+      <form class="pl-quicknote" method="post" action="/notes" hx-post="/notes" hx-swap="none" hx-push-url="false" data-quiet data-reset-on-ok>
+        <input type="hidden" name="deal_id" value="{{ deal.id }}"><input type="hidden" name="reload" value="0"><input type="hidden" name="next" value="/deals/{{ deal.id }}">
+        <label class="sr-only" for="qn-body">Add a note</label>
+        <textarea id="qn-body" name="body" rows="2" required maxlength="2000" placeholder="Add a note to this deal"></textarea>
+        <button class="btn primary sm" type="submit">Save note</button>
+      </form>
+      <div class="pl-timeline" hx-get="/partials/activity?deal_id={{ deal.id }}" hx-trigger="load, pl-changed from:body" hx-swap="innerHTML" hx-push-url="false" data-quiet>
+        <p class="muted">Loading…</p>
+      </div>
+    </section>
+  </div>
+</article>

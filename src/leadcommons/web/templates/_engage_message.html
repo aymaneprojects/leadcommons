@@ -1,0 +1,29 @@
+{% from "_engage_macros.html" import eic, dlg_head, msg_chip, when %}
+<dialog class="eg-dlg eg-dlg-wide" data-autoopen data-eg-dlg aria-label="Email">
+  {{ dlg_head(m.subject or "(no subject)", ("Reply from " ~ m.from_email) if m.direction == "in" else ("To " ~ m.to_email), "mail-open" if m.direction == "in" else "mail") }}
+  <div class="eg-dlg-body">
+    <dl class="eg-meta">
+      <div><dt>{{ "From" }}</dt><dd class="mono">{{ m.from_email }}</dd></div>
+      <div><dt>To</dt><dd class="mono">{{ m.to_email }}</dd></div>
+      {% if p %}<div><dt>Contact</dt><dd><a href="/people/{{ p.id }}">{{ p.name }}</a>{% if p.company %} · {{ p.company }}{% endif %}</dd></div>{% endif %}
+      {% if seq %}<div><dt>Sequence</dt><dd><a href="/sequences/{{ seq.id }}">{{ seq.name }}</a></dd></div>{% endif %}
+      <div><dt>Status</dt><dd>{{ msg_chip(m.status, m.replied_at is not none and m.direction == "out") }}{% if m.error %} <span class="eg-dim">{{ m.error }}</span>{% endif %}</dd></div>
+      <div><dt>{{ "Scheduled" if m.status == "scheduled" else "Date" }}</dt><dd>{{ when(m.scheduled_at if m.status == "scheduled" else (m.sent_at or m.created_at)) }}</dd></div>
+    </dl>
+    <div class="eg-mail-body eg-mail-full">{{ m.body }}</div>
+    {% if original %}
+    <details class="eg-orig"><summary>Your email: {{ original.subject }}</summary><div class="eg-mail-body">{{ original.body }}</div></details>
+    {% endif %}
+  </div>
+  <footer class="eg-dlg-foot">
+    {% if m.status == "scheduled" %}
+    <form method="post" action="/emails/{{ m.id }}/cancel"><button class="btn btn-danger" type="submit">{{ eic("circle-x", "sm") }} Cancel sending</button></form>
+    {% elif m.status == "failed" %}
+    <form method="post" action="/emails/{{ m.id }}/retry"><button class="btn" type="submit"{% if demo %} disabled title="{{ demo_reason }}"{% endif %}>{{ eic("refresh-cw", "sm") }} Try again</button></form>
+    {% elif m.direction == "out" and m.status == "sent" and not m.replied_at %}
+    <form method="post" action="/emails/{{ m.id }}/replied"><button class="btn" type="submit">{{ eic("reply", "sm") }} Mark as replied</button></form>
+    {% endif %}
+    {% if p %}<a class="btn" href="/partials/email-compose?person_id={{ p.id }}" data-eg-dialog="/partials/email-compose?person_id={{ p.id }}">{{ eic("mail", "sm") }} Write again</a>{% endif %}
+    <button type="button" class="btn primary close-dlg">Close</button>
+  </footer>
+</dialog>

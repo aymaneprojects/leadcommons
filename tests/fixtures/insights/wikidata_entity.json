@@ -1,0 +1,22 @@
+{"entities": {"Q42042": {"id": "Q42042", "type": "item", "claims": {
+  "P856": [{"rank": "normal", "mainsnak": {"snaktype": "value", "property": "P856",
+            "datavalue": {"type": "string", "value": "https://www.nordwind.example/"}}}],
+  "P1128": [
+   {"rank": "normal", "mainsnak": {"snaktype": "value", "datavalue": {"type": "quantity", "value": {"amount": "+1200", "unit": "1"}}},
+    "qualifiers": {"P585": [{"snaktype": "value", "datavalue": {"type": "time", "value": {"time": "+2022-12-31T00:00:00Z", "precision": 11}}}]}},
+   {"rank": "normal", "mainsnak": {"snaktype": "value", "datavalue": {"type": "quantity", "value": {"amount": "+1500", "unit": "1"}}},
+    "qualifiers": {"P585": [{"snaktype": "value", "datavalue": {"type": "time", "value": {"time": "+2023-12-31T00:00:00Z", "precision": 11}}}]}},
+   {"rank": "normal", "mainsnak": {"snaktype": "value", "datavalue": {"type": "quantity", "value": {"amount": "+1800", "unit": "1"}}},
+    "qualifiers": {"P585": [{"snaktype": "value", "datavalue": {"type": "time", "value": {"time": "+2024-12-31T00:00:00Z", "precision": 11}}}]}},
+   {"rank": "deprecated", "mainsnak": {"snaktype": "value", "datavalue": {"type": "quantity", "value": {"amount": "+99999", "unit": "1"}}}}
+  ],
+  "P2139": [
+   {"rank": "normal", "mainsnak": {"snaktype": "value", "datavalue": {"type": "quantity", "value": {"amount": "+250000000", "unit": "http://www.wikidata.org/entity/Q4916"}}},
+    "qualifiers": {"P585": [{"snaktype": "value", "datavalue": {"type": "time", "value": {"time": "+2023-01-01T00:00:00Z", "precision": 9}}}]}},
+   {"rank": "normal", "mainsnak": {"snaktype": "value", "datavalue": {"type": "quantity", "value": {"amount": "+310000000", "unit": "http://www.wikidata.org/entity/Q4916"}}},
+    "qualifiers": {"P585": [{"snaktype": "value", "datavalue": {"type": "time", "value": {"time": "+2024-01-01T00:00:00Z", "precision": 9}}}]}}
+  ],
+  "P414": [{"rank": "normal", "mainsnak": {"snaktype": "value", "datavalue": {"type": "wikibase-entityid", "value": {"id": "Q82059"}}},
+            "qualifiers": {"P249": [{"snaktype": "value", "datavalue": {"type": "string", "value": "NWD"}}]}}],
+  "P127": [{"rank": "normal", "mainsnak": {"snaktype": "value", "datavalue": {"type": "wikibase-entityid", "value": {"id": "Q777"}}}}]
+}}}}

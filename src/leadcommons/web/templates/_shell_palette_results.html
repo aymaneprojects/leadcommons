@@ -1,9 +1,18 @@
 {% from "_macros.html" import icon %}
+{% from "_shell_macros.html" import tic %}
 {% if recent %}
 <div class="pal-group" role="group" aria-label="Recent searches">
-  <div class="pal-head">Recent searches</div>
+  <div class="pal-head">Saved searches</div>
   {% for r in recent %}
   <a class="pal-item" role="option" href="{{ r.href }}">{{ icon("bookmark") }}<span class="pal-label">{{ r.name }}</span><span class="pal-sub">{{ r.kind|capitalize }}</span></a>
+  {% endfor %}
+</div>
+{% endif %}
+{% if workflows %}
+<div class="pal-group" role="group" aria-label="Workflows">
+  <div class="pal-head">Workflows</div>
+  {% for w in workflows %}
+  <a class="pal-item" role="option" href="/workflows/{{ w.id }}">{{ tic("workflow") }}<span class="pal-label">{{ w.name }}</span><span class="pal-sub">{{ "On" if w.enabled else "Off" }}</span></a>
   {% endfor %}
 </div>
 {% endif %}
@@ -12,6 +21,14 @@
   <div class="pal-head">Companies</div>
   {% for c in companies %}
   <a class="pal-item" role="option" href="/companies/{{ c.id }}">{{ icon("building-2") }}<span class="pal-label">{{ c.name }}</span><span class="pal-sub">{% if c.domain %}{{ c.domain }}{% elif c.country %}{{ country_name(c.country) }}{% endif %}</span></a>
+  {% endfor %}
+</div>
+{% endif %}
+{% if people %}
+<div class="pal-group" role="group" aria-label="People">
+  <div class="pal-head">People</div>
+  {% for p in people %}
+  <a class="pal-item" role="option" href="/people/{{ p.id }}">{{ icon("user") }}<span class="pal-label">{{ p.full_name }}</span><span class="pal-sub">{{ p.title or p.company_domain or "" }}</span></a>
   {% endfor %}
 </div>
 {% endif %}
