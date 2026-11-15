@@ -4,12 +4,12 @@ Goal: data that is as broad and as reliable as Apollo's for B2B prospecting, whi
 rules: public and lawful sources only, no Apollo data, no LinkedIn scraping, no personal mobile
 numbers, opt-outs honoured everywhere, packs that contain companies only.
 
-## Where we are (November 2026) and where we go
+## Where we are (15 November 2026) and where we go
 
 | Dimension | Apollo (public claims) | LeadCommons today | Target | How |
 | --- | --- | --- | --- | --- |
-| Companies | tens of millions | 13,625 (10 countries, 1,500 per source) | 30M+ active companies | bulk official registers, monthly |
-| Company website / domain | most companies | 11,612 | 5M+ linked domains | registry ID bridges (Wikidata, GLEIF), OSM, web matching |
+| Companies | tens of millions | **21.85M** in 227 countries (packs-2026-11; was 13,625) | 30M+ active companies | bulk official registers, monthly |
+| Company website / domain | most companies | ~285k (1.3%): the biggest gap | 5M+ linked domains | registry ID bridges (Wikidata, GLEIF), OSM, web matching, registry numbers printed on sites |
 | Firmographics | size, revenue, industry | industry, size band (partly) | exact head count and revenue where filed | SIRENE, ABR, UK and SEC accounts (XBRL), INPI accounts |
 | Company phone | yes | from websites, on demand | switchboard for millions | registers, OSM, websites |
 | People | 200M+ prebuilt profiles | found on demand on company sites | on demand from 5+ lawful sources, never a published people database | officer registers, SEC filings, Wikidata, websites |
@@ -32,7 +32,15 @@ numbers, opt-outs honoured everywhere, packs that contain companies only.
 4. Every number shown to users is measured: coverage, fill rate and precision are published with
    each pack.
 
-## Phase 1: companies at scale, measured (started)
+## Phase 1: companies at scale, measured (done, 15 November 2026)
+
+First full build, published as `packs-2026-11`: 21,854,515 active companies in 227 countries
+(France 9.16M, UK 5.24M, Australia 3.44M, Norway 0.79M, Canada 0.71M, US 0.33M), 429,468
+duplicates merged across sources. Quality report: QUALITY.md in the release. Still open: SEC
+EDGAR refuses our declared contact (needs a reachable project address), and only 1.3% of
+companies have a website, which is the next phase's first job.
+
+### What Phase 1 delivered
 
 - **Bulk registers** (`connectors/bulk/`, `.github/workflows/packs.yml`): GLEIF golden copy
   (2.9M legal entities, CC0), INSEE SIRENE stock (France, Licence Ouverte), UK Companies House
