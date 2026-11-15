@@ -28,7 +28,9 @@ const OUT = arg("out", "ux-audit");
 const MAX_PAGES = Number(arg("max-pages", 80));
 const MAX_CONTROLS = Number(arg("max-controls", 120));
 const START_PAGES = (arg("pages", "/") || "/").split(",");
-const SKIP_HREF = /^\/(static|api)\/|\/logout$|\/u\/|\.(csv|ics|json)(\?|$)|^\/opt-out/;
+// /partials/ are HTML fragments loaded into drawers and dialogs: opened alone they have no
+// page script, so their controls are checked through the page that opens them instead.
+const SKIP_HREF = /^\/(static|api|partials)\/|\/logout$|\/u\/|\.(csv|ics|json)(\?|$)|^\/opt-out/;
 const SKIP_TEXT = /^(log ?out|sign out)$/i;
 
 // A path pattern so detail pages are visited once (e.g. /companies/:id).

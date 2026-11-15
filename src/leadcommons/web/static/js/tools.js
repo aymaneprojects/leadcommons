@@ -127,7 +127,10 @@
     var wo = $("[data-welcome-opts]");
     if (wo) {
       var go = $("[data-welcome-go]", wo);
-      wo.addEventListener("change", function () { go.disabled = !$("input:checked", wo); });
+      wo.addEventListener("change", function () {
+        go.disabled = !$("input:checked", wo);
+        if (go.disabled) go.title = "Pick one of the options first"; else go.removeAttribute("title");
+      });
       wo.addEventListener("submit", function (e) {
         e.preventDefault();
         var r = $("input:checked", wo); if (!r) return;

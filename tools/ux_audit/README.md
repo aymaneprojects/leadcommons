@@ -28,3 +28,6 @@ click are attached to it. Controls in the sidebar and top bar are tested once. T
 `report.md` (problems first) and `report.json`; the exit code is 1 when there are problems.
 
 Run it against a throwaway home: it really clicks Delete, Save and Send buttons.
+
+`/partials/` URLs are skipped: they are fragments loaded into drawers and dialogs, and alone
+they have no page script. Their controls are reached through the page that opens them.
