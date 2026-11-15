@@ -3,6 +3,9 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  # Publishing a release on github.com (which creates the tag) also starts this workflow.
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -41,12 +44,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$TAG" \
-            --title "$TAG" \
-            --generate-notes \
-            dist/*.whl dist/*.tar.gz \
-            scripts/install.sh scripts/install.ps1 \
-            deploy/docker-compose.server.yml deploy/Caddyfile deploy/.env.example
+          files=(dist/*.whl dist/*.tar.gz scripts/install.sh scripts/install.ps1
+                 deploy/docker-compose.server.yml deploy/Caddyfile deploy/.env.example)
+          # The release may already exist (made on github.com): then only attach the files.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${files[@]}" --clobber
+          else
+            gh release create "$TAG" --title "$TAG" --generate-notes "${files[@]}"
+          fi
 
   image:
     needs: build
