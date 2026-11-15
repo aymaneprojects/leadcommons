@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import fnmatch
+import json
 import os
 import tempfile
 from collections.abc import Sequence
@@ -29,6 +31,34 @@ def build_pack(
     from leadcommons.packs.builder import build_pack as _build
 
     return _build(out_dir, sources, countries, limit_per_source)
+
+
+DEFAULT_PACKS_REPO = os.environ.get("LEADCOMMONS_PACKS_REPO", "aymaneprojects/leadcommons")
+
+
+def latest_pack_url(repo: str = DEFAULT_PACKS_REPO) -> str:
+    """URL of the companies-*.parquet file in the newest packs-* release of repo."""
+    api = f"https://api.github.com/repos/{repo}/releases"
+    resp = httpx.get(
+        api,
+        params={"per_page": 30},
+        headers={"Accept": "application/vnd.github+json"},
+        timeout=30,
+        follow_redirects=True,
+    )
+    if resp.status_code != 200:
+        raise RuntimeError(f"GitHub answered HTTP {resp.status_code} for {api}")
+    releases = [
+        r
+        for r in resp.json()
+        if str(r.get("tag_name", "")).startswith("packs-") and not r.get("draft")
+    ]
+    releases.sort(key=lambda r: r.get("published_at") or r.get("created_at") or "", reverse=True)
+    for release in releases:
+        for asset in release.get("assets", []):
+            if fnmatch.fnmatch(asset.get("name", ""), "companies-*.parquet"):
+                return asset["browser_download_url"]
+    raise RuntimeError(f"no 'packs-*' release with a companies-*.parquet file found in {repo}")
 
 
 def download_pack(url: str, out_dir: Path) -> Path:
@@ -67,7 +97,48 @@ def download_pack(url: str, out_dir: Path) -> Path:
     except BaseException:
         tmp.unlink(missing_ok=True)
         raise
+    _forget_old_downloads(out_dir, keep=dest)
     return dest
 
 
-__all__ = ["SAMPLE_PACK_DIR", "DuckDBCompanySearch", "build_pack", "download_pack"]
+DOWNLOADS_FILE = ".downloaded-packs.json"
+
+
+def _forget_old_downloads(out_dir: Path, keep: Path) -> None:
+    """Delete packs this function downloaded before (a newer month replaces them).
+
+    Downloaded and self-built packs have the same kind of name, so downloads are recorded
+    in a small JSON file and only those are ever removed.
+    """
+    marker = out_dir / DOWNLOADS_FILE
+    try:
+        previous = json.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        previous = []
+    for name in previous if isinstance(previous, list) else []:
+        old = out_dir / Path(str(name)).name  # never leave out_dir
+        if old != keep and old.suffix == ".parquet":
+            old.unlink(missing_ok=True)
+    marker.write_text(json.dumps([keep.name]), encoding="utf-8")
+
+
+def install_latest_pack(out_dir: Path, repo: str = DEFAULT_PACKS_REPO) -> Path:
+    """Find the newest published pack, download it into out_dir and drop older downloads."""
+    return download_pack(latest_pack_url(repo), out_dir)
+
+
+def has_own_pack(data_dir: Path) -> bool:
+    """True when data_dir holds at least one pack (otherwise search uses the small sample)."""
+    return Path(data_dir).is_dir() and any(Path(data_dir).glob("*.parquet"))
+
+
+__all__ = [
+    "DEFAULT_PACKS_REPO",
+    "SAMPLE_PACK_DIR",
+    "DuckDBCompanySearch",
+    "build_pack",
+    "download_pack",
+    "has_own_pack",
+    "install_latest_pack",
+    "latest_pack_url",
+]

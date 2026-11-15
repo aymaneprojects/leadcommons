@@ -1,0 +1,187 @@
+name: Desktop apps
+
+# Builds the installable app for Windows (setup .exe), macOS (Apple Silicon .dmg) and Linux
+# (.AppImage), starts each build without a window to check it serves pages, and attaches the
+# files to the GitHub release of the tag.
+on:
+  push:
+    tags: ["v*"]
+    branches: [main, "feature/desktop"]
+    paths:
+      - "packaging/desktop/**"
+      - "src/leadcommons/desktop.py"
+      - ".github/workflows/desktop.yml"
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Publishing a release on github.com fires both "push" (tag) and "release": keep only the newest.
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: windows-x64
+          - os: macos-latest
+            target: macos-arm64
+          - os: ubuntu-22.04 # older glibc: the AppImage then runs on more distributions
+            target: linux-x86_64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install . "pyinstaller>=6.10,<7"
+          # Native window on Windows (WebView2) and macOS (WebKit); Linux uses the browser.
+          if [ "$RUNNER_OS" != "Linux" ]; then python -m pip install "pywebview>=5.3,<7"; fi
+      - name: Version
+        id: v
+        run: echo "version=$(python -c 'import leadcommons; print(leadcommons.__version__)')" >> "$GITHUB_OUTPUT"
+      - name: Freeze with PyInstaller
+        run: pyinstaller --noconfirm --clean packaging/desktop/leadcommons.spec
+
+      - name: Sign the app ad hoc (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          codesign --force --deep --sign - dist/LeadCommons.app
+          codesign --verify --deep --strict dist/LeadCommons.app
+
+      - name: Smoke test the frozen app
+        env:
+          LEADCOMMONS_HOME: ${{ runner.temp }}/lc-frozen
+        run: |
+          case "$RUNNER_OS" in
+            Windows) bin=dist/LeadCommons/LeadCommons.exe ;;
+            macOS) bin=dist/LeadCommons.app/Contents/MacOS/LeadCommons ;;
+            *) bin=dist/LeadCommons/LeadCommons ;;
+          esac
+          bash packaging/desktop/smoke.sh "$bin" 8765
+
+      - name: Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress
+            $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          }
+          & $iscc "/DAppVersion=${{ steps.v.outputs.version }}" packaging\desktop\windows.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Install silently (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $setup = (Get-Item dist-desktop\*-setup.exe).FullName
+          $p = Start-Process -Wait -PassThru -FilePath $setup -ArgumentList '/VERYSILENT', '/CURRENTUSER', '/SUPPRESSMSGBOXES', '/NORESTART'
+          if ($p.ExitCode -ne 0) { throw "installer exit code $($p.ExitCode)" }
+      - name: Smoke test the installed app (Windows)
+        if: runner.os == 'Windows'
+        env:
+          LEADCOMMONS_HOME: ${{ runner.temp }}/lc-installed
+        run: bash packaging/desktop/smoke.sh "$LOCALAPPDATA/Programs/LeadCommons/LeadCommons.exe" 8766
+
+      - name: macOS disk image
+        if: runner.os == 'macOS'
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          mkdir -p build/dmg dist-desktop
+          cp -R dist/LeadCommons.app build/dmg/
+          ln -s /Applications build/dmg/Applications
+          dmg="dist-desktop/LeadCommons-$VERSION-macos-arm64.dmg"
+          for attempt in 1 2 3; do  # hdiutil is sometimes "busy" on hosted runners
+            if hdiutil create -volname LeadCommons -srcfolder build/dmg -ov -format UDZO "$dmg"; then break; fi
+            echo "hdiutil failed (attempt $attempt), retrying"; sleep 10
+          done
+          test -f "$dmg"
+      - name: Smoke test the app from the disk image (macOS)
+        if: runner.os == 'macOS'
+        env:
+          LEADCOMMONS_HOME: ${{ runner.temp }}/lc-dmg
+        run: |
+          mnt="$(mktemp -d)"
+          hdiutil attach -nobrowse -readonly -mountpoint "$mnt" dist-desktop/*.dmg
+          bash packaging/desktop/smoke.sh "$mnt/LeadCommons.app/Contents/MacOS/LeadCommons" 8766
+          hdiutil detach "$mnt" || true
+
+      - name: Linux AppImage
+        if: runner.os == 'Linux'
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          appdir=build/LeadCommons.AppDir
+          mkdir -p "$appdir/usr/bin" dist-desktop
+          cp -R dist/LeadCommons/. "$appdir/usr/bin/"
+          cp packaging/desktop/icons/leadcommons-512.png "$appdir/leadcommons.png"
+          cp packaging/desktop/leadcommons.desktop "$appdir/"
+          install -m 755 packaging/desktop/AppRun "$appdir/AppRun"
+          curl -fsSL -o build/appimagetool \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x build/appimagetool
+          ARCH=x86_64 build/appimagetool --appimage-extract-and-run "$appdir" \
+            "dist-desktop/LeadCommons-$VERSION-linux-x86_64.AppImage"
+      - name: Smoke test the AppImage (Linux)
+        if: runner.os == 'Linux'
+        env:
+          LEADCOMMONS_HOME: ${{ runner.temp }}/lc-appimage
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: |
+          app="$(ls dist-desktop/*.AppImage)"
+          chmod +x "$app"
+          bash packaging/desktop/smoke.sh "$app" 8766
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.target }}
+          path: dist-desktop/*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          merge-multiple: true
+          path: out
+      - name: Checksums
+        run: cd out && sha256sum -- * > SHA256SUMS-desktop.txt && cat SHA256SUMS-desktop.txt
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # The Release workflow may still be creating the release for a pushed tag.
+          for _ in $(seq 1 30); do
+            if gh release view "$TAG" >/dev/null 2>&1; then break; fi
+            sleep 20
+          done
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --title "$TAG" --generate-notes
+          fi
+          gh release upload "$TAG" out/* --clobber

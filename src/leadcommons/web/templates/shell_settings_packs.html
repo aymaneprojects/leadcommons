@@ -1,5 +1,6 @@
 {% extends "shell_settings_base.html" %}
 {% from "_shell_macros.html" import sicon %}
+{% from "_macros.html" import icon %}
 {% block title %}Data packs · LeadCommons{% endblock %}
 {% block settings_body %}
 <h1 class="set-h1">Data packs</h1>
@@ -15,6 +16,23 @@
   </table></div>
   <p class="muted mt">Total: <span class="mono">{{ fmt_int(pack.rows) }}</span> companies in {{ pack.files }} file{{ "s" if pack.files != 1 }}.</p>
   {% else %}<p class="muted">No data pack installed.</p>{% endif %}
-  <p class="hint mt">Get or update the open company data: <code>leadcommons pack download latest</code></p>
+</section>
+<section class="card mt pack-get">
+  <h2 class="set-h2">{{ "Update the company data" if own_pack else "Get the full company data" }}</h2>
+  {% if not own_pack %}<p class="muted">You are searching a small built-in sample. The full pack is rebuilt every month from open registers (Wikidata, GLEIF, INSEE SIRENE, SEC EDGAR) and published on GitHub.</p>
+  {% else %}<p class="muted">A new pack is published every month. Downloading it replaces the pack you downloaded before; packs you built yourself stay.</p>{% endif %}
+  {% set running = pack_job and pack_job.status in ("queued", "running") %}
+  {% if pack_job and pack_job.status == "failed" %}<p class="notice warn" role="alert">The last download failed: {{ pack_job.error }}</p>{% endif %}
+  {% if pack_job and pack_job.status == "done" and pack_job.result %}<p class="notice ok" role="status">Downloaded {{ pack_job.result.pack }}: {{ fmt_int(pack_job.result.companies) }} companies are now searchable.</p>{% endif %}
+  <form method="post" action="/settings/data-packs/download" class="mt">
+    {% if not downloads_on %}
+    <span class="tipwrap" data-tip="Downloads are turned off in the public demo. Install LeadCommons to keep the full data on your computer." tabindex="0"><button class="btn primary" type="button" disabled aria-disabled="true" title="Downloads are turned off in the public demo.">{{ icon("download") }} Download the latest data</button></span>
+    {% elif running %}
+    <button class="btn primary" type="button" disabled aria-disabled="true" title="A download is already running. Watch it in the jobs menu at the top.">{{ icon("loader-circle") }} Downloading…</button>
+    {% else %}
+    <button class="btn primary" type="submit">{{ icon("download") }} {{ "Download the newest pack" if own_pack else "Download the latest data" }}</button>
+    {% endif %}
+  </form>
+  <p class="hint mt">From a terminal: <code>leadcommons pack download latest</code></p>
 </section>
 {% endblock %}

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.1 (2026-11-15)
+
+- Desktop app for Windows (setup .exe), macOS on Apple Silicon (.dmg) and Linux (.AppImage),
+  built and tested by GitHub Actions. It opens LeadCommons in its own window, keeps the data
+  on your computer and downloads the full company pack at the first start.
+- Settings > Data packs: download the newest company pack from the app; search switches to it
+  when the download is done. A new download replaces the previous one, never your own packs.
+- `leadcommons desktop` opens the window from a command-line install.
+
 ## 0.1.0 (2026-11-15)
 
 First public release. LeadCommons is a free, open-source, local-first prospecting app built

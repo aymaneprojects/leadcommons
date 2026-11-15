@@ -414,3 +414,10 @@ html.assist-open .help-fab { right: calc(min(520px, 100vw) + 16px); }
 
 .notif-list { min-height: 220px; }
 .notif-title + .notif-meta[hidden] { display: none; }
+
+/* Data packs: download the latest published pack */
+.set-h2 { font-family: var(--font-head); font-size: 16px; margin: 0 0 6px; }
+.pack-get .notice { margin: 10px 0 0; }
+.pack-get .notice.ok { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
+.pack-get .notice.warn { border-color: color-mix(in srgb, var(--red) 45%, var(--line)); }
+.pack-get form { margin: 0; }

@@ -1,5 +1,11 @@
 # Install
 
+## Desktop app
+
+The easiest way: download the app for Windows, Mac (Apple Silicon) or Linux from the
+[latest release](https://github.com/aymaneprojects/leadcommons/releases/latest). See
+[desktop.md](desktop.md). The rest of this page is for the command line, Docker and servers.
+
 ## Requirements
 
 - One-line installer: `curl` (Linux/macOS) or PowerShell (Windows). It installs [uv](https://docs.astral.sh/uv/) and Python 3.13 for you.

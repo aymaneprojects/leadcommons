@@ -20,7 +20,7 @@ from leadcommons.models import utcnow
 
 log = logging.getLogger(__name__)
 
-JobKind = Literal["find_people", "find_email", "enrich_csv", "company_insights"]
+JobKind = Literal["find_people", "find_email", "enrich_csv", "company_insights", "download_pack"]
 JobStatus = Literal["queued", "running", "done", "failed"]
 
 MAX_JOBS = 200
@@ -49,6 +49,7 @@ class JobRunner:
     find_email:  {"person_id": str}
     enrich_csv:  {"input": str (path), "output": str (path)}
     company_insights: {"company_id": str, "domain": str | None}
+    download_pack: {} (newest published pack; search switches to it when done)
     """
 
     def __init__(self, store: Any, search: Any, settings: Any) -> None:
@@ -60,6 +61,10 @@ class JobRunner:
         )
         self._jobs: dict[str, Job] = {}
         self._lock = threading.Lock()
+        self._state: Any = None  # app.state, so a new pack can replace the search everywhere
+
+    def attach_state(self, state: Any) -> None:
+        self._state = state
 
     @staticmethod
     def _key(kind: str, payload: dict[str, Any]) -> str:
@@ -216,3 +221,14 @@ class JobRunner:
             "jobs": len(res.jobs.postings),
             "phones": len(res.contact.phones),
         }
+
+    def _do_download_pack(self, job: Job) -> dict[str, Any]:
+        from leadcommons.packs import DuckDBCompanySearch, install_latest_pack
+
+        path = install_latest_pack(self.settings.data_dir)
+        fresh = DuckDBCompanySearch(self.settings.data_dir)
+        self.search = fresh
+        if self._state is not None:
+            self._state.search = fresh
+        rows = sum(int(p.get("rows") or 0) for p in fresh.pack_info())
+        return {"pack": path.name, "companies": rows}

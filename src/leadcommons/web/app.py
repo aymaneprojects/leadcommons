@@ -45,6 +45,8 @@ def create_app(
     app.state.search = search
     app.state.store = store
     app.state.jobs = jobs
+    if hasattr(jobs, "attach_state"):
+        jobs.attach_state(app.state)
 
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 

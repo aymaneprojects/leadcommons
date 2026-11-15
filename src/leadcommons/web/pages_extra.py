@@ -130,9 +130,47 @@ def settings_overview(request: Request) -> Response:
     )
 
 
+PACK_JOB_LABEL = "Download the latest company data"
+
+
+def _pack_job(jobs: Any) -> Any:
+    """The newest pack download job, if any (shown on the Data packs page)."""
+    recent = getattr(jobs, "recent", None)
+    for job in recent(50) if callable(recent) else []:
+        if getattr(job, "kind", "") == "download_pack":
+            return job
+    return None
+
+
 @router.get("/settings/data-packs", response_class=HTMLResponse)
 def settings_packs(request: Request) -> Response:
-    return settings_page(request, "shell_settings_packs.html", "packs")
+    from leadcommons.packs import has_own_pack
+
+    settings = request.app.state.settings
+    return settings_page(
+        request,
+        "shell_settings_packs.html",
+        "packs",
+        own_pack=has_own_pack(settings.data_dir),
+        pack_job=_pack_job(request.app.state.jobs),
+        downloads_on=bool(getattr(settings, "enrichment_enabled", True)),
+    )
+
+
+@router.post("/settings/data-packs/download")
+def settings_packs_download(request: Request, jobs: Any = Depends(get_jobs)) -> Response:
+    """Start a background download of the newest published pack; search switches when done."""
+    if not getattr(request.app.state.settings, "enrichment_enabled", True):
+        return RedirectResponse(
+            "/settings/data-packs?notice=Downloads+are+turned+off+in+the+public+demo.",
+            status_code=303,
+        )
+    jobs.submit("download_pack", {}, PACK_JOB_LABEL)
+    return RedirectResponse(
+        "/settings/data-packs?notice=Downloading+the+latest+company+data.+"
+        "Search+switches+to+it+when+the+download+is+done.",
+        status_code=303,
+    )
 
 
 @router.get("/settings/privacy", response_class=HTMLResponse)

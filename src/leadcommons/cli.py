@@ -6,7 +6,6 @@ and works even if an optional dependency is missing.
 
 from __future__ import annotations
 
-import fnmatch
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -101,6 +100,18 @@ def serve(
     )
 
 
+@app.command()
+def desktop(
+    browser: Annotated[
+        bool, typer.Option("--browser", help="Open in your browser instead of an app window.")
+    ] = False,
+) -> None:
+    """Open LeadCommons in its own window (needs: pip install 'leadcommons[desktop]')."""
+    from leadcommons.desktop import main as desktop_main
+
+    raise typer.Exit(desktop_main(["--browser"] if browser else []))
+
+
 @pack_app.command("build")
 def pack_build(
     country: Annotated[
@@ -141,29 +152,9 @@ def pack_build(
 
 
 def _latest_pack_url(repo: str) -> str:
-    import httpx
+    from leadcommons.packs import latest_pack_url
 
-    api = f"https://api.github.com/repos/{repo}/releases"
-    resp = httpx.get(
-        api,
-        params={"per_page": 30},
-        headers={"Accept": "application/vnd.github+json"},
-        timeout=30,
-        follow_redirects=True,
-    )
-    if resp.status_code != 200:
-        raise RuntimeError(f"GitHub answered HTTP {resp.status_code} for {api}")
-    releases = [
-        r
-        for r in resp.json()
-        if str(r.get("tag_name", "")).startswith("packs-") and not r.get("draft")
-    ]
-    releases.sort(key=lambda r: r.get("published_at") or r.get("created_at") or "", reverse=True)
-    for release in releases:
-        for asset in release.get("assets", []):
-            if fnmatch.fnmatch(asset.get("name", ""), "companies-*.parquet"):
-                return asset["browser_download_url"]
-    raise RuntimeError(f"no 'packs-*' release with a companies-*.parquet file found in {repo}")
+    return latest_pack_url(repo)
 
 
 @pack_app.command("download")
