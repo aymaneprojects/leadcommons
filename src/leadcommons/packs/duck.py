@@ -11,7 +11,14 @@ import duckdb
 
 from leadcommons.models import SIZE_RANGES, Company, Provenance
 from leadcommons.packs.domains import normalize_domain
-from leadcommons.search import KEYWORD_FIELDS, PACK_COLUMNS, CompanyFilters, Page
+from leadcommons.search import (
+    KEYWORD_FIELDS,
+    PACK_COLUMNS,
+    PACK_FLOAT_COLUMNS,
+    PACK_INT_COLUMNS,
+    CompanyFilters,
+    Page,
+)
 
 FACETS = {
     "country": "country",
@@ -22,7 +29,7 @@ FACETS = {
 }
 _COLS = ", ".join(PACK_COLUMNS)
 _REG_COLS = (("lei", "lei"), ("wikidata", "wikidata_id"), ("siren", "siren"), ("cik", "cik"))
-_TYPES = {"founded_year": "INTEGER"}
+_TYPES = {**{c: "INTEGER" for c in PACK_INT_COLUMNS}, **{c: "DOUBLE" for c in PACK_FLOAT_COLUMNS}}
 _ORDER = "(domain IS NULL), (size_range IS NULL), lower(name), id"
 
 
@@ -293,4 +300,15 @@ class DuckDBCompanySearch:
             registry_ids={k: d[c] for k, c in _REG_COLS if d[c]},
             links={"website": d["website"]} if d["website"] else {},
             sources=sources,
+            registry=d.get("registry"),
+            company_number=d.get("company_number"),
+            status=d.get("status"),
+            legal_form=d.get("legal_form"),
+            address=d.get("address"),
+            postal_code=d.get("postal_code"),
+            phone=d.get("phone"),
+            employees=d.get("employees"),
+            revenue=d.get("revenue"),
+            revenue_currency=d.get("revenue_currency"),
+            revenue_year=d.get("revenue_year"),
         )

@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from leadcommons.models import Company, Provenance, make_id
-from leadcommons.search import PACK_COLUMNS
+from leadcommons.search import PACK_COLUMNS, PACK_FLOAT_COLUMNS, PACK_INT_COLUMNS
 
 log = logging.getLogger(__name__)
 
@@ -46,11 +46,15 @@ def _pa():
 
 
 def pack_schema():
-    """Arrow schema of a pack: founded_year int32, everything else string."""
+    """Arrow schema of a pack: whole numbers int32, revenue float64, everything else string."""
     pa, _ = _pa()
-    return pa.schema(
-        [pa.field(c, pa.int32() if c == "founded_year" else pa.string()) for c in PACK_COLUMNS]
-    )
+
+    def kind(col: str):
+        if col in PACK_INT_COLUMNS:
+            return pa.int32()
+        return pa.float64() if col in PACK_FLOAT_COLUMNS else pa.string()
+
+    return pa.schema([pa.field(c, kind(c)) for c in PACK_COLUMNS])
 
 
 def company_id(c: Company) -> str:
@@ -198,6 +202,17 @@ def company_to_row(c: Company) -> dict:
         "sources_json": _prov_json(c.sources),
         "siren": c.registry_ids.get("siren"),
         "cik": c.registry_ids.get("cik"),
+        "registry": c.registry,
+        "company_number": c.company_number,
+        "status": c.status,
+        "legal_form": c.legal_form,
+        "address": c.address,
+        "postal_code": c.postal_code,
+        "phone": c.phone,
+        "employees": c.employees,
+        "revenue": c.revenue,
+        "revenue_currency": c.revenue_currency,
+        "revenue_year": c.revenue_year,
     }
 
 

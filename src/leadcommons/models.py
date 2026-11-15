@@ -80,6 +80,20 @@ class Company:
     registry_ids: dict[str, str] = field(default_factory=dict)  # {"lei": ..., "wikidata": "Q..."}
     links: dict[str, str] = field(default_factory=dict)  # {"website": ..., "linkedin": ...}
     sources: list[Provenance] = field(default_factory=list)
+    # Pack schema v0.3: filled by the bulk registers and public accounts (None when unknown).
+    registry: str | None = (
+        None  # register the number belongs to: GB-CH, FR-SIREN, NO-BRREG, AU-ABN, CA-CORP, US-SEC
+    )
+    company_number: str | None = None  # number in that register
+    status: str | None = None  # "active" or "inactive" in the register
+    legal_form: str | None = None  # legal form as the register writes it
+    address: str | None = None  # street line of the registered office
+    postal_code: str | None = None
+    phone: str | None = None  # public switchboard number, E.164 (+33...)
+    employees: int | None = None  # exact head count when a register or filing gives it
+    revenue: float | None = None  # latest annual revenue from public accounts
+    revenue_currency: str | None = None  # ISO 4217
+    revenue_year: int | None = None
 
 
 @dataclass
