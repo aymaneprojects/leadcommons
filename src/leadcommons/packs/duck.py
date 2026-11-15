@@ -51,6 +51,7 @@ _PLACE_GROUP = ("country", "region", "city")
 MEMORY_ROWS = 300_000  # packs without an index up to this size are loaded in memory
 CACHE_SIZE = 2048  # cached counts and filter-panel counts
 PREFETCH, PREFETCH_MIN, WINDOWS = 5000, 100, 4  # see _page_rows
+MINIS = 16  # mini cubes kept (see _mini)
 
 
 def _lit(path: str) -> str:
@@ -116,12 +117,17 @@ class DuckDBCompanySearch:
         self._lock = threading.Lock()
         self._cache: OrderedDict[tuple, Any] = OrderedDict()
         self._windows: OrderedDict[tuple, list[tuple]] = OrderedDict()
+        self._minis: OrderedDict[tuple, str] = OrderedDict()
+        self._mini_seq = 0
+        self._con.execute("ATTACH ':memory:' AS lc_cache")
         self._sources: list[_Source] = []
         for i, f in enumerate(files):
             try:
                 self._sources.append(self._open_source(i, f, base))
             except duckdb.Error:
                 log.exception("could not read pack %s; skipping it", f)
+        self._gk: dict[int, str] = {}  # combined key table: index number -> source alias
+        self._open_global_keys(base)
         parts = [f"SELECT {_COLS}, txt FROM {s.table}" for s in self._sources]
         self._con.execute(
             "CREATE VIEW companies AS "
@@ -198,6 +204,25 @@ class DuckDBCompanySearch:
         )
         return _Source(alias, f, "raw", rows, self._raw_countries(f))
 
+    def _open_global_keys(self, base: Path | None) -> None:
+        """Attach the key table shared by every indexed source, when it covers exactly them."""
+        indexed = [s for s in self._sources if s.kind == "index"]
+        if base is None or len(indexed) < 2:
+            return
+        path = ix.global_keys_path(base, [Path(s.info["path"]) for s in indexed])
+        if not path.is_file():
+            return
+        try:
+            self._con.execute(f"ATTACH {_lit(str(path))} AS gk (READ_ONLY)")
+            files = dict(self._con.execute("SELECT name, f FROM gk.files").fetchall())
+        except duckdb.Error:
+            log.warning("the combined key table cannot be read; looking up per pack")
+            return
+        by_name = {Path(s.info["path"]).name: s.alias for s in indexed}
+        if set(files) != set(by_name):
+            return
+        self._gk = {int(f): by_name[name] for name, f in files.items()}
+
     def _raw_countries(self, f: Path) -> frozenset[str] | None:
         """The pack's countries from the Parquet statistics (no scan), when they say."""
         try:
@@ -226,9 +251,12 @@ class DuckDBCompanySearch:
     # -- query building (all user input is bound as parameters) --------------------------
 
     @staticmethod
-    def _where(f: CompanyFilters, skip: str | None = None) -> tuple[list[str], list[Any]]:
+    def _where(
+        f: CompanyFilters, skip: str | None = None, part: str = "all"
+    ) -> tuple[list[str], list[Any]]:
         """Conditions over the source tables (and, when cube_ok, the cubes). Domains are left to
-        the caller: indexed sources answer them from their key table."""
+        the caller: indexed sources answer them from their key table. part: "core" for the
+        text conditions only (never skipped by a facet), "rest" for the others."""
         conds: list[str] = []
         params: list[Any] = []
 
@@ -251,15 +279,18 @@ class DuckDBCompanySearch:
             params.extend(values)
             return f"{expr} IN ({','.join('?' * len(values))})"
 
-        if f.text and f.text.strip():
-            conds.append(kw_match(("name",), f.text.strip()))
-        cols = KEYWORD_FIELDS.get(f.keyword_fields, KEYWORD_FIELDS["all"])
-        kws = [k.strip() for k in f.keywords if k and k.strip()]
-        if kws:
-            joiner = " AND " if f.keyword_mode == "all" else " OR "
-            conds.append("(" + joiner.join(kw_match(cols, k) for k in kws) + ")")
-        for k in (k.strip() for k in f.exclude_keywords if k and k.strip()):
-            conds.append(f"NOT coalesce({kw_match(cols, k)}, false)")
+        if part != "rest":
+            if f.text and f.text.strip():
+                conds.append(kw_match(("name",), f.text.strip()))
+            cols = KEYWORD_FIELDS.get(f.keyword_fields, KEYWORD_FIELDS["all"])
+            kws = [k.strip() for k in f.keywords if k and k.strip()]
+            if kws:
+                joiner = " AND " if f.keyword_mode == "all" else " OR "
+                conds.append("(" + joiner.join(kw_match(cols, k) for k in kws) + ")")
+            for k in (k.strip() for k in f.exclude_keywords if k and k.strip()):
+                conds.append(f"NOT coalesce({kw_match(cols, k)}, false)")
+        if part == "core":
+            return conds, params
         if skip not in _PLACE_GROUP:
             places = []
             if f.countries:
@@ -324,11 +355,11 @@ class DuckDBCompanySearch:
         return out
 
     def _plan(
-        self, f: CompanyFilters, skip: str | None = None
+        self, f: CompanyFilters, skip: str | None = None, part: str = "all"
     ) -> list[tuple[_Source, str, list[Any]]]:
         """(source, WHERE clause, params) for each source that can hold matches."""
-        conds, params = self._where(f, skip)
-        sources = self._candidates(f, skip)
+        conds, params = self._where(f, skip, part)
+        sources = self._candidates(f, skip if part == "all" else "country")
         hits: dict[str, list[int]] = {}
         domains = self._domains(f) if f.domains else []
         if domains:
@@ -377,17 +408,33 @@ class DuckDBCompanySearch:
             return {}
         marks = ",".join("?" * len(values))
         parts, params = [], []
-        for n, s in enumerate(keyed):
+        tags: dict[int, str] = {}
+        if self._gk:  # one query on the combined key table for every indexed source
+            wanted = {s.alias for s in keyed}
+            parts.append(f"SELECT f AS s, rk FROM gk.keys WHERE k = ? AND v IN ({marks})")
+            params += [kind, *values]
+            tags = {f: a for f, a in self._gk.items() if a in wanted}
+            keyed = [s for s in keyed if s.alias not in self._gk.values()]
+        for n, s in enumerate(keyed, start=1 << 16):
             parts.append(f"SELECT {n} AS s, rk FROM {s.keys} WHERE k = ? AND v IN ({marks})")
             params += [kind, *values]
+            tags[n] = s.alias
         out: dict[str, list[int]] = {}
-        for n, rk in self._query(" UNION ALL ".join(parts), params):
-            out.setdefault(keyed[n].alias, []).append(int(rk))
+        for n, rk in self._query(" UNION ALL ".join(parts), params) if parts else []:
+            if int(n) in tags:
+                out.setdefault(tags[int(n)], []).append(int(rk))
         return out
 
-    def _rows_by_key(self, kind: str, values: list[str], raw_sql: str, limit: int) -> list[tuple]:
+    def _rows_by_key(
+        self,
+        kind: str,
+        values: list[str],
+        raw_sql: str,
+        limit: int,
+        raw_params: list[Any] | None = None,
+    ) -> list[tuple]:
         """Rows whose key matches, in source order: key tables first, then a filtered scan
-        of raw sources (raw_sql: a condition with one '?' per value)."""
+        of raw sources (raw_sql: a condition over raw_params, by default one '?' per value)."""
         hits = self._key_hits(kind, values)
         parts, params = [], []
         for n, s in enumerate(self._sources):
@@ -399,11 +446,76 @@ class DuckDBCompanySearch:
                     )
             else:
                 parts.append(f"SELECT {n} AS s, 0 AS rk, {_COLS} FROM {s.table} WHERE {raw_sql}")
-                params += values
+                params += values if raw_params is None else raw_params
         if not parts:
             return []
         sql = f"SELECT * FROM ({' UNION ALL '.join(parts)}) ORDER BY s, rk LIMIT {int(limit)}"
         return [r[2:] for r in self._query(sql, params)]
+
+    def _mini_ok(self, f: CompanyFilters) -> bool:
+        """Text, keyword or domain filters: the matching rows are grouped once (a mini cube)
+        and the count and the filter-panel counts are read from that small table."""
+        return bool(self._where(f, part="core")[0] or f.domains)
+
+    def _mini(self, f: CompanyFilters, with_city: bool) -> str | None:
+        conds, params = self._where(f, part="core")
+        key = (tuple(conds), tuple(params), tuple(self._domains(f)), with_city)
+        with self._lock:
+            name = self._minis.get(key)
+            if name is not None:
+                self._minis.move_to_end(key)
+                return name
+            self._mini_seq += 1
+            name = f"lc_cache.m{self._mini_seq}"
+        plan = self._plan(f, part="core")
+        if not plan:
+            return None
+        cols = "country, region, industry, size_range" + (", city" if with_city else "")
+        union = " UNION ALL ".join(f"SELECT {cols} FROM {s.table}{w}" for s, w, _ in plan)
+        cur = self._con.cursor()
+        try:
+            cur.execute(
+                f"CREATE TABLE {name} AS SELECT {cols}, count(*)::BIGINT AS n FROM ({union}) "
+                "GROUP BY ALL",
+                [p for _, _, ps in plan for p in ps],
+            )
+        finally:
+            cur.close()
+        drop = []
+        with self._lock:
+            if key in self._minis:  # another thread built it meanwhile
+                drop.append(name)
+                name = self._minis[key]
+            else:
+                self._minis[key] = name
+            while len(self._minis) > MINIS:
+                drop.append(self._minis.popitem(last=False)[1])
+        for old in drop:
+            self._query(f"DROP TABLE IF EXISTS {old}", [])
+        return name
+
+    def _from_mini(self, f: CompanyFilters, col: str | None, limit: int = 0) -> Any:
+        """The count (col None) or the counts per value of col, from the mini cube; None when
+        the mini cube vanished meanwhile (the caller then scans)."""
+        with_city = bool(f.cities or f.exclude_cities) or col == "city"
+        name = self._mini(f, with_city)
+        if name is None:
+            return 0 if col is None else []
+        conds, params = self._where(f, skip=col, part="rest")
+        try:
+            if col is None:
+                where = (" WHERE " + " AND ".join(conds)) if conds else ""
+                return int(
+                    self._query(f"SELECT coalesce(sum(n), 0) FROM {name}{where}", params)[0][0]
+                )
+            conds.append(f"{col} IS NOT NULL")
+            return self._query(
+                f"SELECT {col}, sum(n) AS n FROM {name} WHERE {' AND '.join(conds)} "
+                f"GROUP BY {col} ORDER BY n DESC, {col} LIMIT ?",
+                [*params, limit],
+            )
+        except duckdb.CatalogException:
+            return None
 
     # -- CompanySearch API -----------------------------------------------------------------
 
@@ -427,6 +539,10 @@ class DuckDBCompanySearch:
             return int(
                 self._query(f"SELECT coalesce(sum(n), 0) FROM ({union}){where}", params)[0][0]
             )
+        if self._mini_ok(f):
+            got = self._from_mini(f, None)
+            if got is not None:
+                return int(got)
         plan = self._plan(f)
         if not plan:
             return 0
@@ -518,28 +634,10 @@ class DuckDBCompanySearch:
         n = ix.norm_number(number)
         if not n:
             return []
-        raw = " OR ".join(
-            f"{ix.norm_number_sql(c)} = ?" for c in ("company_number", "siren", "cik", "lei")
-        )
-        hits = self._key_hits(ix.KEY_NUMBER, [n])
-        parts, params = [], []
-        for i, s in enumerate(self._sources):
-            if s.keys:
-                if s.alias in hits:
-                    parts.append(
-                        f"SELECT {i} AS s, rk, {_COLS} FROM {s.table} "
-                        f"WHERE rk IN ({_ints(hits[s.alias])})"
-                    )
-            else:
-                parts.append(f"SELECT {i} AS s, 0 AS rk, {_COLS} FROM {s.table} WHERE {raw}")
-                params += [n] * 4
-        if not parts:
-            return []
-        rows = self._query(
-            f"SELECT * FROM ({' UNION ALL '.join(parts)}) ORDER BY s, rk LIMIT {int(limit)}",
-            params,
-        )
-        return [self._to_company(r[2:]) for r in rows]
+        cols = ("company_number", "siren", "cik", "lei")
+        raw = " OR ".join(f"{ix.norm_number_sql(c)} = ?" for c in cols)
+        rows = self._rows_by_key(ix.KEY_NUMBER, [n], raw, limit, [n] * len(cols))
+        return [self._to_company(r) for r in rows]
 
     def lookalike_companies(self, company: Company, limit: int = 25) -> list[Company]:
         """Companies like `company`: same ISIC industry, same or neighbouring size bucket, the
@@ -602,6 +700,8 @@ class DuckDBCompanySearch:
                 f"GROUP BY {col} ORDER BY n DESC, {col} LIMIT ?"
             )
             rows = self._query(sql, [*params, limit])
+        elif self._mini_ok(f) and (got := self._from_mini(f, col, limit)) is not None:
+            rows = got
         elif col == "city" and not self._where(f, skip=col)[0] and not f.domains:
             union = " UNION ALL ".join(
                 f"SELECT value, n FROM {s.alias}.places WHERE kind = 'city'" for s in sources

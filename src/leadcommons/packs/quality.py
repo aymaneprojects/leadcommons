@@ -128,13 +128,14 @@ def _file_metrics(con, path: Path, manifest_entry: dict | None) -> dict:
         count(*) FILTER (WHERE id IS NULL OR trim(id) = '' OR name IS NULL OR trim(name) = ''),
         count(*) FILTER (WHERE country IS DISTINCT FROM {lit(cc)}),
         count(*) FILTER (WHERE sources_json IS NULL OR NOT json_valid(sources_json)),
-        count(*) FILTER (WHERE {_person_sql()})
+        count(*) FILTER (WHERE {_person_sql()}),
+        count(*) FILTER (WHERE industry IS NOT NULL AND NOT regexp_full_match(industry, '[A-U]'))
       FROM read_parquet({p})
     """).fetchone()
     rows = int(row[0])
     fill = {c: int(v) for c, v in zip(have, row[1 : 1 + len(have)], strict=True)}
     tail = (int(v) for v in row[1 + len(have) :])
-    inactive, dom_or_web, missing, wrong_cc, bad_json, persons = tail
+    inactive, dom_or_web, missing, wrong_cc, bad_json, persons, bad_industry = tail
     sample = [
         r[0]
         for r in con.execute(
@@ -166,6 +167,7 @@ def _file_metrics(con, path: Path, manifest_entry: dict | None) -> dict:
         "invalid_sources_json": bad_json,
         "person_like_names": persons,
         "person_like_sample_ids": sample,
+        "industry_not_isic_section": bad_industry,
         "release": kv.get("release"),
         "built_at": kv.get("built_at"),
         "sources": [s for s in kv.get("sources", "").split(",") if s],
@@ -295,6 +297,10 @@ def compute_quality(packs_dir: Path) -> dict:
         check("sources_json_valid", not any(c["invalid_sources_json"] for c in countries),
               f"{sum(c['invalid_sources_json'] for c in countries)} rows with invalid JSON"),
         check("lei_unique", dup_leis == 0, f"{dup_leis} LEIs on more than one row", WARN),
+        check("industry_isic_section",
+              not any(c["industry_not_isic_section"] for c in countries),
+              f"{sum(c['industry_not_isic_section'] for c in countries)} industry values are "
+              "not an ISIC section letter (A-U)", WARN),
         check("person_like_names", persons == 0,
               f"{persons} names look like a natural person ({_share(persons, rows):.2%}); "
               "sample ids in quality.json", WARN),

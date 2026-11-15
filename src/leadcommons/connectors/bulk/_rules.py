@@ -164,6 +164,8 @@ def size_range_sql(expr: str) -> str:
 # Hosts shared by many sites: a profile page on them (facebook.com/acme, acme.wixsite.com) is not
 # the company's own domain, so its domain is left empty (the URL stays in `website`). The root of
 # such a host (https://www.facebook.com/) is the host company's own site and keeps its domain.
+# Public-sector parents (lunner.kommune.no, x.nsw.gov.au) are treated the same way: their
+# registrable domain is shared by hundreds of bodies.
 SHARED_HOSTS: frozenset[str] = frozenset(
     """
     facebook.com fb.com instagram.com twitter.com x.com linkedin.com youtube.com youtu.be
@@ -172,6 +174,8 @@ SHARED_HOSTS: frozenset[str] = frozenset(
     tumblr.com medium.com github.io github.com gitlab.io wikipedia.org wikidata.org archive.org
     t.me linktr.ee about.me yelp.com tripadvisor.com gulesider.no proff.no 1881.no finn.no
     business.site godaddysites.com mystrikingly.com carrd.co site123.me
+    kommune.no fylkeskommune.no vgs.no gouv.fr gc.ca sch.uk nhs.uk police.uk nsw.gov.au
+    vic.gov.au qld.gov.au wa.gov.au sa.gov.au tas.gov.au act.gov.au nt.gov.au
     """.split()
 )
 

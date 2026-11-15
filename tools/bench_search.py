@@ -433,6 +433,7 @@ def run(
     pages: tuple[int, ...] = (1, 2, 40),
     memory_limit: str | None = None,
     threads: int | None = None,
+    keep: bool = False,
 ) -> dict[str, Any]:
     if memory_limit:
         os.environ["LEADCOMMONS_DUCKDB_MEMORY"] = memory_limit
@@ -447,9 +448,9 @@ def run(
         build_s = 0.0
     else:
         data_dir = work
-        if work.exists():
+        if work.exists() and not keep:
             shutil.rmtree(work)
-        work.mkdir(parents=True)
+        work.mkdir(parents=True, exist_ok=True)
         build_s = install_local(data, work)
     report["build_seconds"] = round(build_s, 1)
     report["memory"]["after_build"] = rss_mb()
@@ -562,7 +563,9 @@ def install_local(src: Path, data_dir: Path) -> float:
 
     manifest = json.loads((src / "manifest.json").read_text(encoding="utf-8"))
     for entry in manifest["countries"]:
-        shutil.copy2(src / entry["file"], data_dir / entry["file"])
+        dest = data_dir / entry["file"]
+        if not dest.exists() or dest.stat().st_size != (src / entry["file"]).stat().st_size:
+            shutil.copy2(src / entry["file"], dest)  # same mtime: a kept index stays valid
     t0 = time.perf_counter()
     pack_index.ensure_index(data_dir)
     return time.perf_counter() - t0
@@ -593,6 +596,7 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--memory-limit", default=None, help="DuckDB memory limit, e.g. 1GB")
     r.add_argument("--threads", type=int, default=None)
     r.add_argument("--json", type=Path, default=None, help="also write the report as JSON")
+    r.add_argument("--keep", action="store_true", help="reuse the indexes built by a last run")
     args = ap.parse_args(argv)
     if args.cmd == "generate":
         generate(args.rows, args.out)
@@ -603,6 +607,7 @@ def main(argv: list[str] | None = None) -> int:
         args.raw,
         memory_limit=args.memory_limit,
         threads=args.threads,
+        keep=args.keep,
     )
     print_report(rep)
     if args.json:

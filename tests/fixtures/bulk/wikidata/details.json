@@ -1,0 +1,981 @@
+{
+ "head": {
+  "vars": [
+   "item"
+  ]
+ },
+ "results": {
+  "bindings": [
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q130879"
+    },
+    "label": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Reuters"
+    },
+    "website": {
+     "type": "literal",
+     "value": "https://www.reuters.com/"
+    },
+    "countries": {
+     "type": "literal",
+     "value": "GB"
+    },
+    "gb_ch": {
+     "type": "literal",
+     "value": "03477402"
+    },
+    "no_orgnr": {
+     "type": "literal",
+     "value": "920929273"
+    },
+    "inception": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "1851"
+    },
+    "employees": {
+     "type": "literal",
+     "value": "|2500"
+    },
+    "industry": {
+     "type": "literal",
+     "value": "Q2401742|telecommunications industry"
+    },
+    "hq": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "London"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q1023876"
+    },
+    "label": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "CME Group"
+    },
+    "website": {
+     "type": "literal",
+     "value": "https://www.cmegroup.com"
+    },
+    "countries": {
+     "type": "literal",
+     "value": "US GB"
+    },
+    "inception": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "2007"
+    },
+    "employees": {
+     "type": "literal",
+     "value": "|2300"
+    },
+    "industry": {
+     "type": "literal",
+     "value": "Q43015|finance"
+    },
+    "hq": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Chicago"
+    },
+    "lei": {
+     "type": "literal",
+     "value": "LCZ7XYGSLJUHFXXNXD88"
+    },
+    "cik": {
+     "type": "literal",
+     "value": "0001156375"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q280413"
+    },
+    "label": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "National Center for Scientific Research"
+    },
+    "website": {
+     "type": "literal",
+     "value": "https://www.cnrs.fr/"
+    },
+    "countries": {
+     "type": "literal",
+     "value": "FR"
+    },
+    "inception": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "1939"
+    },
+    "employees": {
+     "type": "literal",
+     "value": "2019-01-01T00:00:00Z|31970"
+    },
+    "industry": {
+     "type": "literal",
+     "value": "Q112166056|research and development in other physical and natural sciences"
+    },
+    "hq": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Paris"
+    },
+    "siren": {
+     "type": "literal",
+     "value": "180089013"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q460487"
+    },
+    "label": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Dassault Aviation"
+    },
+    "website": {
+     "type": "literal",
+     "value": "https://www.dassault-aviation.com"
+    },
+    "countries": {
+     "type": "literal",
+     "value": "FR"
+    },
+    "inception": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "1929"
+    },
+    "employees": {
+     "type": "literal",
+     "value": "2017-12-31T00:00:00Z|11398 2016-01-01T00:00:00Z|11942"
+    },
+    "industry": {
+     "type": "literal",
+     "value": "Q112165459|aircraft and space construction"
+    },
+    "hq": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Paris"
+    },
+    "lei": {
+     "type": "literal",
+     "value": "969500CVFTUT88V8QN95"
+    },
+    "siren": {
+     "type": "literal",
+     "value": "712042456"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q185339"
+    },
+    "label": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Air Canada"
+    },
+    "website": {
+     "type": "literal",
+     "value": "https://www.aircanada.com"
+    },
+    "countries": {
+     "type": "literal",
+     "value": "CA"
+    },
+    "inception": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "1937"
+    },
+    "industry": {
+     "type": "literal",
+     "value": "Q1757562|air transport"
+    },
+    "hq": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Montreal"
+    },
+    "lei": {
+     "type": "literal",
+     "value": "4B4HI3CGXMBDC0G6BM51"
+    },
+    "abn": {
+     "type": "literal",
+     "value": "29094769561"
+    },
+    "ca_corp": {
+     "type": "literal",
+     "value": "439662-6"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q191866"
+    },
+    "label": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "AIESEC"
+    },
+    "website": {
+     "type": "literal",
+     "value": "https://aiesec.org"
+    },
+    "countries": {
+     "type": "literal",
+     "value": "CA"
+    },
+    "inception": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "1948"
+    },
+    "hq": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Montreal"
+    },
+    "ca_corp": {
+     "type": "literal",
+     "value": "1055154-6"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q100466633"
+    },
+    "label": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Vestre AS"
+    },
+    "website": {
+     "type": "literal",
+     "value": "https://vestre.com/no/"
+    },
+    "countries": {
+     "type": "literal",
+     "value": "NO"
+    },
+    "no_orgnr": {
+     "type": "literal",
+     "value": "948140349"
+    },
+    "inception": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "1947"
+    },
+    "employees": {
+     "type": "literal",
+     "value": "2026-04-13T00:00:00Z|22"
+    },
+    "industry": {
+     "type": "literal",
+     "value": "Q1817883|furniture manufacturer"
+    },
+    "hq": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Oslo"
+    },
+    "lei": {
+     "type": "literal",
+     "value": "636700K260KOYQX83H90"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q241149"
+    },
+    "label": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Liberal Party of Australia"
+    },
+    "website": {
+     "type": "literal",
+     "value": "https://www.liberal.org.au/"
+    },
+    "countries": {
+     "type": "literal",
+     "value": "AU"
+    },
+    "inception": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "1945"
+    },
+    "hq": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Canberra"
+    },
+    "abn": {
+     "type": "literal",
+     "value": "15217882958"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q1006504"
+    },
+    "label": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Fastmail"
+    },
+    "website": {
+     "type": "literal",
+     "value": "https://www.fastmail.com/"
+    },
+    "countries": {
+     "type": "literal",
+     "value": "AU"
+    },
+    "inception": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "1999"
+    },
+    "industry": {
+     "type": "literal",
+     "value": "Q9158|email"
+    },
+    "hq": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Melbourne"
+    },
+    "lei": {
+     "type": "literal",
+     "value": "9845000AD2D6DDA73678"
+    },
+    "abn": {
+     "type": "literal",
+     "value": "31142646580"
+    },
+    "acn": {
+     "type": "literal",
+     "value": "142646580"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q188920"
+    },
+    "label": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Delta Air Lines"
+    },
+    "website": {
+     "type": "literal",
+     "value": "https://de.delta.com/"
+    },
+    "countries": {
+     "type": "literal",
+     "value": "US"
+    },
+    "inception": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "1925"
+    },
+    "industry": {
+     "type": "literal",
+     "value": "Q1757562|air transport"
+    },
+    "hq": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Atlanta"
+    },
+    "lei": {
+     "type": "literal",
+     "value": "Q2CCMS6R0AS67HJMBN42"
+    },
+    "cik": {
+     "type": "literal",
+     "value": "0000027904"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7296793"
+    },
+    "label": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Ravn Studio"
+    },
+    "website": {
+     "type": "literal",
+     "value": "http://www.ravnstudio.no"
+    },
+    "countries": {
+     "type": "literal",
+     "value": "NO"
+    },
+    "no_orgnr": {
+     "type": "literal",
+     "value": "984672586"
+    },
+    "inception": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "2002"
+    },
+    "industry": {
+     "type": "literal",
+     "value": "Q941594|video game industry"
+    },
+    "hq": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Drammen"
+    },
+    "dissolved": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "2025"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q908144"
+    },
+    "label": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Wesfarmers"
+    },
+    "website": {
+     "type": "literal",
+     "value": "http://www.wesfarmers.com.au"
+    },
+    "countries": {
+     "type": "literal",
+     "value": "AU"
+    },
+    "inception": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "1914"
+    },
+    "industry": {
+     "type": "literal",
+     "value": "Q778575|conglomerate"
+    },
+    "hq": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Perth"
+    },
+    "lei": {
+     "type": "literal",
+     "value": "5493003L32ZX9557ST85"
+    },
+    "abn": {
+     "type": "literal",
+     "value": "28008984049"
+    },
+    "acn": {
+     "type": "literal",
+     "value": "008984049"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q219508"
+    },
+    "label": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Citigroup"
+    },
+    "website": {
+     "type": "literal",
+     "value": "http://www.citigroup.com/"
+    },
+    "countries": {
+     "type": "literal",
+     "value": "US"
+    },
+    "inception": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "1812"
+    },
+    "employees": {
+     "type": "literal",
+     "value": "2016-01-01T00:00:00Z|219000 2013-01-01T00:00:00Z|251000"
+    },
+    "industry": {
+     "type": "literal",
+     "value": "Q1666934|International Standard Industrial Classification"
+    },
+    "hq": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "388 Greenwich Street"
+    },
+    "lei": {
+     "type": "literal",
+     "value": "6SHGI4ZSSLCXXQSBB395"
+    },
+    "cik": {
+     "type": "literal",
+     "value": "0000831001"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q1208134"
+    },
+    "label": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "The Kavli Trust"
+    },
+    "website": {
+     "type": "literal",
+     "value": "http://www.kavlifondet.no"
+    },
+    "countries": {
+     "type": "literal",
+     "value": "NO"
+    },
+    "no_orgnr": {
+     "type": "literal",
+     "value": "938503583"
+    },
+    "inception": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "1962"
+    },
+    "industry": {
+     "type": "literal",
+     "value": "Q2095|food"
+    },
+    "hq": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Midtun"
+    },
+    "lei": {
+     "type": "literal",
+     "value": "254900QJWYLV5BNSC486"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q216272"
+    },
+    "label": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Chrome Holding Co."
+    },
+    "countries": {
+     "type": "literal",
+     "value": "US"
+    },
+    "inception": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "2006"
+    },
+    "industry": {
+     "type": "literal",
+     "value": "Q12303494|biotechnology industry"
+    },
+    "hq": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "South San Francisco"
+    },
+    "lei": {
+     "type": "literal",
+     "value": "529900FU5IIBCXYHHX25"
+    },
+    "cik": {
+     "type": "literal",
+     "value": "0001414053"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q407448"
+    },
+    "label": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Air Liquide"
+    },
+    "website": {
+     "type": "literal",
+     "value": "https://www.airliquide.ca/"
+    },
+    "countries": {
+     "type": "literal",
+     "value": "CA FR"
+    },
+    "inception": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "1902"
+    },
+    "employees": {
+     "type": "literal",
+     "value": "|67800"
+    },
+    "industry": {
+     "type": "literal",
+     "value": "Q112166047|engineering, technical studies"
+    },
+    "hq": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "quai d'Orsay"
+    },
+    "lei": {
+     "type": "literal",
+     "value": "969500MMPQVHK671GT54"
+    },
+    "siren": {
+     "type": "literal",
+     "value": "552096281"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q624798"
+    },
+    "label": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Canadian National Railway"
+    },
+    "website": {
+     "type": "literal",
+     "value": "https://www.cn.ca/"
+    },
+    "countries": {
+     "type": "literal",
+     "value": "CA US"
+    },
+    "inception": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "1919"
+    },
+    "industry": {
+     "type": "literal",
+     "value": "Q2234623|rail freight transport"
+    },
+    "hq": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Downtown Montreal"
+    },
+    "lei": {
+     "type": "literal",
+     "value": "3SU7BEP7TH9YEQOZCS77"
+    },
+    "cik": {
+     "type": "literal",
+     "value": "0000016868"
+    },
+    "ca_corp": {
+     "type": "literal",
+     "value": "010533-3"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q697074"
+    },
+    "label": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Fjord1"
+    },
+    "website": {
+     "type": "literal",
+     "value": "http://www.fjord1.no/"
+    },
+    "countries": {
+     "type": "literal",
+     "value": "NO"
+    },
+    "no_orgnr": {
+     "type": "literal",
+     "value": "983472583"
+    },
+    "inception": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "2001"
+    },
+    "employees": {
+     "type": "literal",
+     "value": "|1600"
+    },
+    "industry": {
+     "type": "literal",
+     "value": "Q155930|water transport"
+    },
+    "hq": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Florø"
+    },
+    "lei": {
+     "type": "literal",
+     "value": "549300RANUO1920OIK60"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q100371254"
+    },
+    "label": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Drangedal Sparebank"
+    },
+    "website": {
+     "type": "literal",
+     "value": "https://drangedalsparebank.no/"
+    },
+    "countries": {
+     "type": "literal",
+     "value": "NO"
+    },
+    "no_orgnr": {
+     "type": "literal",
+     "value": "937891601"
+    },
+    "inception": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "1935"
+    },
+    "employees": {
+     "type": "literal",
+     "value": "2026-04-14T00:00:00Z|42"
+    },
+    "industry": {
+     "type": "literal",
+     "value": "Q3435731|banking"
+    },
+    "hq": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Prestestranda"
+    },
+    "lei": {
+     "type": "literal",
+     "value": "5967007LIEEXZX87C875"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q190464"
+    },
+    "label": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "HSBC"
+    },
+    "website": {
+     "type": "literal",
+     "value": "https://hsbc.com/"
+    },
+    "countries": {
+     "type": "literal",
+     "value": "GB"
+    },
+    "gb_ch": {
+     "type": "literal",
+     "value": "00617987"
+    },
+    "inception": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "1865"
+    },
+    "employees": {
+     "type": "literal",
+     "value": "2020-12-31T00:00:00Z|226059 2019-12-31T00:00:00Z|235351 2015-12-31T00:00:00Z|264000 2021-12-31T00:00:00Z|219697 2016-12-31T00:00:00Z|241000 2017-12-31T00:00:00Z|229000 2018-12-31T00:00:00Z|235217 1991-12-31T00:00:00Z|53770"
+    },
+    "industry": {
+     "type": "literal",
+     "value": "Q43183|insurance"
+    },
+    "hq": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "8 Canada Square"
+    },
+    "lei": {
+     "type": "literal",
+     "value": "MLU0ZO3ML4LN2LL2TL39"
+    },
+    "cik": {
+     "type": "literal",
+     "value": "0001089113"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q885589"
+    },
+    "label": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "BlueScope Steel"
+    },
+    "website": {
+     "type": "literal",
+     "value": "https://www.bluescope.com"
+    },
+    "countries": {
+     "type": "literal",
+     "value": "AU"
+    },
+    "inception": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "2002"
+    },
+    "employees": {
+     "type": "literal",
+     "value": "|17063 2021-06-30T00:00:00Z|14300"
+    },
+    "industry": {
+     "type": "literal",
+     "value": "Q2285982|iron and steel industry"
+    },
+    "hq": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "120 Collins Street"
+    },
+    "abn": {
+     "type": "literal",
+     "value": "16000011058"
+    },
+    "acn": {
+     "type": "literal",
+     "value": "000011058"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q108025"
+    },
+    "label": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Sarpsborg"
+    },
+    "website": {
+     "type": "literal",
+     "value": "https://www.sarpsborg.com/"
+    },
+    "countries": {
+     "type": "literal",
+     "value": "NO"
+    },
+    "no_orgnr": {
+     "type": "literal",
+     "value": "938801363"
+    },
+    "inception": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "1839"
+    },
+    "employees": {
+     "type": "literal",
+     "value": "2026-10-13T00:00:00Z|7674"
+    },
+    "industry": {
+     "type": "literal",
+     "value": "Q29585954|general public administration activities"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q488669"
+    },
+    "label": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Reed Business Information"
+    },
+    "website": {
+     "type": "literal",
+     "value": "http://www.reedbusiness.co.uk/"
+    },
+    "countries": {
+     "type": "literal",
+     "value": ""
+    },
+    "gb_ch": {
+     "type": "literal",
+     "value": "00151537"
+    },
+    "inception": {
+     "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+     "type": "literal",
+     "value": "1946"
+    },
+    "lei": {
+     "type": "literal",
+     "value": "549300Z4L7VGYKD8GT51"
+    }
+   }
+  ]
+ }
+}

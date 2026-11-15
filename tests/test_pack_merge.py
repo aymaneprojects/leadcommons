@@ -37,6 +37,7 @@ LICENCES = {
     "edgar_bulk": "public-domain",
     "brreg": "NLOD-2.0",
     "abr": "CC-BY-4.0",
+    "canada_corps": "OGL-Canada-2.0",
 }
 ABR_ATTRIBUTION = "Contains ABR data, Commonwealth of Australia, licensed under CC BY 4.0."
 
@@ -449,6 +450,38 @@ def test_cli_merge_and_quality(tmp_path: Path) -> None:
     assert res.exit_code == 0 and "person_like_names" in res.output
 
 
+def test_french_overseas_and_numbers_without_leading_zeros(tmp_path: Path) -> None:
+    shards = tmp_path / "shards"
+    shards.mkdir()
+    write_shard(
+        shards,
+        "sirene_stock",
+        [fr("356000000", "SOCIETE ANTILLAISE", postal_code="97110", city="POINTE-A-PITRE")],
+    )
+    write_shard(shards, "gleif_golden", [
+        {"lei": "969500ANTILLES000011", "name": "SOCIETE ANTILLAISE", "country": "GP",
+         "registry": "FR-SIREN", "company_number": "356000000", "status": "active"},
+        {"lei": "969500REUNION0000022", "name": "Reunion Peche", "country": "RE",
+         "city": "Saint-Denis", "status": "active"},
+        {"lei": "5493000CANADA0000033", "name": "MAPLE INC", "country": "CA",
+         "registry": "CA-CORP", "company_number": "123456", "status": "active"},
+    ])  # fmt: skip
+    write_shard(shards, "canada_corps", [
+        {"name": "MAPLE INC.", "country": "CA", "registry": "CA-CORP",
+         "company_number": "0123456", "status": "active"},
+    ])  # fmt: skip
+    out = tmp_path / "out"
+    merge_shards(shards, out, built_at=BUILT)
+    fr_rows = rows(out, "FR")
+    assert fr_rows["356000000"]["lei"] == "969500ANTILLES000011"  # GP joins FR by SIREN
+    assert fr_rows["969500REUNION0000022"]["country"] == "FR"
+    assert fr_rows["969500REUNION0000022"]["region"] == "RE"  # territory kept as the region
+    maple = rows(out, "CA")["0123456"]  # stored as the register writes it
+    assert maple["lei"] == "5493000CANADA0000033"
+    assert maple["id"] == make_id("co", "reg", "CA-CORP:123456")
+    assert not list(out.glob("companies-GP-*")) and not list(out.glob("companies-RE-*"))
+
+
 def test_keep_unregistered_for_limited_runs(tmp_path: Path) -> None:
     out = tmp_path / "out"
     merge_shards(make_shards(tmp_path / "shards"), out, built_at=BUILT, keep_unregistered=True)
@@ -475,15 +508,15 @@ def generate_scale_shards(directory: Path, total: int, seed: int = 1) -> dict[st
     prov = {
         s: json.dumps([{"source": s, "licence": lic, "url": f"https://data.example.org/{s}",
                         "fetched_at": "2026-11-30T00:00:00+00:00"}])
-        for s, lic in LICENCES.items() | {"canada": "OGL-Canada-2.0"}.items()
+        for s, lic in LICENCES.items()
     }  # fmt: skip
-    share = {"sirene_stock": 0.50, "companies_house": 0.18, "abr": 0.10, "canada": 0.05,
+    share = {"sirene_stock": 0.50, "companies_house": 0.18, "abr": 0.10, "canada_corps": 0.05,
              "brreg": 0.04, "edgar_bulk": 0.02}  # fmt: skip
     # (country, register, SQL of the register number of row i): unique, register-shaped.
     regs = {"sirene_stock": ("FR", "FR-SIREN", "(100000000 + i)::VARCHAR"),
             "companies_house": ("GB", "GB-CH", "lpad(i::VARCHAR, 8, '0')"),
             "abr": ("AU", "AU-ABN", "(10000000000 + i)::VARCHAR"),
-            "canada": ("CA", "CA-CORP", "(1000000 + i)::VARCHAR"),
+            "canada_corps": ("CA", "CA-CORP", "(1000000 + i)::VARCHAR"),
             "brreg": ("NO", "NO-BRREG", "(900000000 + i)::VARCHAR"),
             "edgar_bulk": ("US", "US-SEC", "lpad(i::VARCHAR, 10, '0')")}  # fmt: skip
     cols = ", ".join(PACK_COLUMNS)

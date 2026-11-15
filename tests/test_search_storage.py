@@ -87,6 +87,7 @@ def search(request, pack_dir: Path, tmp_path_factory) -> DuckDBCompanySearch:
     s = DuckDBCompanySearch(d)
     mp.undo()
     assert {x.kind for x in s._sources} == {kind}
+    assert bool(s._gk) == (kind == "index")  # lookups through the combined key table
     return s
 
 
@@ -127,7 +128,8 @@ def matches(r: dict, f: CompanyFilters, skip: str | None = None) -> bool:
             r["country"] is None or r["country"] in {c.upper() for c in f.exclude_countries}
         ):
             return False
-        if f.exclude_regions and (_low(r["region"]) or "") in {x.lower() for x in f.exclude_regions}:
+        xs = {x.lower() for x in f.exclude_regions}
+        if f.exclude_regions and (_low(r["region"]) or "") in xs:
             return False
         if f.exclude_cities and (_low(r["city"]) or "") in {x.lower() for x in f.exclude_cities}:
             return False
@@ -195,7 +197,11 @@ CASES = [
 ]
 
 
-@pytest.mark.parametrize("f", CASES, ids=lambda f: json.dumps({k: v for k, v in vars(f).items() if v and v not in ("any", "all")})[:60])  # fmt: skip
+def _case_id(f: CompanyFilters) -> str:
+    return json.dumps({k: v for k, v in vars(f).items() if v and v not in ("any", "all")})[:60]
+
+
+@pytest.mark.parametrize("f", CASES, ids=_case_id)
 def test_results_counts_and_facets_match_the_model(search: DuckDBCompanySearch, f) -> None:
     ids = expect_ids(f)
     p1 = search.search_companies(f, page=1, per_page=7)
@@ -219,7 +225,8 @@ def test_deep_pages_and_past_the_end(search: DuckDBCompanySearch) -> None:
 def test_lookups(search: DuckDBCompanySearch) -> None:
     r = next(x for x in ALL if x["domain"] and x["company_number"] and x["country"] == "DE")
     c = search.get_company(r["id"])
-    assert isinstance(c, Company) and c.name == r["name"] and c.company_number == r["company_number"]
+    assert isinstance(c, Company) and c.name == r["name"]
+    assert c.company_number == r["company_number"]
     assert c.sources[0].source == "test"
     assert search.get_company("nope") is None and search.get_company("' OR 1=1 --") is None
     got = search.get_companies([r["id"], "nope", ALL[0]["id"], r["id"]])
@@ -250,7 +257,8 @@ def test_place_suggestions(search: DuckDBCompanySearch) -> None:
     got = search.suggest_places("ly", 5)
     lyon = sum(1 for r in ALL if r["city"] == "Lyon")
     assert ("city", "Lyon", got[0][2], lyon) in got
-    assert any(k == "region" and v == "Île-de-France" for k, v, _cc, _n in search.suggest_places("îl"))
+    regions = [v for k, v, _cc, _n in search.suggest_places("îl") if k == "region"]
+    assert "Île-de-France" in regions
     assert ("country", "FR", "FR", sum(1 for r in ALL if r["country"] == "FR")) in (
         search.suggest_places("fr")
     )

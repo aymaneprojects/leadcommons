@@ -393,8 +393,73 @@ def ensure_index(
         built.append(
             build_index(f, data_dir, memory_limit=memory_limit, threads=threads, progress=say)
         )
+    current = fresh_indexes(data_dir)
+    if len(current) >= 2 and not global_keys_path(data_dir, current).is_file():
+        if progress:
+            progress("Linking the countries for fast lookups", len(todo), len(todo))
+        build_global_keys(data_dir, current, memory_limit=memory_limit, threads=threads)
     remove_orphans(data_dir)
     return built
+
+
+def fresh_indexes(data_dir: Path) -> list[Path]:
+    """The up-to-date index of each pack in data_dir that has one."""
+    out = []
+    for f in pack_files(data_dir):
+        info = read_info(f, data_dir)
+        if info is not None:
+            out.append(Path(info["path"]))
+    return out
+
+
+def global_keys_path(data_dir: Path, indexes: Iterable[Path]) -> Path:
+    """The combined key table of exactly these indexes (named after them)."""
+    names = "|".join(sorted(Path(p).name for p in indexes)) + f"|{INDEX_VERSION}"
+    return index_dir(data_dir) / f"keys-{hashlib.sha1(names.encode()).hexdigest()[:12]}.duckdb"
+
+
+def build_global_keys(
+    data_dir: Path,
+    indexes: list[Path],
+    *,
+    memory_limit: str | None = None,
+    threads: int | None = None,
+) -> Path:
+    """One key table over several indexes ((kind, value) -> index number, rk), so a lookup by
+    id, domain or registry number is one query however many countries are installed."""
+    dest = global_keys_path(data_dir, indexes)
+    tmp = dest.with_name(f".{dest.stem}.{os.getpid()}-{threading.get_ident()}.building")
+    for leftover in (tmp, Path(f"{tmp}.wal")):
+        leftover.unlink(missing_ok=True)
+    t0 = time.perf_counter()
+    con = duckdb.connect(str(tmp))
+    try:
+        configure(con, data_dir, memory_limit or build_memory_limit(), threads)
+        parts = []
+        for n, path in enumerate(indexes):
+            con.execute(f"ATTACH {_q(str(path))} AS s{n} (READ_ONLY)")
+            parts.append(f"SELECT k, v, {n}::USMALLINT AS f, rk FROM s{n}.keys")
+        con.execute("SET preserve_insertion_order = true")
+        con.execute(
+            f"CREATE TABLE keys AS SELECT * FROM ({' UNION ALL '.join(parts)}) ORDER BY k, v, f"
+        )
+        con.execute("CREATE TABLE files (f USMALLINT, name VARCHAR)")
+        con.executemany(
+            "INSERT INTO files VALUES (?, ?)", [[n, p.name] for n, p in enumerate(indexes)]
+        )
+        for n in range(len(indexes)):
+            con.execute(f"DETACH s{n}")
+        con.execute("CHECKPOINT")
+    except BaseException:
+        con.close()
+        for leftover in (tmp, Path(f"{tmp}.wal")):
+            leftover.unlink(missing_ok=True)
+        raise
+    con.close()
+    Path(f"{tmp}.wal").unlink(missing_ok=True)
+    os.replace(tmp, dest)
+    log.info("linked %s indexes for lookups in %.1f s", len(indexes), time.perf_counter() - t0)
+    return dest
 
 
 def remove_orphans(data_dir: Path) -> int:
@@ -408,6 +473,7 @@ def remove_orphans(data_dir: Path) -> int:
         with contextlib.suppress(OSError):
             db = index_path(f, data_dir)
             keep |= {db.name, _info_path(db).name}
+    keep.add(global_keys_path(data_dir, fresh_indexes(data_dir)).name)
     removed = 0
     for p in base.iterdir():
         if p.is_dir() or p.name in keep:

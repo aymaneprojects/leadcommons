@@ -13,8 +13,8 @@ Steps (all set-based DuckDB SQL, in an on-disk work database that spills to disk
 
 1. `linking.load_rows`: read every shard once, normalise keys.
 2. `linking.link`: strong keys, register guard, name fallback -> clusters (see linking.py).
-3. Read the shards again with each row's cluster and the cluster's country, write them
-   partitioned by country (one pass).
+3. Read the shards again with each row's cluster and the cluster's country, into one table of
+   the work database (one pass); each country's queries then filter on the country.
 4. Per country: single-row companies are projected as they are; rows of the same cluster are
    folded with `arg_min(value, (source tier, natural key))`, field by field, following
    FIELD_PRIORITY; `sources_json` is the union of the rows' provenance; LEIs, CIKs and Wikidata
@@ -56,6 +56,9 @@ EDGAR, `lei` = GLEIF, `wiki` = Wikidata.
 Stable id (docs/dev/data-agents.md): `make_id("co", kind, value)` with the first of
 `reg` (`<registry>:<company_number>`, a SIREN being `FR-SIREN:<siren>`, an EDGAR CIK being
 `US-SEC:<cik>`), `lei`, `cik`, `wd`, `domain`, `name` (`<normalised name>|<country>`).
+Register numbers in the id are in their compared form: FR-SIREN 9 digits, GB-CH 8 characters,
+US-SEC 10 digits; other purely numeric numbers without leading zeros (CA-CORP "0123456" ->
+`CA-CORP:123456`), while `company_number` keeps the register's own spelling.
 
 Scale (measured on this sandbox, 4 cores / 15 GB, DuckDB 2.0, synthetic shards that follow the
 contract; tests/test_pack_merge.py::test_merge_at_scale reproduces it):
@@ -78,6 +81,7 @@ from pathlib import Path
 
 from leadcommons.models import SIZE_RANGES
 from leadcommons.packs.linking import (
+    COUNTRY_ALIASES,
     NATIONAL_REGISTERS,
     LinkStats,
     Shard,
@@ -256,9 +260,10 @@ def _sort_sources(names: Sequence[str]) -> list[str]:
 # -- per-row candidates --------------------------------------------------------------------
 
 _SIZES = ", ".join(lit(s) for s in SIZE_RANGES)
+_OVERSEAS = ", ".join(lit(c) for c in COUNTRY_ALIASES)
 
 
-def _candidates_sql(part_glob: str, year: int) -> str:
+def _candidates_sql(rows_sql: str, year: int) -> str:
     """Per-row candidate values (`<col>_v`) and priority ranks over one country's rows."""
     ranks = ",\n        ".join(
         f"{_rank(p)} AS rk_{p}" for p in sorted(FIELD_PRIORITY) if p != "country"
@@ -270,10 +275,12 @@ def _candidates_sql(part_glob: str, year: int) -> str:
              ELSE coalesce(lk_txt(legal_name), lk_txt(name)) END AS legal_name_v,
         country_n AS country_v,
         lk_txt(address) AS address_v, lk_txt(postal_code) AS postal_code_v,
-        lk_txt(city) AS city_v, lk_txt(region) AS region_v,
+        lk_txt(city) AS city_v,
+        coalesce(lk_txt(region), CASE WHEN upper(trim(country)) IN ({_OVERSEAS})
+                                      THEN upper(trim(country)) END) AS region_v,
         lk_status(status) AS status_v, lk_txt(legal_form) AS legal_form_v,
         CASE WHEN founded_year BETWEEN 1000 AND {year + 1} THEN founded_year END AS founded_year_v,
-        reg_registry, reg_number, siren_n AS siren_v, cik_n AS cik_v, lei_n AS lei_v,
+        reg_registry, reg_number, reg_disp, siren_n AS siren_v, cik_n AS cik_v, lei_n AS lei_v,
         wd_n AS wikidata_id_v, domain_n AS domain_v, lk_txt(website) AS website_v,
         upper(lk_txt(industry)) AS industry_v, lk_txt(industry_label) AS industry_label_v,
         CASE WHEN lk_txt(size_range) IN ({_SIZES}) THEN lk_txt(size_range) END AS size_range_v,
@@ -287,7 +294,7 @@ def _candidates_sql(part_glob: str, year: int) -> str:
              ELSE '{{"source": "' || src || '"}}' END AS prov_v,
         {_rank("country")} AS rk_country,
         {ranks}
-      FROM read_parquet({lit(part_glob)}, hive_partitioning = false)
+      FROM {rows_sql}
     """
 
 
@@ -298,7 +305,7 @@ def _single_sql() -> str:
         cols += [f"{c}_v AS {c}" for c in outs]
     return f"""
       SELECT cid, {", ".join(cols)},
-        reg_registry AS registry, reg_number AS company_number,
+        reg_registry AS registry, reg_disp AS company_number, reg_number AS reg_key,
         '[' || prov_v || ']' AS sources_json, [src] AS srcs,
         CASE WHEN lei_v IS NOT NULL THEN tier END AS lei_tier,
         CASE WHEN cik_v IS NOT NULL THEN tier END AS cik_tier,
@@ -325,7 +332,7 @@ def _multi_sql(national: str | None) -> str:
     aggs += [pick(n, o, p, ("t := tier", "s := src")) for n, o, p in TRACKED_GROUPS]
     nat = lit(national) if national else "NULL"
     aggs.append(
-        "arg_min(struct_pack(r := reg_registry, n := reg_number), "
+        "arg_min(struct_pack(r := reg_registry, n := reg_number, d := reg_disp), "
         f"struct_pack(a := (reg_registry IS DISTINCT FROM {nat}), r := rk_registry, k := natkey)) "
         "FILTER (WHERE reg_registry IS NOT NULL) AS g_reg"
     )
@@ -350,7 +357,8 @@ def _multi_sql(national: str | None) -> str:
         FROM (SELECT DISTINCT cid, rk_legal, prov_v FROM m) GROUP BY cid
       )
       SELECT cid, {", ".join(unpack)},
-        g_reg.r AS registry, g_reg.n AS company_number, prov.sources_json, srcs,
+        g_reg.r AS registry, g_reg.d AS company_number, g_reg.n AS reg_key,
+        prov.sources_json, srcs,
         g_lei.t AS lei_tier, g_cik.t AS cik_tier, g_wikidata_id.t AS wd_tier,
         g_web.s AS web_src, g_web.t AS web_tier, has_reg
       FROM agg JOIN prov USING (cid)
@@ -363,7 +371,7 @@ def _multi_sql(national: str | None) -> str:
 def _merge_country(
     con,
     cc: str,
-    part_glob: str,
+    rows_sql: str,
     out_path: Path,
     kv: dict[str, str],
     year: int,
@@ -378,7 +386,7 @@ def _merge_country(
     their numbers but has no row from that register is not active there (the register shards
     hold every active company); it is counted and, with `drop_unregistered`, dropped."""
     t0 = time.monotonic()
-    con.execute(f"CREATE OR REPLACE TEMP VIEW c AS {_candidates_sql(part_glob, year)}")
+    con.execute(f"CREATE OR REPLACE TEMP VIEW c AS {_candidates_sql(rows_sql, year)}")
     con.execute(f"""
       CREATE OR REPLACE TEMP TABLE out AS
       {_single_sql()}
@@ -419,7 +427,7 @@ def _merge_country(
     con.execute(f"""
       CREATE OR REPLACE TEMP TABLE out2 AS
       SELECT *,
-        CASE WHEN id_kind = 'reg' THEN lk_make_id('reg', registry || ':' || company_number)
+        CASE WHEN id_kind = 'reg' THEN lk_make_id('reg', registry || ':' || reg_key)
              WHEN id_kind = 'lei' THEN lk_make_id('lei', lei)
              WHEN id_kind = 'cik' THEN lk_make_id('cik', cik)
              WHEN id_kind = 'wd' THEN lk_make_id('wd', wikidata_id)
@@ -687,9 +695,11 @@ def merge_shards(
             ).fetchall()
         ]
 
-        # One pass over the shards: every row with its cluster, partitioned by country.
+        # One pass over the shards: every row with its cluster and the cluster's country, into
+        # a table of the work database. Shards are mostly one country each (GLEIF's is sorted
+        # by country), so zone maps on `cc` let each country's queries skip the other rows.
+        # (A Parquet PARTITION_BY write spilled heavily and ran 3x longer at 30M rows.)
         t0 = time.monotonic()
-        parts = work / "parts"
         raw = shards_union_sql(con, shards)
         raw_cols = ", ".join(c for c in PACK_COLUMNS if c != "id")
         con.execute("""
@@ -700,8 +710,9 @@ def merge_shards(
             con.execute(f"DROP TABLE IF EXISTS {t}")
         con.execute("CHECKPOINT")
         con.execute(f"""
-          COPY (
+          CREATE OR REPLACE TABLE m AS
             SELECT n.rid, n.src, n.tier, {raw_cols}, n.country_n, n.reg_registry, n.reg_number,
+              n.reg_disp,
               n.siren_n, n.cik_n, n.lei_n, n.wd_n, n.domain_n,
               {tier_rank_sql(FIELD_PRIORITY["country"], "n.tier")} AS rk_legal,
               coalesce(n.reg_registry || ':' || n.reg_number, n.lei_n, n.cik_n, n.wd_n,
@@ -710,13 +721,14 @@ def merge_shards(
               coalesce(l.cc, n.country_n) AS cc
             FROM {norm_from_sql(raw)} n LEFT JOIN lc l USING (rid)
             WHERE coalesce(l.cc, n.country_n) IS NOT NULL
-          ) TO {lit(str(parts))} (FORMAT PARQUET, PARTITION_BY (cc), COMPRESSION ZSTD)
         """)
         con.execute("DROP TABLE lc")
         con.execute("CHECKPOINT")
-        log.info("merge: rows partitioned by country (%.1f s)", time.monotonic() - t0)
+        log.info("merge: rows placed by country (%.1f s)", time.monotonic() - t0)
 
-        countries = sorted(p.name.split("=", 1)[1] for p in parts.glob("cc=*") if p.is_dir())
+        countries = [
+            str(r[0]) for r in con.execute("SELECT DISTINCT cc FROM m ORDER BY 1").fetchall()
+        ]
         kv = {
             "schema": str(SCHEMA),
             "release": release,
@@ -727,7 +739,6 @@ def merge_shards(
         results: list[CountryResult] = []
         for cc in countries:
             name = f"companies-{cc}-{now:%Y%m%d}.parquet"
-            part_glob = str(parts / f"cc={cc}" / "*.parquet")
             stats_in = {
                 "input_rows": dict(sorted(inputs.get(cc, {}).items())),
                 "merges": dict(sorted(merges.get(cc, {}).items())),
@@ -736,9 +747,16 @@ def merge_shards(
             stats_in["input_rows_total"] = sum(stats_in["input_rows"].values())
             path = out_dir / name
             stats, sources = _merge_country(
-                con, cc, part_glob, path, kv, now.year, stats_in, present, not keep_unregistered
+                con,
+                cc,
+                f"(SELECT * FROM m WHERE cc = {lit(cc)})",
+                path,
+                kv,
+                now.year,
+                stats_in,
+                present,
+                not keep_unregistered,
             )
-            shutil.rmtree(parts / f"cc={cc}", ignore_errors=True)
             if not stats["rows"]:
                 log.info("merge: %s has no active company, no file", cc)
                 continue

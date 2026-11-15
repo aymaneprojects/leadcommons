@@ -607,7 +607,7 @@ def install_countries(
                 pack_index.remove_index(old, data_dir)
             _drop_country_from_old_downloads(data_dir, cc)
             done.append(entry)
-        pack_index.remove_orphans(data_dir)
+        pack_index.ensure_index(data_dir, [])  # relink the countries, drop old indexes
         return done
 
 
@@ -634,6 +634,7 @@ def remove_country(data_dir: Path, country: str) -> bool:
         f.unlink(missing_ok=True)  # fails loudly (record kept) if the file cannot be deleted
         pack_index.remove_index(f, data_dir)  # an index still open stays until the next start
         pack_installed.forget(data_dir, entry.country)
+        pack_index.ensure_index(data_dir, [])  # relink the remaining countries
         return True
 
 

@@ -287,11 +287,10 @@ def open_member(zip_path: Path, member: str) -> Iterator[IO[bytes]]:
 
 
 def build(options: BuildOptions) -> ShardStats:
+    # A test run (limit) reads every file too: its sample is the rows with the smallest hash of
+    # the register key (packs.bulk.SAMPLE_ORDER), which must be drawn from the whole register.
     urls = resolve_urls()
-    if options.limit:  # a test run reads the first file only
-        urls = urls[:1]
-    raw_dir = options.work_dir / (f"raw-head{int(options.limit)}" if options.limit else "raw")
-    max_rows = int(options.limit) * 4 + 1000 if options.limit else None
+    raw_dir = options.work_dir / "raw"
     parts: list[Path] = []
     read = 0
     for i, url in enumerate(urls, start=1):
@@ -312,16 +311,14 @@ def build(options: BuildOptions) -> ShardStats:
                 label = f"{NAME} {Path(member).name}"
                 if zpath is None:
                     with path.open("rb") as fh:
-                        seen, _ = parse_to_parquet(fh, out, label=label, max_rows=max_rows)
+                        seen, _ = parse_to_parquet(fh, out, label=label)
                 else:
                     with open_member(zpath, member) as fh:
-                        seen, _ = parse_to_parquet(fh, out, label=label, max_rows=max_rows)
+                        seen, _ = parse_to_parquet(fh, out, label=label)
                 counted.write_text(str(seen))
                 read += seen
             parts.append(out)
-            if max_rows is not None:
-                break
-        if path.suffix.lower() == ".zip" and not options.limit:
+        if path.suffix.lower() == ".zip":
             bulk.discard(path, options.work_dir)  # parsed: free the disk
     con = bulk.connect(options.work_dir)
     try:
@@ -405,8 +402,6 @@ def transform(
         exprs,
         "(SELECT * FROM au_stage WHERE dropped IS NULL) AS au_kept",
         total=total,
-        best_first="(legal_form = 'Australian Public Company') DESC, "
-        "(legal_form = 'Australian Private Company') DESC, company_number",
         order="company_number",
         notes=notes,
     )

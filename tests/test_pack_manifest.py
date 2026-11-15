@@ -65,8 +65,15 @@ class FakeRelease:
 
     def manifest(self, **over) -> dict:
         countries = [
-            {"country": cc, "file": name, "rows": 3, "bytes": len(data), "sha256": _sha(data),
-             "sources": ["sirene"], "with_domain": 0}  # fmt: skip
+            {
+                "country": cc,
+                "file": name,
+                "rows": 3,
+                "bytes": len(data),
+                "sha256": _sha(data),
+                "sources": ["sirene"],
+                "with_domain": 0,
+            }  # fmt: skip
             for name, (cc, data) in self.files.items()
         ]
         return {"schema": 3, "release": self.tag, "built_at": "2026-12-01T03:40:00+00:00",
@@ -137,8 +144,8 @@ def test_install_country_downloads_checks_indexes_and_records(data: Path, dec) -
     assert not (data / "companies-GB-20261201.parquet").exists()  # only what was asked
     assert pack_index.has_fresh_index(f, data)
     rec = pack_installed.load(data)["FR"]
-    assert rec.file == f.name and rec.release == "packs-2026-12" and rec.sha256 == _sha(
-        f.read_bytes()
+    assert (
+        rec.file == f.name and rec.release == "packs-2026-12" and rec.sha256 == _sha(f.read_bytes())
     )
     search = packs.DuckDBCompanySearch(data)
     assert [s.kind for s in search._sources] == ["index"]
@@ -169,9 +176,16 @@ def test_update_replaces_only_the_same_country(tmp_path: Path, data: Path, dec) 
     assert (data / "companies-FR-20270101.parquet").exists()
     assert (data / "companies-GB-20261201.parquet").exists() and own.exists()
     assert pack_installed.load(data)["FR"].release == "packs-2027-01"
-    left = sorted(p.name for p in pack_index.index_dir(data).glob("*.duckdb"))
+    left = sorted(p.name for p in pack_index.index_dir(data).glob("companies-*.duckdb"))
     assert len(left) == 2 and not any("FR-20261201" in n for n in left)  # old index gone
-    assert packs.DuckDBCompanySearch(data).search_companies(CompanyFilters()).total == 4 + 2 + 1
+    keys = list(pack_index.index_dir(data).glob("keys-*.duckdb"))
+    assert len(keys) == 1  # one combined key table, for the current files
+    search = packs.DuckDBCompanySearch(data)
+    assert len(search._gk) == 2  # FR and GB (the user pack is loaded in memory)
+    assert search.search_companies(CompanyFilters()).total == 4 + 2 + 1
+    assert search.get_company("co_frn002").name == "FR Company n2"
+    assert search.get_company("co_gb001").country == "GB"
+    assert search.get_company("co_frown000") is not None  # in the user's own pack
 
 
 @respx.mock
@@ -248,7 +262,8 @@ def test_country_file_replaces_that_country_in_an_old_single_file_download(
     con = duckdb.connect()
     left = con.execute(f"SELECT DISTINCT country FROM '{old}'").fetchall()
     assert left == [("DE",)]  # its France rows are gone, Germany stays
-    meta = dict(con.execute(f"SELECT key::VARCHAR, value::VARCHAR FROM parquet_kv_metadata('{old}')").fetchall())  # fmt: skip
+    kv = f"SELECT key::VARCHAR, value::VARCHAR FROM parquet_kv_metadata('{old}')"
+    meta = dict(con.execute(kv).fetchall())
     assert meta.get("sources") == "sirene"
     old2 = data / "companies-20261001.parquet"
     old2.write_bytes(_parquet(tmp_path, "old2", _rows("GB", 2, "x")))
@@ -278,9 +293,13 @@ def test_legacy_release_still_downloads_one_file(data: Path, tmp_path: Path) -> 
     respx.get(API).mock(
         return_value=httpx.Response(
             200,
-            json=[{"tag_name": "packs-2026-10", "published_at": "2026-10-01",
-                   "assets": [{"name": "companies-20261001.parquet",
-                               "browser_download_url": url}]}],
+            json=[
+                {
+                    "tag_name": "packs-2026-10",
+                    "published_at": "2026-10-01",
+                    "assets": [{"name": "companies-20261001.parquet", "browser_download_url": url}],
+                }
+            ],
         )  # fmt: skip
     )
     respx.get(url).mock(return_value=httpx.Response(200, content=payload))

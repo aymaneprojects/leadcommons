@@ -140,10 +140,7 @@ def json_source(path: Path) -> str:
 
 def transform(con, raw: Path, options: BuildOptions, *, url: str | None = None) -> ShardStats:
     """Enhetsregisteret JSON -> shard (brreg.parquet)."""
-    if options.limit:  # a test run reads the head of the file only
-        source_sql = f"(SELECT * FROM {json_source(raw)} LIMIT {int(options.limit) * 4 + 1000})"
-    else:
-        source_sql = json_source(raw)
+    source_sql = json_source(raw)  # whole file even for a test run: its sample is by key hash
     has_business_address = (
         "(forretningsadresse.postnummer IS NOT NULL OR forretningsadresse.poststed IS NOT NULL "
         "OR len(forretningsadresse.adresse) > 0)"
@@ -217,7 +214,6 @@ def transform(con, raw: Path, options: BuildOptions, *, url: str | None = None) 
         exprs,
         from_sql,
         total=total,
-        best_first="(domain IS NOT NULL) DESC, employees DESC NULLS LAST, company_number",
         order="company_number",
         notes=notes,
     )

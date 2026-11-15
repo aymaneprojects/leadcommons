@@ -34,7 +34,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
 from pathlib import Path
 
 from leadcommons.connectors.bulk import (
@@ -152,9 +151,9 @@ def transform(
         src_sql, cols = bulk.csv_source(path, f"ca_rejects_{i}")
         selects.append(_select(src_sql, cols))
         rejects.append(f"ca_rejects_{i}")
-    limit = f" LIMIT {int(options.limit) * 4 + 1000}" if options.limit else ""
+    # whole files even for a test run: its sample is by register-key hash (bulk.SAMPLE_ORDER)
     con.execute(
-        "CREATE OR REPLACE TABLE ca_raw AS " + " UNION ALL ".join(f"({s}{limit})" for s in selects)
+        "CREATE OR REPLACE TABLE ca_raw AS " + " UNION ALL ".join(f"({s})" for s in selects)
     )
     rejected = sum(bulk.rejected_lines(con, r) for r in rejects)
     for path in paths:
@@ -220,8 +219,6 @@ def transform(
         exprs,
         "(SELECT * FROM ca_stage WHERE dropped IS NULL) AS ca_kept",
         total=total,
-        best_first="(legal_form = 'Canada Business Corporations Act') DESC, "
-        "founded_year NULLS LAST, company_number",
         order="company_number",
         notes=notes,
     )

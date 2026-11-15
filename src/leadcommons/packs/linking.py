@@ -56,6 +56,14 @@ NATIONAL_REGISTERS: dict[str, str] = {
 }
 # Registers whose numbers may belong to companies of any country (exempt from the one-country rule).
 INTERNATIONAL_REGISTERS: frozenset[str] = frozenset({"US-SEC"})
+# French overseas departments and collectivities: GLEIF writes their own ISO codes, SIRENE files
+# them under FR. Their companies go in the France pack (city and region are kept).
+COUNTRY_ALIASES: dict[str, str] = {
+    cc: "FR" for cc in ("GP", "MQ", "GF", "RE", "YT", "PM", "BL", "MF", "NC", "PF", "WF")
+}
+# Registers whose numbers have a fixed width (normalised by padding); the numbers of every other
+# register compare without leading zeros ("0123456" = "123456", e.g. CA-CORP).
+PADDED_REGISTERS: tuple[str, ...] = ("FR-SIREN", "US-SEC", "GB-CH", "NO-BRREG", "AU-ABN")
 # Spellings other sources may use for the same register.
 REGISTRY_ALIASES: dict[str, str] = {
     "SIREN": "FR-SIREN",
@@ -156,10 +164,13 @@ def install_macros(con) -> None:
     national = " ".join(f"WHEN '{cc}' THEN '{reg}'" for cc, reg in NATIONAL_REGISTERS.items())
     aliases = " ".join(f"WHEN '{a}' THEN '{r}'" for a, r in REGISTRY_ALIASES.items())
     squeezed = "nullif(regexp_replace(upper(CAST(x AS VARCHAR)), '\\s+', '', 'g'), '')"
+    overseas = " ".join(f"WHEN '{a}' THEN '{c}'" for a, c in COUNTRY_ALIASES.items())
+    padded = ", ".join(lit(r) for r in PADDED_REGISTERS)
     macros = [
         "lk_txt(x) AS nullif(trim(CAST(x AS VARCHAR)), '')",
-        "lk_cc(x) AS CASE WHEN regexp_full_match(upper(trim(CAST(x AS VARCHAR))), '[A-Z]{2}') "
-        "THEN upper(trim(CAST(x AS VARCHAR))) END",
+        f"lk_cc(x) AS CASE upper(trim(CAST(x AS VARCHAR))) {overseas} ELSE CASE WHEN "
+        "regexp_full_match(upper(trim(CAST(x AS VARCHAR))), '[A-Z]{2}') "
+        "THEN upper(trim(CAST(x AS VARCHAR))) END END",
         "lk_alnum(x) AS "
         "nullif(regexp_replace(upper(CAST(x AS VARCHAR)), '[^A-Z0-9]', '', 'g'), '')",
         "lk_digits(x) AS nullif(regexp_replace(CAST(x AS VARCHAR), '[^0-9]', '', 'g'), '')",
@@ -179,7 +190,12 @@ def install_macros(con) -> None:
         "lk_number(reg, num) AS lk_nonzero(CASE WHEN reg IS NULL THEN NULL "
         "WHEN reg = 'FR-SIREN' THEN lk_siren(num) WHEN reg = 'US-SEC' THEN lk_cik(num) "
         "WHEN reg = 'GB-CH' THEN lk_ch(num) "
-        "WHEN reg IN ('NO-BRREG', 'AU-ABN') THEN lk_digits(num) ELSE lk_alnum(num) END)",
+        "WHEN reg IN ('NO-BRREG', 'AU-ABN') THEN lk_digits(num) "
+        "WHEN regexp_full_match(lk_alnum(num), '[0-9]+') THEN ltrim(lk_alnum(num), '0') "
+        "ELSE lk_alnum(num) END)",
+        # The number as stored: padded registers as compared, others as written (alphanumeric).
+        f"lk_number_disp(reg, num) AS CASE WHEN reg IN ({padded}) THEN lk_number(reg, num) "
+        "WHEN lk_number(reg, num) IS NOT NULL THEN lk_alnum(num) END",
         "lk_lei(x) AS CASE WHEN regexp_full_match(lk_alnum(x), '[A-Z0-9]{18}[0-9]{2}') "
         "THEN lk_alnum(x) END",
         "lk_wd(x) AS 'Q' || nullif(regexp_extract(upper(CAST(x AS VARCHAR)), 'Q([0-9]+)', 1), '')",
@@ -237,14 +253,20 @@ def norm_from_sql(raw: str, tier_col: str = "tier") -> str:
              WHEN siren_n IS NOT NULL AND country_n = 'FR' THEN siren_n
              WHEN pn IS NOT NULL THEN pn
              WHEN siren_n IS NOT NULL THEN siren_n
-             WHEN cik_n IS NOT NULL AND {tier_col} = 'filings' THEN cik_n END AS reg_number
+             WHEN cik_n IS NOT NULL AND {tier_col} = 'filings' THEN cik_n END AS reg_number,
+        CASE WHEN pn IS NOT NULL AND pr = lk_national(country_n) THEN pn_disp
+             WHEN siren_n IS NOT NULL AND country_n = 'FR' THEN siren_n
+             WHEN pn IS NOT NULL THEN pn_disp
+             WHEN siren_n IS NOT NULL THEN siren_n
+             WHEN cik_n IS NOT NULL AND {tier_col} = 'filings' THEN cik_n END AS reg_disp
       FROM (
         SELECT *,
           coalesce(CASE WHEN pr = 'FR-SIREN' THEN pn END, lk_siren(siren)) AS siren_n,
           coalesce(CASE WHEN pr = 'US-SEC' THEN pn END, lk_cik(cik)) AS cik_n,
           lk_lei(lei) AS lei_n, lk_wd(wikidata_id) AS wd_n, lk_domain(domain) AS domain_n
         FROM (
-          SELECT *, lk_number(pr, company_number) AS pn
+          SELECT *, lk_number(pr, company_number) AS pn,
+            lk_number_disp(pr, company_number) AS pn_disp
           FROM (SELECT *, lk_cc(country) AS country_n, lk_registry(registry) AS pr FROM {raw})
         )
       )
@@ -624,6 +646,7 @@ def _fallback(con, st: LinkStats) -> None:
 
 
 __all__ = [
+    "COUNTRY_ALIASES",
     "HUB_KEY_ROWS",
     "INTERNATIONAL_REGISTERS",
     "LEGAL_ORDER",
