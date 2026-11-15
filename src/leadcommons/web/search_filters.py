@@ -124,6 +124,9 @@ DEFAULT_PER = 25
 NO_MATCH = "∅"  # impossible filter value: "everything excluded" matches nothing
 
 
+SENIORITY_VALUES = frozenset(s.value for s in Seniority)
+
+
 def seniority_label(value: Any) -> str:
     v = getattr(value, "value", value) or ""
     return {"c_suite": "C-suite", "vp": "VP"}.get(v) or v.replace("_", " ").title()
@@ -1049,7 +1052,7 @@ GROUPS: tuple[dict[str, Any], ...] = (
      "kinds": ("people",), "keys": ("seq",)},
     {"key": "emailed", "label": "Email sent", "icon": "mail", "col": "engage",
      "kinds": ("people",), "keys": ("emailed",)},
-    {"key": "replied", "label": "Replied", "icon": "inbox", "col": "engage",
+    {"key": "replied", "label": "Replied", "icon": "circle-check", "col": "engage",
      "kinds": ("people",), "keys": ("replied",)},
     {"key": "activity", "label": "Last activity", "icon": "clock", "col": "engage",
      "kinds": ("people",), "keys": ("activity",)},
@@ -1061,27 +1064,38 @@ PIN_DEFAULTS = {
     "people": ["titles", "plook", "company", "location", "industry"],
 }
 SOON_FILTERS: tuple[dict[str, str], ...] = (
-    {"label": "Education", "icon": "graduation-cap", "col": "person",
+    {"label": "Education", "badge": "No open data", "icon": "graduation-cap", "col": "person",
      "tip": "Education history is not in any open dataset we can use lawfully."},
-    {"label": "Time zone", "icon": "clock", "col": "person",
+    {"label": "Awards and certifications", "badge": "No open data", "icon": "graduation-cap",
+     "col": "person",
+     "tip": "No open dataset lists people's awards or certifications."},
+    {"label": "Time zone", "badge": "No data", "icon": "clock", "col": "person",
      "tip": "People have no time zone on record. Filter by country instead."},
-    {"label": "Phone", "icon": "phone", "col": "person",
+    {"label": "Phone", "badge": "Not collected", "icon": "phone", "col": "person",
      "tip": "LeadCommons does not collect personal phone numbers."},
-    {"label": "Work URLs", "icon": "link", "col": "person",
+    {"label": "Work URLs", "badge": "Not collected", "icon": "link", "col": "person",
      "tip": "Profile links are not collected."},
+    {"label": "Market segments", "badge": "No data", "icon": "layers", "col": "company",
+     "tip": "The open packs classify companies by ISIC industry only. Use Industry & keywords."},
+    {"label": "SIC and NAICS", "badge": "Use ISIC", "icon": "hash", "col": "company",
+     "tip": "The public registers give ISIC industry codes, not SIC or NAICS. Pick them in "
+            "Industry & keywords."},
+    {"label": "# Employees by department", "badge": "No open data", "icon": "users",
+     "col": "company",
+     "tip": "Head counts per department are not published in open data."},
     {"label": "Funding", "icon": "dollar-sign", "col": "company",
      "tip": "Needs funding data in company insights; see the Funding tab of a company."},
     {"label": "Headcount growth", "icon": "trending-up", "col": "company",
      "tip": "Needs employee trends from insights, which are not stored in a searchable way yet."},
-    {"label": "Buying intent", "icon": "zap", "col": "company",
+    {"label": "Buying intent", "badge": "No free source", "icon": "zap", "col": "company",
      "tip": "Buying intent comes from paid third-party signals. LeadCommons has no free source."},
     {"label": "Revenue", "icon": "dollar-sign", "col": "company",
      "tip": "Revenue is not in the open data packs; insights show what a company publishes."},
     {"label": "Website visitors", "icon": "globe", "col": "company",
      "tip": "Needs a tracking script on your own website. Not built yet."},
-    {"label": "Email opened", "icon": "mail", "col": "engage",
+    {"label": "Email opened", "badge": "Not tracked", "icon": "mail", "col": "engage",
      "tip": "LeadCommons never adds a tracking pixel to your emails, so opens are not recorded."},
-    {"label": "Link clicked", "icon": "link", "col": "engage",
+    {"label": "Link clicked", "badge": "Not tracked", "icon": "link", "col": "engage",
      "tip": "Links in your emails are sent as written, so clicks are not recorded."},
     {"label": "Workflow", "icon": "workflow", "col": "engage",
      "tip": "Filtering by workflow runs is not built yet. Each workflow lists its runs on the "
@@ -1323,6 +1337,7 @@ def filter_ui(
         "range_buckets": buckets_for_range(p["size_min"], p["size_max"]),
         "pin_defaults": PIN_DEFAULTS[kind],
         "seniorities": list(Seniority),
+        "levels": [(s.value, seniority_label(s)) for s in Seniority],
         "statuses": list(EmailStatus),
         "departments": [(k, label) for k, label, _ in DEPARTMENTS],
         "personas": personas,
@@ -1343,8 +1358,10 @@ def filter_ui(
             "tech": chips("tech"),
             "job": chips("job"),
         },
+        "can_persona": kind == "people"
+        and any(p.get(k) for k in ("title", "xtitle", "texpr", "seniority", "dept")),
         "tab_urls": {
-            key: f"{base}?{qs(params, tab=(key if key != 'all' else None), page=None)}".rstrip("?")
+            key: f"{base}?{qs(params, tab=(key if key != 'all' else None), page=None) or 'all=1'}"
             for key in ("all", "new", "saved")
         },
     }

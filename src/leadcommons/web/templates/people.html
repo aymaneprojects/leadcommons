@@ -3,6 +3,7 @@
 {% from "_search_macros.html" import row_actions %}
 {% block title %}Find people · LeadCommons{% endblock %}
 {% block content %}
+<link rel="stylesheet" href="/static/css/search-filters.css">
 <div class="page-head">
   <h1>Find people</h1>
   {% include "_search_import.html" %}
@@ -15,7 +16,9 @@
     {% include "_search_panel.html" %}
 
     <section class="results" aria-label="Results">
-      {% if items %}
+      {% if landing %}
+      {% include "_search_landing.html" %}
+      {% elif items %}
       <div class="table-wrap tbl">
         <table class="data" data-cols="people">
           <thead><tr>
@@ -43,6 +46,7 @@
                   {% else %}
                     <button class="btn sm" type="submit" formmethod="post" formaction="/people/{{ x.id }}/find-email" hx-post="/people/{{ x.id }}/find-email" hx-swap="none" hx-push-url="false"{% if s.demo %} disabled data-tip="{{ demo_reason }}"{% endif %}>{{ ic("mail", "sm") }}<span>Find email</span></button>
                   {% endif %}
+                {%- elif col.key == "phone" -%}{% set ph = phones.get(x.company_id) %}{% if ph %}<a class="mono phone" href="{{ ph|tel }}" title="Business line from the company website">{{ ph }}</a>{% endif %}
                 {%- elif col.key == "source" -%}<span class="chips">{% for u in x.source_urls[:2] %}<span class="chip src">{{ u.split('/')[2] if u.startswith('http') and u.split('/')|length > 2 else u }}</span>{% endfor %}</span>
                 {%- elif col.key == "seniority" -%}{{ seniority_label(x.seniority) if x.seniority else "" }}
                 {%- elif col.key == "department" -%}{{ x.department or "" }}
@@ -79,3 +83,4 @@
 {% include "_search_dialogs.html" %}
 </div>
 {% endblock %}
+{% block dialogs %}<script src="/static/js/search-filters.js" defer></script>{% endblock %}

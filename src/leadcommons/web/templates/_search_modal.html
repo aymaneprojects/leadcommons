@@ -1,32 +1,67 @@
 {% from "_macros.html" import ic, hxf %}
-{% from "_search_macros.html" import fgroup, locked_row %}
-{# All filters window: pinned column + Person info + Company info. Unsupported filters are shown
-   disabled. Pins live in localStorage and decide which groups the side panel shows. #}
-<dialog id="allf-dialog" class="allf" aria-labelledby="allf-title">
+{% from "_search_filters.html" import fgroup, locked_row, fic %}
+{# All filters window: Pinned + Person info + Company info + Engagement. Pinned rows can be
+   dragged to reorder them; the order is the side panel order. Filters that cannot work here are
+   shown disabled with the reason. Plus the "Save as new persona" window (People). #}
+<dialog id="allf-dialog" class="allf sf-allf" aria-labelledby="allf-title">
   <form id="allf" method="get" action="{{ s.base }}" {{ hxf(s.base) }} hx-trigger="submit">
     {% if p.tab != "all" %}<input type="hidden" name="tab" value="{{ p.tab }}">{% endif %}
     {% if p.sort != "relevance" %}<input type="hidden" name="sort" value="{{ p.sort }}">{% endif %}
     {% if p.per != 25 %}<input type="hidden" name="per" value="{{ p.per }}">{% endif %}
+    <input type="hidden" name="all" value="1">
     <header class="allf-head"><h2 id="allf-title">Filters</h2><button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">{{ ic("x") }}</button></header>
     <div class="allf-bar">
       <label class="searchbox big">{{ ic("search") }}<input id="allf-search" type="search" data-allf-search placeholder="Search filters" aria-label="Search filters" form="ui-only" autocomplete="off"></label>
-      <label class="typesel">{{ ic("briefcase", "sm") }}<select data-type-select aria-label="Type" form="ui-only"><option value="all">Type: All</option><option value="person">Type: Person</option><option value="company">Type: Company</option></select></label>
+      <label class="typesel">{{ ic("briefcase", "sm") }}<select data-type-select aria-label="Type" form="ui-only"><option value="all">Type: All</option><option value="person">Type: Person</option><option value="company">Type: Company</option><option value="engage">Type: Engagement</option></select></label>
       <span class="grow"></span>
       <span id="allf-count" class="allf-count" role="status" aria-live="polite" data-count-url="/search/count?kind={{ s.kind }}"><span class="n mono">…</span> records found</span>
       <button type="submit" class="btn primary">Apply filters</button>
     </div>
-    <div class="allf-body">
+    <div class="allf-body sf-cols">
       <section class="allf-col" data-fbox="pinned"><h3>Pinned filters</h3><div class="allf-list" data-flist="pinned"><p class="fnote pins-empty">Pin a filter with the pin icon to keep it in the side panel.</p></div></section>
       <section class="allf-col" data-fbox="person"><h3>Person info</h3><div class="allf-list" data-flist="person">
         {% for g in s.groups if g.col == "person" %}
-          {% if g.supported %}{{ fgroup(g, s, "modal") }}{% else %}{{ locked_row(g.label, g.icon, "person", "People page", "This filter works on the People page") }}{% endif %}
+          {% if g.supported %}{{ fgroup(g, s, "modal") }}{% else %}{{ locked_row(g.label, g.icon, "person", "People page", "This filter works on the People page.") }}{% endif %}
         {% endfor %}
-        {% for f in s.soon_filters if f.col == "person" %}{{ locked_row(f.label, f.icon, "person", "Soon", f.tip) }}{% endfor %}
+        {% for f in s.soon_filters if f.col == "person" %}{{ locked_row(f.label, f.icon, "person", f.badge or "Soon", f.tip) }}{% endfor %}
       </div></section>
       <section class="allf-col" data-fbox="company"><h3>Company info</h3><div class="allf-list" data-flist="company">
         {% for g in s.groups if g.col == "company" %}{{ fgroup(g, s, "modal") }}{% endfor %}
-        {% for f in s.soon_filters if f.col == "company" %}{{ locked_row(f.label, f.icon, "company", "Soon", f.tip) }}{% endfor %}
+        {% for f in s.soon_filters if f.col == "company" %}{{ locked_row(f.label, f.icon, "company", f.badge or "Soon", f.tip) }}{% endfor %}
+      </div></section>
+      <section class="allf-col" data-fbox="engage"><h3>Engagement</h3><div class="allf-list" data-flist="engage">
+        {% for g in s.groups if g.col == "engage" %}
+          {% if g.supported %}{{ fgroup(g, s, "modal") }}{% else %}{{ locked_row(g.label, g.icon, "engage", "People page", "Engagement is tracked per person: use this filter on the People page.") }}{% endif %}
+        {% endfor %}
+        {% for f in s.soon_filters if f.col == "engage" %}{{ locked_row(f.label, f.icon, "engage", f.badge or "Soon", f.tip) }}{% endfor %}
       </div></section>
     </div>
   </form>
 </dialog>
+{% if s.kind == "people" and s.can_persona %}
+<dialog id="persona-dialog" class="sd narrow" aria-labelledby="persona-title">
+  <form method="post" action="/personas" hx-post="/personas" hx-swap="none" hx-push-url="false">
+    <input type="hidden" name="next" value="{{ current_url }}">
+    {% for t in p.title %}<input type="hidden" name="title" value="{{ t }}">{% endfor %}
+    {% for t in p.xtitle %}<input type="hidden" name="xtitle" value="{{ t }}">{% endfor %}
+    {% for v in p.seniority %}<input type="hidden" name="seniority" value="{{ v }}">{% endfor %}
+    {% for v in p.dept %}<input type="hidden" name="dept" value="{{ v }}">{% endfor %}
+    <input type="hidden" name="similar" value="{{ 1 if p.similar else 0 }}">
+    {% if p.tmode == "advanced" %}<input type="hidden" name="tmode" value="advanced"><input type="hidden" name="texpr" value="{{ p.texpr }}">{% endif %}
+    <header class="allf-head"><h2 id="persona-title">Save as new persona</h2><button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">{{ ic("x") }}</button></header>
+    <div class="sd-body">
+      <p class="sd-sub">A persona keeps these job-title filters under a name. Tick it later in the Persona filter to find the same kind of people again.</p>
+      <dl class="sf-persona-sum">
+        {% if p.tmode == "advanced" and p.texpr %}<dt>Expression</dt><dd class="mono">{{ p.texpr }}</dd>{% endif %}
+        {% if p.title %}<dt>Titles</dt><dd>{{ p.title|join(", ") }}{% if p.similar %} <span class="muted">(and similar)</span>{% endif %}</dd>{% endif %}
+        {% if p.xtitle %}<dt>Not titles</dt><dd>{{ p.xtitle|join(", ") }}</dd>{% endif %}
+        {% if p.seniority %}<dt>Level</dt><dd>{% for v in p.seniority %}{{ seniority_label(v) }}{% if not loop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
+        {% if p.dept %}<dt>Departments</dt><dd>{% for k, label in s.departments if k in p.dept %}{{ label }}{% if not loop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
+      </dl>
+      <label class="flabel" for="persona-name">Name</label>
+      <input id="persona-name" type="text" name="name" maxlength="80" required placeholder="e.g. Sales leaders" autocomplete="off">
+    </div>
+    <footer class="sd-foot"><button type="button" class="btn close-dlg">Cancel</button><button type="submit" class="btn primary">Save persona</button></footer>
+  </form>
+</dialog>
+{% endif %}

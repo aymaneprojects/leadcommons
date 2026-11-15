@@ -10,7 +10,6 @@ from __future__ import annotations
 import csv
 import io
 import json
-import math
 import re
 from collections import Counter
 from collections.abc import Callable
@@ -28,112 +27,30 @@ from leadcommons import __version__, engage, insights
 from leadcommons.ai.llm import llm_config
 from leadcommons.models import SIZE_RANGES, Company, EmailStatus, Person, Seniority, utcnow
 from leadcommons.search import CompanyFilters, PeopleFilters
+from leadcommons.store.personas import clean_filters, personas_for
 from leadcommons.web import results
+from leadcommons.web import search_filters as sf
 from leadcommons.web.deps import get_jobs, get_search, get_store, templates
+from leadcommons.web.search_filters import (
+    COUNTRIES,
+    DEFAULT_PER,
+    ISIC_SECTIONS,
+    NO_MATCH,
+    PAGE_SIZES,
+    _opt_int,
+    company_matches,
+    parse_common,
+    qs,
+    remove_url,
+    url_params,
+)
+from leadcommons.web.search_filters import buckets_for_range as buckets_for_range
+from leadcommons.web.search_filters import expand_titles as expand_titles
 
 router = APIRouter()
 
-PAGE_SIZES = (25, 50, 100)  # results per page offered in Search settings
-DEFAULT_PER = 25
 SCAN_CAP = 5000  # most rows scanned when a view needs the full result set (tabs, sort, exclusions)
 SCAN_BATCH = 500
-NO_MATCH = "\u2205"  # impossible filter value: "everything excluded" matches nothing
-
-COUNTRIES = {
-    "AT": "Austria",
-    "AU": "Australia",
-    "BE": "Belgium",
-    "BR": "Brazil",
-    "CA": "Canada",
-    "CH": "Switzerland",
-    "CN": "China",
-    "CZ": "Czechia",
-    "DE": "Germany",
-    "DK": "Denmark",
-    "ES": "Spain",
-    "FI": "Finland",
-    "FR": "France",
-    "GB": "United Kingdom",
-    "GR": "Greece",
-    "HU": "Hungary",
-    "IE": "Ireland",
-    "IN": "India",
-    "IT": "Italy",
-    "JP": "Japan",
-    "LU": "Luxembourg",
-    "MX": "Mexico",
-    "NL": "Netherlands",
-    "NO": "Norway",
-    "NZ": "New Zealand",
-    "PL": "Poland",
-    "PT": "Portugal",
-    "RO": "Romania",
-    "SE": "Sweden",
-    "SG": "Singapore",
-    "US": "United States",
-    "ZA": "South Africa",
-    "AE": "United Arab Emirates",
-    "AR": "Argentina",
-    "BG": "Bulgaria",
-    "CI": "Côte d'Ivoire",
-    "CL": "Chile",
-    "CO": "Colombia",
-    "CY": "Cyprus",
-    "DZ": "Algeria",
-    "EE": "Estonia",
-    "EG": "Egypt",
-    "HK": "Hong Kong",
-    "HR": "Croatia",
-    "ID": "Indonesia",
-    "IL": "Israel",
-    "IS": "Iceland",
-    "KE": "Kenya",
-    "KR": "South Korea",
-    "LT": "Lithuania",
-    "LV": "Latvia",
-    "MA": "Morocco",
-    "MT": "Malta",
-    "MY": "Malaysia",
-    "NG": "Nigeria",
-    "PE": "Peru",
-    "PH": "Philippines",
-    "PK": "Pakistan",
-    "RS": "Serbia",
-    "RU": "Russia",
-    "SA": "Saudi Arabia",
-    "SI": "Slovenia",
-    "SK": "Slovakia",
-    "SN": "Senegal",
-    "TH": "Thailand",
-    "TN": "Tunisia",
-    "TR": "Türkiye",
-    "TW": "Taiwan",
-    "UA": "Ukraine",
-    "VN": "Vietnam",
-}
-ISIC_SECTIONS = {
-    "A": "Agriculture, forestry, fishing",
-    "B": "Mining and quarrying",
-    "C": "Manufacturing",
-    "D": "Electricity, gas, steam",
-    "E": "Water supply and waste",
-    "F": "Construction",
-    "G": "Wholesale and retail trade",
-    "H": "Transport and storage",
-    "I": "Accommodation and food",
-    "J": "Information and communication",
-    "K": "Finance and insurance",
-    "L": "Real estate",
-    "M": "Professional activities",
-    "N": "Administrative services",
-    "O": "Public administration",
-    "P": "Education",
-    "Q": "Health and social work",
-    "R": "Arts and recreation",
-    "S": "Other services",
-    "T": "Households as employers",
-    "U": "Extraterritorial bodies",
-}
 
 
 # ---------------------------------------------------------------- helpers
@@ -156,14 +73,8 @@ def _ago(dt: datetime | None) -> str:
     return f"{secs // 86400} d ago"
 
 
-def _seniority_label(value: Any) -> str:
-    v = getattr(value, "value", value) or ""
-    return {"c_suite": "C-suite", "vp": "VP"}.get(v) or v.replace("_", " ").title()
-
-
-def _status_label(value: Any) -> str:
-    v = getattr(value, "value", value) or ""
-    return {"catch_all": "Catch-all"}.get(v, v.title())
+_seniority_label = sf.seniority_label
+_status_label = sf.status_label
 
 
 templates.env.globals.update(
@@ -385,20 +296,6 @@ def not_found(request: Request, what: str) -> Response:
     )
 
 
-def qs(params: dict[str, Any], **over: Any) -> str:
-    """Build a query string from list/str params, dropping empties. over=None removes a key."""
-    merged = {**params, **over}
-    items: list[tuple[str, str]] = []
-    for k, v in merged.items():
-        if v in (None, "", [], 0):
-            continue
-        if isinstance(v, list | tuple):
-            items.extend((k, str(x)) for x in v)
-        else:
-            items.append((k, str(v)))
-    return urlencode(items)
-
-
 templates.env.globals["qs"] = qs
 
 
@@ -463,144 +360,10 @@ def dismiss_banner(request: Request, _: None = Depends(csrf)) -> Response:
 # ---------------------------------------------------------------- shared search engine
 #
 # Companies and people share one filter model: include lists, exclude lists, size buckets,
-# keywords. The company pack and the local store only know "include" filters, so exclusions are
-# turned into include lists (country, industry: from facet counts) or applied in Python on a
-# bounded scan (keywords, titles, company attributes of people). SCAN_CAP bounds the scan; when a
-# result set is larger the UI shows "5,000+" and says so.
-
-
-def _opt_int(value: Any) -> int | None:
-    try:
-        n = int(str(value).strip())
-    except (TypeError, ValueError):
-        return None
-    return n if n > 0 else None
-
-
-def split_values(values: Any, upper: bool = False) -> list[str]:
-    """Flatten repeated and comma separated values, trimmed, de-duplicated, order kept."""
-    out: list[str] = []
-    for raw in values:
-        for part in str(raw).split(","):
-            v = part.strip().strip('"')
-            v = v.upper() if upper else v
-            if v and v not in out:
-                out.append(v)
-    return out
-
-
-def list_param(g: Any, key: str, upper: bool = False) -> list[str]:
-    """Values of a repeated param plus its no-JS companion field `<key>_add`."""
-    return split_values([*g.getlist(key), *g.getlist(f"{key}_add")], upper)
-
-
-def _bounds(label: str) -> tuple[int, float]:
-    if label.endswith("+"):
-        return int(label[:-1]), math.inf
-    lo, hi = label.split("-")
-    return int(lo), int(hi)
-
-
-SIZE_BOUNDS = {s: _bounds(s) for s in SIZE_RANGES}
-
-
-def buckets_for_range(lo: int | None, hi: int | None) -> list[str]:
-    """Size buckets overlapping a custom employee range [lo, hi] (either end may be open)."""
-    if lo is None and hi is None:
-        return []
-    if lo is not None and hi is not None and lo > hi:
-        lo, hi = hi, lo
-    return [
-        s
-        for s, (a, b) in SIZE_BOUNDS.items()
-        if (hi is None or a <= hi) and (lo is None or b >= lo)
-    ]
-
-
-def effective_sizes(p: dict[str, Any]) -> list[str]:
-    """Ticked buckets united with the buckets a custom min-max range maps to."""
-    chosen = set(p["size"]) | set(buckets_for_range(p["size_min"], p["size_max"]))
-    return [s for s in SIZE_RANGES if s in chosen]
-
-
-TITLE_SYNONYMS: tuple[tuple[str, ...], ...] = (
-    ("ceo", "chief executive officer", "chief executive"),
-    ("cto", "chief technology officer", "chief technical officer"),
-    ("cfo", "chief financial officer"),
-    ("coo", "chief operating officer"),
-    ("cmo", "chief marketing officer"),
-    ("cio", "chief information officer"),
-    ("founder", "co-founder", "cofounder", "co founder"),
-    ("vp", "vice president", "vice-president"),
-    ("owner", "proprietor"),
-)
-
-
-def expand_titles(titles: list[str]) -> list[str]:
-    """Titles plus their well-known equivalents ("ceo" also finds "chief executive officer")."""
-    out: list[str] = []
-    for t in titles:
-        tl = t.lower().strip()
-        group = next((g for g in TITLE_SYNONYMS if tl in g), (tl,))
-        out.extend(x for x in group if x and x not in out)
-    return out
-
-
-def title_regex(terms: list[str]) -> re.Pattern[str] | None:
-    """Word-start match: "market" finds "Marketing Lead", "cto" does not find "Director"."""
-    cleaned = [t.lower().strip() for t in terms if t.strip()]
-    if not cleaned:
-        return None
-    return re.compile("|".join(r"(?<![a-z0-9])" + re.escape(t) for t in cleaned))
-
-
-def parse_common(g: Any) -> dict[str, Any]:
-    """Params shared by both search pages."""
-    sort = g.get("sort", "relevance")
-    tab = g.get("tab", "all")
-    per = _opt_int(g.get("per"))
-    return {
-        "q": g.get("q", "").strip(),
-        "country": list_param(g, "country", upper=True),
-        "xcountry": list_param(g, "xcountry", upper=True),
-        "industry": list_param(g, "industry", upper=True),
-        "xindustry": list_param(g, "xindustry", upper=True),
-        "size": [s for s in list_param(g, "size") if s in SIZE_RANGES],
-        "size_min": _opt_int(g.get("size_min")),
-        "size_max": _opt_int(g.get("size_max")),
-        "keyword": list_param(g, "keyword"),
-        "xkeyword": list_param(g, "xkeyword"),
-        "domain": g.get("domain", "").strip().lower(),
-        "lookalike": g.get("lookalike", "").strip()[:120],
-        "tech": list_param(g, "tech"),
-        "job": list_param(g, "job"),
-        "sort": sort,
-        "tab": tab if tab in ("all", "new", "saved") else "all",
-        "page": _opt_int(g.get("page")) or 1,
-        "per": per if per in PAGE_SIZES else DEFAULT_PER,
-    }
-
-
-def url_params(p: dict[str, Any]) -> dict[str, Any]:
-    """The state worth keeping in a URL: no page, no defaults, no empties."""
-    out: dict[str, Any] = {}
-    for k, v in p.items():
-        if k == "page" or k.startswith("_"):
-            continue
-        if k == "similar":
-            if not v:
-                out["similar"] = "0"
-            continue
-        if (
-            (k == "per" and v == DEFAULT_PER)
-            or (k == "sort" and v == "relevance")
-            or (k == "tab" and v == "all")
-        ):
-            continue
-        if v in ("", [], None):
-            continue
-        out[k] = v
-    return out
+# keywords. Parsing, matching and the filter panel live in web/search_filters.py. The company
+# pack filters companies in SQL; people are filtered in Python on a bounded scan of the local
+# store (titles, departments, company attributes). SCAN_CAP bounds the scan; when a result set
+# is larger the UI shows "5,000+" and says so.
 
 
 class CompanyLookup:
@@ -630,57 +393,6 @@ class CompanyLookup:
         return self._memo[company_id]
 
 
-def company_text(c: Company) -> str:
-    return " ".join(x for x in (c.name, c.legal_name, c.domain, c.industry_label) if x).lower()
-
-
-def has_company_conditions(p: dict[str, Any], skip: str | None = None) -> bool:
-    groups = {
-        "location": ("country", "xcountry"),
-        "industry": ("industry", "xindustry", "keyword", "xkeyword"),
-        "size": ("size", "size_min", "size_max"),
-    }
-    return any(p[k] for g, keys in groups.items() if g != skip for k in keys)
-
-
-def company_matches(
-    c: Company | None, p: dict[str, Any], skip: str | None = None, text: bool = True
-) -> bool:
-    """Does a company satisfy the filters in p? skip names a group to ignore (for facet counts);
-    text also applies the free-text and domain filters (companies page only).
-    Records with no value for an attribute never match a filter on that attribute."""
-    if c is None:
-        return not has_company_conditions(p, skip) and not (text and (p["q"] or p["domain"]))
-    if text:
-        if (
-            p["q"]
-            and p["q"].lower()
-            not in " ".join(x for x in (c.name, c.legal_name, c.domain) if x).lower()
-        ):
-            return False
-        if p["domain"] and (c.domain or "").lower() != p["domain"]:
-            return False
-    if skip != "location" and (p["country"] or p["xcountry"]):
-        cc = (c.country or "").upper()
-        if not cc or (p["country"] and cc not in p["country"]) or cc in p["xcountry"]:
-            return False
-    if skip != "industry":
-        if p["industry"] or p["xindustry"]:
-            ind = (c.industry or "").upper()
-            if not ind or (p["industry"] and ind not in p["industry"]) or ind in p["xindustry"]:
-                return False
-        hay = company_text(c)
-        if p["keyword"] and not any(k.lower() in hay for k in p["keyword"]):
-            return False
-        if any(k.lower() in hay for k in p["xkeyword"]):
-            return False
-    if skip != "size":
-        sizes = effective_sizes(p)
-        if sizes and c.size_range not in sizes:
-            return False
-    return True
-
-
 # ---- lookalikes, insight-based filters, phones
 
 
@@ -689,6 +401,11 @@ def is_demo(request: Request) -> bool:
 
 
 DEMO_REASON = "Turned off in the public demo. Install LeadCommons to use it on your own data."
+# Template helpers of the results screens (toolbar, selection bar, save window, profiles).
+templates.env.globals["demo_reason"] = DEMO_REASON
+templates.env.globals["rx"] = results  # view menu rows, field icons, save-window labels
+templates.env.globals["ui_state"] = lambda settings: load_state(settings)  # enrichment mode
+templates.env.filters["tel"] = lambda phone: tel_href(phone) or "#"
 
 
 def safe_insights(store: Any, company_id: str | None) -> Any | None:
@@ -864,50 +581,11 @@ def parse_company_params(request: Request) -> dict[str, Any]:
 def build_company_filters(
     search: Any, p: dict[str, Any], skip: str | None = None
 ) -> CompanyFilters:
-    """CompanyFilters for the pack. Excluded countries/industries become include lists derived
-    from facet counts; skip ("location" | "industry" | "size") ignores one group (facet counts)."""
-
-    def derive(
-        facet: str, include: list[str], exclude: list[str], other: CompanyFilters
-    ) -> list[str]:
-        if not exclude:
-            return list(include)
-        try:
-            known = [str(k).upper() for k in search.facet_counts(facet, other, 500)]
-        except Exception:
-            known = []
-        allowed = [v for v in (include or known) if v not in exclude]
-        return allowed or [NO_MATCH]
-
-    text = p["q"] or None
+    """CompanyFilters for the pack; skip ("location" | "industry" | "size") leaves one group
+    out (facet counts). `search` is unused: kept for callers of the old signature."""
     restricted = domain_restriction(p)
     domains = restricted if restricted is not None else ([p["domain"]] if p["domain"] else [])
-    sizes = [] if skip == "size" else effective_sizes(p)
-    keywords = [] if skip == "industry" else p["keyword"]
-    base = CompanyFilters(
-        text=text,
-        countries=[] if skip == "location" else list(p["country"]),
-        industries=[] if skip == "industry" else list(p["industry"]),
-        size_ranges=sizes,
-        keywords=keywords,
-        domains=domains,
-    )
-    countries: list[str] = []
-    industries: list[str] = []
-    if skip != "location":
-        other = CompanyFilters(**{**base.__dict__, "countries": []})
-        countries = derive("country", p["country"], p["xcountry"], other)
-    if skip != "industry":
-        other = CompanyFilters(**{**base.__dict__, "industries": []})
-        industries = derive("industry", p["industry"], p["xindustry"], other)
-    return CompanyFilters(
-        text=text,
-        countries=countries,
-        industries=industries,
-        size_ranges=sizes,
-        keywords=keywords,
-        domains=domains,
-    )
+    return sf.build_company_filters(p, domains, skip)
 
 
 def scan_companies(search: Any, flt: CompanyFilters) -> tuple[list[Company], int, bool]:
@@ -945,20 +623,15 @@ def run_companies(
 ) -> dict[str, Any]:
     """Run the companies search for the page, the count endpoint and the facet panel."""
     flt = build_company_filters(search, p)
-    xkw = [k.lower() for k in p["xkeyword"]]
     post = company_post_filter(store, p)
     saved_ids = store.saved_company_ids() if not count_only else set()
     restricted = domain_restriction(p)
     lookup = CompanyLookup(search, store)
     pool: list[Company] | None = None
     capped = False
-    if xkw or post:
+    if post:
         scanned, _raw, capped = scan_companies(search, flt)
-        pool = [
-            c
-            for c in scanned
-            if not any(k in company_text(c) for k in xkw) and (post is None or post(c))
-        ]
+        pool = [c for c in scanned if post(c)]
         total_all = len(pool)
     else:
         total_all = search.search_companies(flt, page=1, per_page=1).total
@@ -1022,7 +695,7 @@ def company_facets(search: Any, p: dict[str, Any]) -> dict[str, list[tuple[str, 
     """Counts for the location / industry / size lists, each ignoring its own group's filters."""
     specs = (
         ("country", "location", ("country", "xcountry"), 300),
-        ("industry", "industry", ("industry", "xindustry"), 200),
+        ("industry", "industry", ("industry", "xindustry"), 300),
         ("size_range", "size", ("size",), 20),
     )
     out: dict[str, list[tuple[str, int]]] = {}
@@ -1045,32 +718,16 @@ def company_facets(search: Any, p: dict[str, Any]) -> dict[str, list[tuple[str, 
 def parse_people_params(request: Request) -> dict[str, Any]:
     g = request.query_params
     p = parse_common(g)
-    valid_sen = {s.value for s in Seniority}
-    valid_status = {s.value for s in EmailStatus}
-    votes = g.getlist("similar")
-    p.update(
-        {
-            "title": list_param(g, "title"),
-            "xtitle": list_param(g, "xtitle"),
-            "similar": not ("0" in votes and "1" not in votes),
-            "seniority": [s for s in g.getlist("seniority") if s in valid_sen],
-            "status": [s for s in g.getlist("status") if s in valid_status],
-            "plook": g.get("plook", "").strip()[:120],
-        }
-    )
+    p.update(sf.parse_people_extra(g))
     p["sort"] = p["sort"] if p["sort"] in ("relevance", "name", "company") else "relevance"
     return p
-
-
-def title_terms(p: dict[str, Any], key: str) -> list[str]:
-    return expand_titles(p[key]) if p["similar"] else [t.lower() for t in p[key]]
 
 
 def people_filters(p: dict[str, Any]) -> PeopleFilters:
     """What the local store can filter itself; the rest is narrowed in run_people."""
     return PeopleFilters(
         text=p["q"] or None,
-        titles=title_terms(p, "title"),
+        titles=sf.store_title_terms(p),
         seniorities=[Seniority(s) for s in p["seniority"]],
         email_statuses=[EmailStatus(s) for s in p["status"]],
         company=CompanyFilters(
@@ -1097,15 +754,13 @@ def scan_people(store: Any, flt: PeopleFilters) -> tuple[list[Person], int, bool
 def run_people(
     search: Any, store: Any, p: dict[str, Any], *, facets: bool = True, count_only: bool = False
 ) -> dict[str, Any]:
+    ctx = sf.people_context(store, p)
+    p["_texpr_error"] = ctx.expr_error
     cands, total_raw, capped = scan_people(store, people_filters(p))
-    inc, exc = title_regex(title_terms(p, "title")), title_regex(title_terms(p, "xtitle"))
-    if inc:
-        cands = [x for x in cands if x.title and inc.search(x.title.lower())]
-    if exc:
-        cands = [x for x in cands if not (x.title and exc.search(x.title.lower()))]
+    cands = [x for x in cands if sf.person_matches(x, p, ctx)]
     lookup = CompanyLookup(search, store)
     filtered = cands
-    if has_company_conditions(p):
+    if sf.has_company_conditions(p):
         filtered = [x for x in cands if company_matches(lookup.get(x.company_id), p, text=False)]
     restricted = domain_restriction(p)
     if restricted is not None:
@@ -1161,6 +816,8 @@ def run_people(
             "industry": facet_lists["industry"],
             "size_range": facet_lists["size"],
         }
+        titles = Counter(" ".join(x.title.split()) for x in cands if x.title)
+        out["top_titles"] = titles.most_common(3)
     saved_ids = store.saved_person_ids()
     out["saved_count"] = sum(1 for x in filtered if x.id in saved_ids)
     rows = filtered
@@ -1185,173 +842,7 @@ def run_people(
     return out
 
 
-# ---------------------------------------------------------------- filter groups (panel + modal)
-
-GROUPS: tuple[dict[str, Any], ...] = (
-    {
-        "key": "titles",
-        "label": "Job titles",
-        "icon": "briefcase",
-        "col": "person",
-        "kinds": ("people",),
-        "keys": ("title", "xtitle"),
-    },
-    {
-        "key": "seniority",
-        "label": "Management level",
-        "icon": "layers",
-        "col": "person",
-        "kinds": ("people",),
-        "keys": ("seniority",),
-    },
-    {
-        "key": "email",
-        "label": "Email status",
-        "icon": "mail",
-        "col": "person",
-        "kinds": ("people",),
-        "keys": ("status",),
-    },
-    {
-        "key": "name",
-        "label": "Name or title",
-        "icon": "user-round",
-        "col": "person",
-        "kinds": ("people",),
-        "keys": ("q",),
-        "panel": False,
-    },
-    {
-        "key": "plook",
-        "label": "People lookalikes",
-        "icon": "user-search",
-        "col": "person",
-        "kinds": ("people",),
-        "keys": ("plook",),
-    },
-    {
-        "key": "company",
-        "label": "Company",
-        "icon": "building-2",
-        "col": "company",
-        "kinds": ("companies", "people"),
-        "keys": ("domain", "q"),
-    },
-    {
-        "key": "lookalikes",
-        "label": "Company lookalikes",
-        "icon": "building-2",
-        "col": "company",
-        "kinds": ("companies", "people"),
-        "keys": ("lookalike",),
-    },
-    {
-        "key": "location",
-        "label": "Location",
-        "icon": "map-pin",
-        "col": "company",
-        "kinds": ("companies", "people"),
-        "keys": ("country", "xcountry"),
-    },
-    {
-        "key": "size",
-        "label": "# Employees",
-        "icon": "users",
-        "col": "company",
-        "kinds": ("companies", "people"),
-        "keys": ("size", "size_min", "size_max"),
-    },
-    {
-        "key": "industry",
-        "label": "Industry & keywords",
-        "icon": "factory",
-        "col": "company",
-        "kinds": ("companies", "people"),
-        "keys": ("industry", "xindustry", "keyword", "xkeyword"),
-    },
-    {
-        "key": "tech",
-        "label": "Technologies",
-        "icon": "layers",
-        "col": "company",
-        "kinds": ("companies", "people"),
-        "keys": ("tech",),
-    },
-    {
-        "key": "jobs",
-        "label": "Job postings",
-        "icon": "briefcase",
-        "col": "company",
-        "kinds": ("companies", "people"),
-        "keys": ("job",),
-    },
-)
-PIN_DEFAULTS = {
-    "companies": ["company", "lookalikes", "location", "size", "industry"],
-    "people": ["titles", "plook", "seniority", "email", "company", "location"],
-}
-SOON_FILTERS: tuple[dict[str, str], ...] = (
-    {
-        "label": "Persona",
-        "icon": "user-round",
-        "col": "person",
-        "tip": "Personas need a labelled training set that open data does not provide.",
-    },
-    {
-        "label": "Education",
-        "icon": "graduation-cap",
-        "col": "person",
-        "tip": "Education history is not in any open dataset we can use lawfully.",
-    },
-    {
-        "label": "Time zone",
-        "icon": "clock",
-        "col": "person",
-        "tip": "People have no time zone on record. Filter by country instead.",
-    },
-    {
-        "label": "Phone",
-        "icon": "phone",
-        "col": "person",
-        "tip": "LeadCommons does not collect personal phone numbers.",
-    },
-    {
-        "label": "Work URLs",
-        "icon": "link",
-        "col": "person",
-        "tip": "Profile links are not collected.",
-    },
-    {
-        "label": "Funding",
-        "icon": "dollar-sign",
-        "col": "company",
-        "tip": "Needs funding data in company insights; see the Funding tab of a company.",
-    },
-    {
-        "label": "Headcount growth",
-        "icon": "trending-up",
-        "col": "company",
-        "tip": "Needs employee trends from insights, which are not stored in a searchable way yet.",
-    },
-    {
-        "label": "Buying intent",
-        "icon": "zap",
-        "col": "company",
-        "tip": "Buying intent comes from paid third-party signals. LeadCommons has no free source.",
-    },
-    {
-        "label": "Revenue",
-        "icon": "dollar-sign",
-        "col": "company",
-        "tip": "Revenue is not in the open data packs; insights show what a company publishes.",
-    },
-    {
-        "label": "Website visitors",
-        "icon": "globe",
-        "col": "company",
-        "tip": "Needs a tracking script on your own website. Not built yet.",
-    },
-)
+# ---------------------------------------------------------------- search screens: shared state
 
 COMPANY_COLUMNS: tuple[dict[str, Any], ...] = (
     {"key": "name", "label": "Company", "locked": True, "default": True},
@@ -1395,112 +886,6 @@ SORTS = {
 }
 
 
-def _remove_url(
-    base: str, params: dict[str, Any], key: str | tuple[str, ...], value: Any = None
-) -> str:
-    keys = (key,) if isinstance(key, str) else key
-    over: dict[str, Any] = {"page": None}
-    for k in keys:
-        current = params.get(k)
-        over[k] = [x for x in current if x != value] if isinstance(current, list) else None
-    q = qs(params, **over)
-    return f"{base}?{q}" if q else base
-
-
-templates.env.globals["demo_reason"] = DEMO_REASON
-templates.env.globals["rx"] = results  # results screens: view menu, field icons, save window
-templates.env.globals["ui_state"] = load_state
-templates.env.filters["tel"] = lambda phone: tel_href(phone) or "#"
-templates.env.globals["remove_url"] = lambda ui, key, value: _remove_url(
-    ui["base"], ui["params"], key, value
-)
-
-
-def group_state(
-    kind: str,
-    g: dict[str, Any],
-    p: dict[str, Any],
-    base: str,
-    params: dict[str, Any],
-    labels: dict[str, str],
-) -> dict[str, Any]:
-    """Active-value count, removable chips and the clear-group link of one filter group."""
-    chips: list[dict[str, Any]] = []
-
-    def listed(
-        title: str, key: str, exclude: bool = False, shown: dict[str, str] | None = None
-    ) -> None:
-        if p.get(key):
-            chips.append(
-                {
-                    "title": title,
-                    "exclude": exclude,
-                    "vals": [
-                        {"text": (shown or {}).get(v, v), "url": _remove_url(base, params, key, v)}
-                        for v in p[key]
-                    ],
-                }
-            )
-
-    def single(title: str, key: str, text: str | None = None) -> None:
-        if p.get(key):
-            chips.append(
-                {
-                    "title": title,
-                    "exclude": False,
-                    "vals": [{"text": text or p[key], "url": _remove_url(base, params, key)}],
-                }
-            )
-
-    key = g["key"]
-    if key == "titles":
-        listed("Include titles", "title")
-        listed("Exclude titles", "xtitle", True)
-    elif key == "seniority":
-        listed("Level", "seniority", shown={s.value: _seniority_label(s) for s in Seniority})
-    elif key == "email":
-        listed("Email status", "status", shown={s.value: _status_label(s) for s in EmailStatus})
-    elif key == "name":
-        single("Search", "q")
-    elif key == "company":
-        single("Domain", "domain")
-        if kind == "companies":
-            single("Search", "q")
-    elif key == "location":
-        listed("Include", "country", shown=labels)
-        listed("Exclude", "xcountry", True, shown=labels)
-    elif key == "size":
-        listed("Employees", "size")
-        if p["size_min"] or p["size_max"]:
-            text = f"{p['size_min'] or 'any'} to {p['size_max'] or 'any'}"
-            chips.append(
-                {
-                    "title": "Custom range",
-                    "exclude": False,
-                    "vals": [
-                        {"text": text, "url": _remove_url(base, params, ("size_min", "size_max"))}
-                    ],
-                }
-            )
-    elif key == "lookalikes":
-        single("Similar to", "lookalike")
-    elif key == "plook":
-        single("Like", "plook")
-    elif key == "tech":
-        listed("Uses", "tech")
-    elif key == "jobs":
-        listed("Hiring for", "job")
-    elif key == "industry":
-        listed("Include industries", "industry", shown=labels)
-        listed("Exclude industries", "xindustry", True, shown=labels)
-        listed("Include keywords", "keyword")
-        listed("Exclude keywords", "xkeyword", True)
-    count = sum(len(c["vals"]) for c in chips)
-    clear = {k: None for k in g["keys"]}
-    q = qs(params, page=None, **clear)
-    return {"count": count, "chips": chips, "clear_url": f"{base}?{q}" if q else base}
-
-
 def search_ui(
     kind: str,
     p: dict[str, Any],
@@ -1509,32 +894,10 @@ def search_ui(
     ind_labels: dict[str, str],
     demo: bool = False,
 ) -> dict[str, Any]:
-    """Everything the shared search templates need beyond the result rows."""
+    """Everything the shared search templates need beyond the result rows. The filter side
+    (groups, chips, options) comes from search_filters.filter_ui."""
     base = "/companies" if kind == "companies" else "/people"
     params = url_params(p)
-    country_opts = [(c, COUNTRIES.get(c, c), n) for c, n in opts.get("country", [])]
-    industry_opts = [
-        (c, ISIC_SECTIONS.get(c) or ind_labels.get(c) or f"Division {c}", n)
-        for c, n in opts.get("industry", [])
-    ]
-    labels = {c: name for c, name, _ in country_opts}
-    labels.update({c: name for c, name, _ in industry_opts})
-    size_map = dict(opts.get("size_range", []))
-    groups = []
-    for g in GROUPS:
-        st = group_state(kind, g, p, base, params, labels)
-        if g["key"] == "lookalikes" and kind == "companies":
-            g = {**g, "label": "Lookalikes"}
-        groups.append(
-            {
-                **g,
-                "supported": kind in g["kinds"],
-                "panel": g.get("panel", True) and kind in g["kinds"],
-                "pinned": g["key"] in PIN_DEFAULTS[kind],
-                "state": st,
-            }
-        )
-    active_total = sum(g["state"]["count"] for g in groups if g["supported"])
     menu = results.view_rows(kind, store, qs(params), base)  # saved-view menu (results.py)
     views, current_view = menu["rows"], menu["current"]
     return {
@@ -1547,32 +910,33 @@ def search_ui(
         "p": p,
         "params": params,
         "base_qs": qs(params),
-        "groups": groups,
-        "soon_filters": SOON_FILTERS,
-        "active_total": active_total,
-        "clear_all_url": base,
-        "countries": country_opts,
-        "industries": industry_opts,
-        "sizes": [(s, size_map.get(s, 0)) for s in SIZE_RANGES],
-        "range_buckets": buckets_for_range(p["size_min"], p["size_max"]),
-        "pin_defaults": PIN_DEFAULTS[kind],
+        **sf.filter_ui(kind, p, store, opts, ind_labels),
         "columns": COMPANY_COLUMNS if kind == "companies" else PEOPLE_COLUMNS,
         "sorts": SORTS[kind],
         "views": views,
         "current_view": current_view or "Default view",
         "page_sizes": PAGE_SIZES,
-        "seniorities": list(Seniority),
-        "statuses": list(EmailStatus),
-        "tab_urls": {
-            key: f"{base}?{qs(params, tab=(key if key != 'all' else None), page=None)}".rstrip("?")
-            for key in ("all", "new", "saved")
-        },
     }
 
 
-templates.env.globals["remove_url"] = lambda ui, key, value: _remove_url(
+templates.env.globals["remove_url"] = lambda ui, key, value: remove_url(
     ui["base"], ui["params"], key, value
 )
+
+
+def landing_context(
+    kind: str, p: dict[str, Any], ui: dict[str, Any], res: dict[str, Any]
+) -> dict[str, Any]:
+    """The landing (AI prompt + quick filters) replaces the table when nothing is asked yet."""
+    on = sf.is_landing(p, ui["active_total"]) and res["total_all"] > 0
+    base = ui["base"]
+    return {
+        "landing": on,
+        "quick": sf.quick_filters(kind, res.get("facets", {}), res.get("top_titles", []))
+        if on
+        else [],
+        "browse_url": f"{base}?all=1",
+    }
 
 
 # ---------------------------------------------------------------- companies
@@ -1606,6 +970,7 @@ def companies(
         has_filters=ui["active_total"] > 0,
         pg=pager("/companies", ui["params"], p["page"], res["total"], p["per"], res["capped"]),
         lists=store.lists("companies"),
+        **landing_context("companies", p, ui, res),
     )
 
 
@@ -1635,6 +1000,90 @@ def search_count(
         "_search_count.html",
         {"request": request, "total": res["total_all"], "capped": res["capped"]},
     )
+
+
+@router.get("/search/suggest")
+def search_suggest(
+    request: Request, search: Any = Depends(get_search), store: Any = Depends(get_store)
+) -> JSONResponse:
+    """Values for a filter box (titles, places, industries) as JSON: {items: [{name, value,
+    label, hint}]}. name is the query parameter the value fills."""
+    g = request.query_params
+    kind = "people" if g.get("kind") == "people" else "companies"
+    field_name = g.get("field", "")
+    if field_name not in ("title", "xtitle", "place", "xplace", "industry", "xindustry"):
+        return JSONResponse({"items": []}, status_code=400)
+    items = sf.suggest(kind, field_name, g.get("q", ""), search, store)
+    return JSONResponse({"items": items})
+
+
+def _persona_back(form: Any, request: Request, drop: str | None = None) -> str:
+    back = safe_next(str(form.get("next") or ""), "")
+    if not back:
+        ref = urlparse(request.headers.get("referer") or "")
+        back = ref.path + (f"?{ref.query}" if ref.query else "") if ref.path else ""
+    if not back.startswith("/people"):
+        back = "/people"
+    if drop:
+        path, _, query = back.partition("?")
+        pairs = [(k, v) for k, v in parse_qsl(query) if not (k == "persona" and v == drop)]
+        pairs = [(k, v) for k, v in pairs if k != "notice"]
+        back = path + (f"?{urlencode(pairs)}" if pairs else "")
+    return back
+
+
+def _persona_done(request: Request, message: str, back: str, kind: str = "ok") -> Response:
+    """Toast, then re-render the workspace at `back` (HTMX) or redirect there."""
+    if is_htmx(request):
+        target = {"path": back, "target": "#workspace", "select": "#workspace", "swap": "outerHTML"}
+        headers = {**toast_headers(message, kind), "HX-Location": json.dumps(target)}
+        return Response(status_code=200, headers=headers)
+    return RedirectResponse(with_notice(back, message), status_code=303)
+
+
+@router.post("/personas")
+async def personas_create(
+    request: Request, _: None = Depends(csrf), store: Any = Depends(get_store)
+) -> Response:
+    """Save the job-title filters of the People page as a named persona."""
+    form = await form_values(request)
+    back = _persona_back(form, request)
+    name = " ".join(str(form.get("name") or "").split())[:80]
+    filters = clean_filters(
+        {
+            "title": sf.split_titles(form.getlist("title")),
+            "xtitle": sf.split_titles(form.getlist("xtitle")),
+            "similar": str(form.get("similar") or "1"),
+            "tmode": "advanced" if form.get("tmode") == "advanced" else "",
+            "texpr": str(form.get("texpr") or ""),
+            "seniority": [s for s in form.getlist("seniority") if s in sf.SENIORITY_VALUES],
+            "dept": [d for d in form.getlist("dept") if d in sf.DEPT_LABELS],
+        }
+    )
+    if not name:
+        return done(request, "Give the persona a name.", back, "error")
+    if not ({"title", "xtitle", "texpr", "seniority", "dept"} & set(filters)):
+        return done(request, "Add a job title, level or department first.", back, "error")
+    if filters.get("texpr"):
+        try:
+            sf.parse_title_expr(filters["texpr"])
+        except sf.TitleExprError as e:
+            return done(request, f"The title expression has a problem: {e}", back, "error")
+    personas_for(store).create(name, filters)
+    return _persona_done(request, f"Saved persona {name}.", back)
+
+
+@router.post("/personas/{persona_id}/delete")
+async def personas_delete(
+    persona_id: str, request: Request, _: None = Depends(csrf), store: Any = Depends(get_store)
+) -> Response:
+    form = await form_values(request)
+    back = _persona_back(form, request, drop=persona_id)
+    repo = personas_for(store)
+    persona = repo.get(persona_id)
+    if persona is None or not repo.delete(persona_id):
+        return _persona_done(request, "That persona was already deleted.", back, "error")
+    return _persona_done(request, f"Deleted persona {persona.name}.", back)
 
 
 def company_context(request: Request, company: Company) -> dict[str, Any]:
@@ -1793,6 +1242,7 @@ def people(
         has_filters=ui["active_total"] > 0,
         pg=pager("/people", ui["params"], p["page"], res["total"], p["per"], res["capped"]),
         lists=store.lists("people"),
+        **landing_context("people", p, ui, res),
     )
 
 
@@ -1923,6 +1373,58 @@ def person_detail(person_id: str, request: Request, store: Any = Depends(get_sto
             request, "_person_drawer.html", {"request": request, **ctx}
         )
     return render(request, "person_page.html", active="people", **ctx)
+
+
+def clean_domain(value: str) -> str | None:
+    """'https://www.Example.com/team' -> 'example.com'; None when it is not a domain."""
+    host = re.sub(r"^[a-z]+://", "", value.strip().lower()).split("/")[0].split(":")[0]
+    host = host.removeprefix("www.")
+    return host if re.fullmatch(r"[a-z0-9-]+(\.[a-z0-9-]+)+", host or "") else None
+
+
+@router.post("/people/new")
+async def person_new(
+    request: Request,
+    _: None = Depends(csrf),
+    store: Any = Depends(get_store),
+    search: Any = Depends(get_search),
+) -> Response:
+    """Import > Single contact: add one person by hand (name and company website)."""
+    from leadcommons.models import EmailCandidate, make_id
+    from leadcommons.search import CompanyFilters as _CF
+
+    form = await form_values(request)
+    name = " ".join(str(form.get("full_name") or "").split())[:120]
+    domain = clean_domain(str(form.get("domain") or ""))
+    back = "/people?all=1"
+    if not name or not domain:
+        return done(request, "Give a name and the company website, e.g. acme.com.", back, "error")
+    email = str(form.get("email") or "").strip().lower()[:200]
+    if email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[a-z]{2,}", email):
+        return done(request, "That email address does not look right.", back, "error")
+    found = search.search_companies(_CF(domains=[domain]), page=1, per_page=1)
+    company = found.items[0] if found.items else None
+    person = Person(
+        id=make_id("pe", domain, name),
+        full_name=name,
+        company_domain=domain,
+        company_id=company.id if company else None,
+        title=str(form.get("title") or "").strip()[:160] or None,
+        source_urls=[],  # added by hand: no page to point to
+    )
+    store.save_person(person)
+    if email:
+        store.save_email(
+            person.id,
+            EmailCandidate(email, EmailStatus.UNKNOWN, 0, None, {"source": "entered by hand"}),
+        )
+    msg = f"Added {name}." + ("" if email else " Use Find email to look for an address.")
+    if is_htmx(request):
+        return Response(
+            status_code=200,
+            headers={**toast_headers(msg), "HX-Redirect": f"/people/{person.id}"},
+        )
+    return RedirectResponse(with_notice(f"/people/{person.id}", msg), status_code=303)
 
 
 @router.post("/people/{person_id}/find-email")

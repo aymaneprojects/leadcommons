@@ -1,1 +1,1 @@
-<span class="n mono">{{ fmt_int(total) }}{% if capped %}+{% endif %}</span> records found
+<span class="n mono">{{ fmt_int(total) }}{% if capped %}+{% endif %}</span> {{ "record" if total == 1 and not capped else "records" }} found

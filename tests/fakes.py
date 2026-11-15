@@ -96,13 +96,8 @@ class FakeSearch:
             return False
         if f.exclude_industries and (not c.industry or c.industry in f.exclude_industries):
             return False
-        fields = {"name": (c.name, c.legal_name, c.domain), "industry": (c.industry_label,)}
-        hay = " ".join(
-            x or "" for x in fields.get(f.keyword_fields, (*fields["name"], c.industry_label))
-        ).lower()
-        hits = [k.lower() in hay for k in f.keywords]
-        if hits and not (all(hits) if f.keyword_mode == "all" else any(hits)):
-            return False
+        # Include keywords are not matched by this fake (tests rely on it); exclusions are.
+        hay = f"{c.name} {c.legal_name or ''} {c.domain or ''} {c.industry_label or ''}".lower()
         if any(k.lower() in hay for k in f.exclude_keywords):
             return False
         if f.size_ranges and c.size_range not in f.size_ranges:

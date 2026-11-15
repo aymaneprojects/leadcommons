@@ -1,0 +1,208 @@
+{# Filter controls of the People and Companies screens, shared by the side panel and the All
+   filters window. The data comes from search_filters.filter_ui (web/search_filters.py). Every
+   control is a plain form field: without JavaScript, text typed in a box is sent as <field>_add
+   and the server turns it into a value. #}
+{% from "_macros.html" import ic, hxf, status_dot %}
+
+{% macro fic(name, cls="") -%}
+<svg class="icon {{ cls }}" aria-hidden="true" focusable="false"><use href="/static/icons/filters-sprite.svg#f-{{ name }}"></use></svg>
+{%- endmacro %}
+
+{# Chips + a text box with suggestions. chips = [{name, value, text, hint, url}]. #}
+{% macro combo(id, field, chips, placeholder, label="", suggest="", exclude=False) -%}
+<div class="sf-combo{% if exclude %} excl{% endif %}" data-combo data-field="{{ field }}"{% if suggest %} data-suggest="{{ suggest }}{{ field }}"{% endif %}>
+  {% if label %}<label class="flabel" for="{{ id }}">{{ label }}</label>{% endif %}
+  <div class="sf-combo-box">
+    {% for ch in chips %}<span class="tag" data-chip><input type="hidden" name="{{ ch.name }}" value="{{ ch.value }}"><span class="tt">{{ ch.text }}{% if ch.hint %} <small>{{ ch.hint }}</small>{% endif %}</span><a class="tx" data-chip-remove href="{{ ch.url }}" aria-label="Remove {{ ch.text }}">{{ ic("x", "sm") }}</a></span>{% endfor %}
+    <input id="{{ id }}" type="text" class="sf-combo-input" name="{{ field }}_add" placeholder="{{ placeholder if not chips else '' }}" data-placeholder="{{ placeholder }}" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="{{ id }}-list"{% if not label %} aria-label="{{ placeholder }}"{% endif %}>
+    <button type="button" class="sf-combo-clear" data-combo-clear aria-label="Clear all values"{% if not chips %} hidden{% endif %}>{{ ic("x", "sm") }}</button>
+    {% if suggest %}<span class="sf-combo-caret" aria-hidden="true">{{ ic("chevron-down", "sm") }}</span>{% endif %}
+  </div>
+  <div class="sf-combo-list" id="{{ id }}-list" role="listbox" hidden></div>
+</div>
+{%- endmacro %}
+
+{# A dropdown of checkboxes (management level, departments). options = [(value, text)] #}
+{% macro msel(id, label, name, options, selected) -%}
+<details class="sf-msel" data-keep-open="{{ id }}">
+  <summary><span class="sf-msel-l">{{ label }}</span>{% if selected %}<span class="cnt">{{ selected|length }}</span>{% endif %}{{ ic("chevron-down", "sm") }}</summary>
+  <div class="sf-msel-menu" role="group" aria-label="{{ label }}">
+    {% for v, text in options %}<label class="opt"><input type="checkbox" name="{{ name }}" value="{{ v }}" {% if v in selected %}checked{% endif %}><span class="ol">{{ text }}</span></label>{% endfor %}
+  </div>
+</details>
+{%- endmacro %}
+
+{# Why a lookalike filter is not narrowing the results. #}
+{% macro xnote(status, what) -%}
+{%- if status == "soon" %}<span class="fnote warn"><span class="badge soon-badge">Soon</span> Lookalikes are not available in this build yet, so this filter is ignored for now.</span>
+{%- elif status == "error" %}<span class="fnote warn">Lookalikes could not be computed right now. This filter is ignored.</span>
+{%- elif status == "notfound" %}<span class="fnote warn">No {{ what }} found for that text, so nothing matches.</span>{% endif -%}
+{%- endmacro %}
+
+{# The controls of one filter group. mode is "panel" (side panel) or "modal" (All filters). #}
+{% macro fbody(key, s, mode) -%}
+{% set p = s.p %}
+{% set m = mode %}
+{% if key == "titles" %}
+  <div class="sf-seg" role="radiogroup" aria-label="How to match titles">
+    <label><input type="radio" name="tmode" value="" {% if p.tmode != "advanced" %}checked{% endif %}><span>Simple</span></label>
+    <label><input type="radio" name="tmode" value="advanced" {% if p.tmode == "advanced" %}checked{% endif %}><span>Advanced</span></label>
+  </div>
+  {% if p.tmode == "advanced" %}
+    <label class="flabel" for="{{ m }}-texpr">Title expression</label>
+    <textarea id="{{ m }}-texpr" class="sf-expr" name="texpr" rows="2" maxlength="300" spellcheck="false" placeholder="e.g. head AND (sales OR growth) NOT intern" data-submit-on-enter>{{ p.texpr }}</textarea>
+    {% if s.expr_error %}<span class="fnote warn" role="alert">{{ fic("triangle-alert", "sm") }}<span>{{ s.expr_error }} The expression is ignored until it is fixed.</span></span>{% endif %}
+    <span class="fnote">Join words with AND, OR, NOT (in capitals) and brackets. Words side by side must all appear; quote a phrase to keep its words together. Press Enter to apply.</span>
+  {% else %}
+    {{ combo(m ~ "-title", "title", s.vals.title, "Type a title, then Enter", "Include", s.suggest) }}
+    <span class="fnote">Write a title in "quotes" to match only that exact title.</span>
+    <label class="opt similar"><input type="hidden" name="similar" value="0"><input type="checkbox" name="similar" value="1" {% if p.similar %}checked{% endif %}><span class="ol">Also match similar titles</span><span class="tip" tabindex="0" data-tip="Adds common equivalents: CEO also finds chief executive officer, founder also finds co-founder.">{{ ic("info", "sm") }}</span></label>
+    {{ combo(m ~ "-xtitle", "xtitle", s.vals.xtitle, "Titles to leave out", "Exclude", s.suggest, exclude=True) }}
+  {% endif %}
+  <span class="sf-disclose off" role="button" aria-disabled="true" tabindex="0" data-tip="{{ s.reasons.past_titles }}">Past job titles {{ ic("chevron-down", "sm") }}</span>
+  {{ msel(m ~ "-sen", "Management level", "seniority", s.levels, p.seniority) }}
+  {{ msel(m ~ "-dept", "Departments", "dept", s.departments, p.dept) }}
+  <span class="fnote">When a record has no department, it is read from the job title.</span>
+{% elif key == "persona" %}
+  {% if s.personas %}
+  <div class="sf-personas">
+    {% for x in s.personas %}
+    <div class="sf-persona">
+      <label class="opt"><input type="checkbox" name="persona" value="{{ x.id }}" {% if x.id in p.persona %}checked{% endif %}><span class="ol">{{ x.name }}<small>{{ x.summary }}</small></span></label>
+      <button type="submit" class="btn ghost icon-only sm" formmethod="post" formaction="/personas/{{ x.id }}/delete" hx-post="/personas/{{ x.id }}/delete" hx-swap="none" hx-push-url="false" name="next" value="{{ current_url }}" title="Delete this persona" aria-label="Delete persona {{ x.name }}">{{ ic("trash-2", "sm") }}</button>
+    </div>
+    {% endfor %}
+  </div>
+  <span class="fnote">A ticked persona keeps the people who match its titles, level and department.</span>
+  {% else %}
+  <span class="fnote">No personas yet. Set some job titles, then choose Save as new persona under the filters.</span>
+  {% endif %}
+{% elif key == "email" %}
+  <div class="opts">{% for st in s.statuses %}<label class="opt"><input type="checkbox" name="status" value="{{ st.value }}" {% if st.value in p.status %}checked{% endif %}>{{ status_dot(st) }}<span class="ol">{{ status_label(st) }}</span></label>{% endfor %}</div>
+{% elif key == "name" %}
+  <input type="search" name="q" value="{{ p.q }}" placeholder="Name or job title" aria-label="Name or job title">
+{% elif key == "company" %}
+  {% if mode == "modal" and s.kind == "companies" %}<label class="flabel" for="m-q">Name or domain</label><input id="m-q" type="search" name="q" value="{{ p.q }}" placeholder="Search by company name or domain">{% endif %}
+  <label class="flabel" for="{{ m }}-domain">Domain</label>
+  <input id="{{ m }}-domain" type="text" name="domain" value="{{ p.domain }}" placeholder="Exact domain, e.g. acme.com">
+  {% if mode == "panel" and s.kind == "companies" %}<span class="fnote">Use the search box above for names.</span>{% endif %}
+{% elif key == "location" %}
+  {% if s.kind == "people" %}
+  <div class="sf-tabs" role="tablist" aria-label="Whose location">
+    <span class="sf-tab off" role="tab" aria-selected="false" aria-disabled="true" tabindex="0" data-tip="{{ s.reasons.contact_location }}">{{ fic("user", "sm") }}<span>Contact</span></span>
+    <span class="sf-tab on" role="tab" aria-selected="true" tabindex="0">{{ ic("building", "sm") }}<span>Company HQ</span></span>
+  </div>
+  {% endif %}
+  <div class="sf-box">
+    <label class="sf-radio"><input type="radio" name="{{ m }}-locmode" form="ui-only" checked><span>Region</span></label>
+    {{ combo(m ~ "-place", "place", s.vals.place, "Type a place…", "City, region or country", s.suggest) }}
+    <details class="xsub" data-keep-open="{{ m }}-xloc"{% if s.vals.xplace %} open{% endif %}>
+      <summary>Exclude locations {{ ic("chevron-down", "sm") }}</summary>
+      {{ combo(m ~ "-xplace", "xplace", s.vals.xplace, "Places to leave out", "", s.suggest, exclude=True) }}
+      <span class="fnote">Excluding a country also leaves out records with no country.</span>
+    </details>
+  </div>
+  <div class="sf-box off" aria-disabled="true" tabindex="0" data-tip="{{ s.reasons.radius }}">
+    <label class="sf-radio"><input type="radio" name="{{ m }}-locmode" form="ui-only" disabled><span>Distance from a postal code</span></label>
+  </div>
+{% elif key == "size" %}
+  {% set custom = (p.size_min or p.size_max) and not p.size %}
+  <div class="sf-sizes" data-sizes>
+    <label class="sf-radio"><input type="radio" name="{{ m }}-sizemode" value="ranges" form="ui-only" data-size-mode="ranges" {% if not custom %}checked{% endif %}><span>Predefined ranges</span></label>
+    <div class="opts sf-ranges" data-size-pane="ranges"{% if custom %} hidden{% endif %}>
+      {% for sz, n in s.sizes %}<label class="opt"><input type="checkbox" name="size" value="{{ sz }}" {% if sz in p.size %}checked{% endif %}><span class="ol mono">{{ sz }}</span><span class="n">{{ fmt_int(n) }}</span></label>{% endfor %}
+    </div>
+    <label class="sf-radio"><input type="radio" name="{{ m }}-sizemode" value="custom" form="ui-only" data-size-mode="custom" {% if custom %}checked{% endif %}><span>Custom range</span></label>
+    <div class="sf-custom" data-size-pane="custom"{% if not custom %} hidden{% endif %}>
+      <div class="range-row"><input type="number" min="1" name="size_min" value="{{ p.size_min or '' }}" placeholder="Min" aria-label="Minimum employees"><span>to</span><input type="number" min="1" name="size_max" value="{{ p.size_max or '' }}" placeholder="Max" aria-label="Maximum employees"></div>
+      {% if s.range_buckets %}<span class="fnote">Matches sizes: <b class="mono">{{ s.range_buckets|join(", ") }}</b></span>{% else %}<span class="fnote">A range matches every size bucket it overlaps.</span>{% endif %}
+    </div>
+  </div>
+{% elif key == "lookalikes" %}
+  <label class="flabel" for="{{ m }}-look">Companies similar to</label>
+  <input id="{{ m }}-look" type="text" name="lookalike" value="{{ p.lookalike }}" placeholder="Company name or domain" autocomplete="off">
+  {{ xnote(s.xstatus.get("lookalike"), "company") }}
+  <span class="fnote">Similar means the same industry, size band and country. Press Enter to apply.</span>
+{% elif key == "plook" %}
+  <label class="flabel" for="{{ m }}-plook">People like</label>
+  <input id="{{ m }}-plook" type="text" name="plook" value="{{ p.plook }}" placeholder="Name of someone you have found" autocomplete="off">
+  {{ xnote(s.xstatus.get("plook"), "person") }}
+  <span class="fnote">Shows people with the same seniority at companies like theirs.</span>
+{% elif key == "tech" %}
+  {{ combo(m ~ "-tech", "tech", s.vals.tech, "e.g. shopify, react", "Uses any of these technologies") }}
+  <span class="fnote">Works over companies whose insights were refreshed. Open a company and refresh its insights to include it.</span>
+{% elif key == "jobs" %}
+  {{ combo(m ~ "-job", "job", s.vals.job, "e.g. sales, engineer", "Hiring for any of these roles") }}
+  <span class="fnote">Works over companies whose insights were refreshed. Open a company and refresh its insights to include it.</span>
+{% elif key == "industry" %}
+  {{ combo(m ~ "-ind", "industry", s.vals.industry, "Search industries…", "", s.suggest) }}
+  <details class="xsub" data-keep-open="{{ m }}-indadv"{% if s.vals.xindustry %} open{% endif %}>
+    <summary>Advanced settings {{ ic("chevron-down", "sm") }}</summary>
+    {{ combo(m ~ "-xind", "xindustry", s.vals.xindustry, "Industries to leave out", "Exclude industries", s.suggest, exclude=True) }}
+    <span class="fnote">Industries follow the ISIC classification of the public registers. Records with no industry are left out when you exclude one.</span>
+  </details>
+  <details class="sf-sub" data-keep-open="{{ m }}-kw" open>
+    <summary><span>Company keywords</span><span class="tip" tabindex="0" data-tip="Finds companies whose name, domain or industry label contains a word you type.">{{ fic("circle-help", "sm") }}</span>{{ ic("chevron-down", "sm") }}</summary>
+    <div class="sf-box">
+      <label class="opt"><input type="checkbox" form="ui-only" data-reveal="{{ m }}-kwin" checked><span class="ol">Include keywords</span></label>
+      <div id="{{ m }}-kwin" class="sf-reveal" data-reveal-target>
+        {{ combo(m ~ "-kw", "keyword", s.vals.keyword, "e.g. cloud, logistics") }}
+        <details class="xsub" data-keep-open="{{ m }}-kwtype"{% if p.kwfield %} open{% endif %}>
+          <summary>Keyword type <span class="tip warn" tabindex="0" data-tip="Keyword filters read every record, so they answer more slowly on large packs.">{{ fic("triangle-alert", "sm") }}</span>{{ ic("chevron-down", "sm") }}</summary>
+          <label class="opt"><input type="radio" name="kwfield" value="" {% if not p.kwfield %}checked{% endif %}><span class="ol">Name, domain and industry</span></label>
+          <label class="opt"><input type="radio" name="kwfield" value="name" {% if p.kwfield == "name" %}checked{% endif %}><span class="ol">Company name and domain</span></label>
+          <label class="opt"><input type="radio" name="kwfield" value="industry" {% if p.kwfield == "industry" %}checked{% endif %}><span class="ol">Industry label</span></label>
+          <span class="fnote">The packs hold no company descriptions, so keywords look in these fields only.</span>
+        </details>
+      </div>
+    </div>
+    <div class="sf-box"><label class="opt"><input type="checkbox" name="kwall" value="1" {% if p.kwall %}checked{% endif %}><span class="ol">Match all keywords</span></label></div>
+    <div class="sf-box">
+      <label class="opt"><input type="checkbox" form="ui-only" data-reveal="{{ m }}-kwx" {% if p.xkeyword %}checked{% endif %}><span class="ol">Exclude keywords</span></label>
+      <div id="{{ m }}-kwx" class="sf-reveal" data-reveal-target{% if not p.xkeyword %} hidden{% endif %}>{{ combo(m ~ "-xkw", "xkeyword", s.vals.xkeyword, "Keywords to leave out", "", "", True) }}</div>
+    </div>
+    <span class="fnote">Keyword filters can slow down a search on a large pack.</span>
+  </details>
+{% elif key == "seq" %}
+  <div class="opts">
+    {% for sid, name in s.sequences %}<label class="opt"><input type="checkbox" name="seq" value="{{ sid }}" {% if sid in p.seq %}checked{% endif %}><span class="ol">{{ name }}</span></label>{% endfor %}
+    <label class="opt"><input type="checkbox" name="seq" value="none" {% if "none" in p.seq %}checked{% endif %}><span class="ol">In no sequence</span></label>
+  </div>
+  {% if not s.sequences %}<span class="fnote">No sequences yet. <a href="/sequences">Create one</a> to filter by it.</span>{% endif %}
+{% elif key in s.engage_choices %}
+  <div class="opts">
+    <label class="opt"><input type="radio" name="{{ key }}" value="" {% if not p[key] %}checked{% endif %}><span class="ol">Any</span></label>
+    {% for v, text in s.engage_choices[key] %}<label class="opt"><input type="radio" name="{{ key }}" value="{{ v }}" {% if p[key] == v %}checked{% endif %}><span class="ol">{{ text }}</span></label>{% endfor %}
+  </div>
+  {% if key == "activity" %}<span class="fnote">Counts notes, calls, emails, tasks and meetings logged for the person.</span>{% endif %}
+{% endif %}
+{%- endmacro %}
+
+{# One filter group: header row (dot, icon, label, count with clear x, caret), the controls,
+   and under a closed header the chips of its active values. #}
+{% macro fgroup(g, s, mode) -%}
+{% set st = g.state %}
+<div class="fgroup sf-g{% if st.count %} active{% endif %}" data-fgroup="{{ g.key }}" data-fcol="{{ g.col }}" data-count="{{ st.count }}" data-default-pin="{{ 1 if g.pinned else 0 }}" data-label="{{ g.label|lower }}">
+  <details class="sf-d" data-keep-open="{{ mode }}-g-{{ g.key }}"{% if mode == "modal" and st.count %} open{% endif %}>
+    <summary title="Show or hide the {{ g.label|lower }} filter">
+      {% if mode == "modal" and g.panel %}<span class="sf-drag" data-drag="{{ g.key }}" role="button" tabindex="0" aria-label="Move {{ g.label }} up or down" title="Drag to reorder, or use the arrow keys">{{ fic("grip-vertical", "sm") }}</span>{% endif %}
+      <span class="sf-dot" aria-hidden="true"></span>
+      <span class="gi">{{ ic(g.icon) }}</span><span class="gl">{{ g.label }}</span>
+      {% if st.count %}<span class="gbadge">{{ st.count }}{% if mode == "panel" %}<a class="gx" href="{{ st.clear_url }}" {{ hxf(st.clear_url) }} title="Clear {{ g.label }}" aria-label="Clear {{ g.label }}">{{ ic("x", "sm") }}</a>{% endif %}</span>{% endif %}
+      {% if mode == "modal" and g.panel %}<button type="button" class="pin" data-pin="{{ g.key }}" aria-pressed="false" title="Pin to the side panel" aria-label="Pin {{ g.label }}">{{ ic("pin", "sm") }}</button>{% endif %}
+      <span class="caret">{{ ic("chevron-down", "sm") }}</span>
+    </summary>
+    <div class="gbody">{{ fbody(g.key, s, mode) }}</div>
+  </details>
+  {% if mode == "panel" and st.chips %}
+  <div class="gchips">{% for ch in st.chips %}<div class="gchip-row"><span class="gchip-title">{{ ch.title }}:</span>{% for v in ch.vals %}<a class="fchip{% if ch.exclude %} excl{% endif %}" href="{{ v.url }}" {{ hxf(v.url) }} title="Remove {{ v.text }}" aria-label="Remove {{ ch.title }} {{ v.text }}"><span>{{ v.text }}</span>{{ ic("x", "sm") }}</a>{% endfor %}</div>{% endfor %}</div>
+  {% endif %}
+</div>
+{%- endmacro %}
+
+{# A filter that cannot work here (or belongs to the other screen): visible, disabled, with why. #}
+{% macro locked_row(label, icon, col, badge="Soon", tip="Coming in a later version") -%}
+<div class="fgroup locked" data-fcol="{{ col }}" data-label="{{ label|lower }}" aria-disabled="true" data-tip="{{ tip }}" tabindex="0">
+  <div class="lrow"><span class="gi">{{ ic(icon) }}</span><span class="gl">{{ label }}</span><span class="badge soon-badge">{{ badge }}</span></div>
+</div>
+{%- endmacro %}
