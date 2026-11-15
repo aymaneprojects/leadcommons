@@ -682,3 +682,29 @@ def test_merge_at_scale(tmp_path: Path) -> None:
     )
     assert q["status"] in ("ok", "warn")
     assert q["overall"]["rows"] > 0
+
+
+def test_files_hold_only_their_country_and_former_countries_are_dropped(tmp_path: Path) -> None:
+    shards = tmp_path / "shards"
+    shards.mkdir()
+    # A register row without a country, linked by its number to a GLEIF row naming another
+    # country: it lands in one file, and that file's country is written on the row.
+    write_shard(shards, "companies_house", [ch("01234567", "Mixed Ltd", country=None),
+                                            ch("07654321", "Plain Ltd")])  # fmt: skip
+    gleif = {"name": "Mixed Ltd", "country": "IE", "registry": "GB-CH",
+             "company_number": "01234567", "lei": "5493001KJTIIGC8Y1R12",
+             "status": "active"}  # fmt: skip
+    write_shard(shards, "gleif_golden", [gleif])
+    write_shard(
+        shards, "wikidata", [{"name": "Old Kombinat", "country": "DD", "wikidata_id": "Q1"}]
+    )
+    out = tmp_path / "out"
+    merge_shards(shards, out, built_at=BUILT)
+    files = sorted(p.name for p in out.glob("companies-[A-Z][A-Z]-*.parquet"))
+    assert files and not any("-DD-" in f for f in files)
+    con = duckdb.connect()
+    for f in files:
+        cc = f.split("-")[1]
+        sql = f"SELECT count(*) FROM read_parquet('{out / f}') WHERE country IS DISTINCT FROM ?"
+        assert con.execute(sql, [cc]).fetchone()[0] == 0
+    assert compute_quality(out)["status"] != "fail"

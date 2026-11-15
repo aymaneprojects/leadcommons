@@ -267,6 +267,13 @@ def _sort_sources(names: Sequence[str]) -> list[str]:
 # -- per-row candidates --------------------------------------------------------------------
 
 _SIZES = ", ".join(lit(s) for s in SIZE_RANGES)
+# Codes of countries that no longer exist (Wikidata items of historical companies use them):
+# East Germany, USSR, Yugoslavia, Czechoslovakia, Zaire, East Timor, Netherlands Antilles,
+# Burma, Dahomey, Upper Volta, New Hebrides, Rhodesia, South Vietnam, South Yemen.
+_FORMER_COUNTRIES = ", ".join(
+    lit(c)
+    for c in ("DD", "SU", "YU", "CS", "ZR", "TP", "AN", "BU", "DY", "HV", "NH", "RH", "VD", "YD")
+)
 _OVERSEAS = ", ".join(lit(c) for c in COUNTRY_ALIASES)
 
 
@@ -510,8 +517,12 @@ def _merge_country(
         }
         kv_sql = ", ".join(f"{k}: {lit(v)}" for k, v in kv.items())
         tmp = out_path.with_name(out_path.name + ".tmp")
+        # The file is the country: when sources disagree (rare: a register row without a
+        # country and a GLEIF row naming another one), the row still belongs to this file.
         con.execute(f"""
-          COPY (SELECT {", ".join(PACK_COLUMNS)} FROM out2 ORDER BY name, id)
+          COPY (SELECT {
+            ", ".join(f"{lit(cc)} AS country" if c == "country" else c for c in PACK_COLUMNS)
+        } FROM out2 ORDER BY name, id)
           TO {lit(str(tmp))} (FORMAT PARQUET, COMPRESSION ZSTD, KV_METADATA {{{kv_sql}}})
         """)
         tmp.replace(out_path)
@@ -762,6 +773,7 @@ def merge_shards(
               coalesce(l.cc, n.country_n) AS cc
             FROM {norm_from_sql(raw)} n LEFT JOIN lc l USING (rid)
             WHERE coalesce(l.cc, n.country_n) IS NOT NULL
+              AND coalesce(l.cc, n.country_n) NOT IN ({_FORMER_COUNTRIES})
         """)
         con.execute("DROP TABLE lc")
         con.execute("CHECKPOINT")
