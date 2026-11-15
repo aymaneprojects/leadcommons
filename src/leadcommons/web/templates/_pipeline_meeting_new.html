@@ -1,0 +1,26 @@
+{% from "_pipeline_macros.html" import pi, pick %}
+<dialog class="pl-dlg wide" data-autoopen aria-labelledby="mn-title">
+  <form method="post" action="/meetings" hx-post="/meetings" hx-swap="none" hx-push-url="false" data-quiet>
+    <input type="hidden" name="next" value="{{ next }}">
+    <input type="hidden" name="deal_id" value="{{ deal_id }}">
+    <header class="pl-dlg-head"><h2 id="mn-title">Schedule a meeting</h2><button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">{{ pi("x") }}</button></header>
+    <div class="pl-dlg-body">
+      <div class="field"><label for="mn-title-in">Title</label><input type="text" id="mn-title-in" name="title" value="{{ suggested_title }}" required maxlength="200" placeholder="e.g. Intro call" autofocus></div>
+      <div class="pl-grid2">
+        {{ pick("person", "mn", ref.person_name, ref.person_id) }}
+        {{ pick("company", "mn", ref.company_name, ref.company_id) }}
+      </div>
+      <div class="pl-grid2">
+        <div class="field"><label for="mn-start">Start</label><input type="datetime-local" id="mn-start" name="start" value="{{ start }}" required></div>
+        <div class="field"><label for="mn-dur">Duration</label><select id="mn-dur" name="duration">{% for d in pl_durations %}<option value="{{ d }}"{% if d == 30 %} selected{% endif %}>{{ pl_hours(d) }}</option>{% endfor %}</select></div>
+      </div>
+      <div class="pl-grid2">
+        <div class="field"><label for="mn-loc">Location</label><input type="text" id="mn-loc" name="location" maxlength="300" placeholder="Office, café, address"></div>
+        <div class="field"><label for="mn-video">Video link</label><input type="url" id="mn-video" name="video_url" maxlength="500" placeholder="https://meet.example.com/room"></div>
+      </div>
+      <div class="field"><label for="mn-agenda">Agenda</label><textarea id="mn-agenda" name="agenda" rows="3" maxlength="4000" placeholder="What you want to cover"></textarea></div>
+      <p class="hint">The time is saved as typed (your local time). The .ics file and calendar links use the same wall-clock time.</p>
+    </div>
+    <footer class="pl-dlg-foot"><button type="button" class="btn close-dlg">Cancel</button><button type="submit" class="btn primary">Schedule</button></footer>
+  </form>
+</dialog>

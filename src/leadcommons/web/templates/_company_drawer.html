@@ -1,5 +1,5 @@
 {% from "_macros.html" import ic, hxf, avatar %}
-{% from "_search_profile.html" import addlist, company_fields, people_list %}
+{% from "_search_profile.html" import profile_actions, company_fields, people_list, insights_card, activity_panel, dnc_block, completeness_block %}
 {% set back = "/companies/" ~ c.id %}
 {% if page_mode is not defined %}<div class="drawer-scrim" data-close-drawer></div>{% endif %}
 <article class="co-panel {% if page_mode is defined %}profile-page{% else %}drawer-inner{% endif %}" aria-label="Company profile">
@@ -19,27 +19,39 @@
     </div>
   </header>
   <div class="cp-actions">
-    {{ addlist("companies", c.id, lists, back, "dl") }}
+    {{ profile_actions("company", c.id, back, lists, phone, tel, demo, none, none, is_saved) }}
     <form method="post" action="/companies/{{ c.id }}/save" hx-post="/companies/{{ c.id }}/save" hx-target="#drawer" hx-swap="innerHTML" hx-push-url="false">
       <button class="btn" type="submit" {% if is_saved %}disabled{% endif %}>{{ ic("bookmark") }}<span>{{ "Saved" if is_saved else "Save" }}</span></button>
     </form>
     <form method="post" action="/companies/{{ c.id }}/find-people" hx-post="/companies/{{ c.id }}/find-people" hx-target="#drawer" hx-swap="innerHTML" hx-push-url="false">
-      <button class="btn primary" type="submit" {% if not c.domain %}disabled title="No known domain"{% endif %}>{{ ic("user-search") }}<span>Find people</span></button>
+      <button class="btn primary" type="submit" {% if demo %}disabled data-tip="{{ demo_reason }}"{% elif not c.domain %}disabled title="No known domain"{% endif %}>{{ ic("user-search") }}<span>Find people</span></button>
     </form>
   </div>
   <div class="tabs" role="tablist" data-tabs aria-label="Company sections">
     <a href="#co-overview" role="tab" data-tab="overview" aria-selected="true">Overview</a>
     <a href="#co-people" role="tab" data-tab="people" aria-selected="false">People<span class="n">{{ people|length }}</span></a>
+    <a href="#co-activity" role="tab" data-tab="activity" aria-selected="false">Activity</a>
     <a href="#co-sources" role="tab" data-tab="sources" aria-selected="false">Sources</a>
   </div>
   <div class="cp-body">
-    <section id="co-overview" class="card" data-panel="overview" aria-label="Overview">
-      <h3>Company details</h3>
-      {{ company_fields(c) }}
-    </section>
+    <div id="co-overview" class="tab-stack" data-panel="overview" aria-label="Overview">
+      {{ insights_card(c, demo) }}
+      <section class="card" aria-label="Company score">
+        {{ completeness_block("Score", "How many of the fields we look for are filled in for this company. It says nothing about the business.", cscore, "Company profile completeness") }}
+      </section>
+      <section class="card" aria-label="Company details">
+        <h3>Company details</h3>
+        {{ company_fields(c) }}
+      </section>
+      {{ dnc_block("company", c.id, dnc, page_mode is not defined) }}
+    </div>
     <section id="co-people" class="card" data-panel="people" aria-label="People at this company">
       <h3>People at this company</h3>
       {{ people_list(people, emails, suppressed, "No people found yet. Click Find people to look for them on the company website.") }}
+    </section>
+    <section id="co-activity" class="card" data-panel="activity" aria-label="Activity">
+      <h3>Activity</h3>
+      {{ activity_panel("/partials/activity?company_id=" ~ c.id) }}
     </section>
     <section id="co-sources" class="card" data-panel="sources" aria-label="Sources">
       <h3>Sources</h3>

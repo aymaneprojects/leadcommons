@@ -5,11 +5,11 @@
 {% block settings_body %}
 <div class="set-head">
   <h1 class="set-h1">Email setup and health</h1>
-  <span class="chip plain">{{ sicon("lock", "sm") }} Sending not connected</span>
+  <a class="chip plain" href="/settings/mailboxes">{{ sicon("mail-check", "sm") }} Manage mailboxes</a>
 </div>
 <div class="tabs" role="tablist">
   <a class="tab" role="tab" href="/settings/email-health" {% if tab == "dns" %}aria-selected="true"{% endif %}>Domain DNS check</a>
-  <a class="tab" role="tab" href="/settings/email-health?tab=mailboxes" {% if tab == "mailboxes" %}aria-selected="true"{% endif %}>Mailboxes</a>
+  <a class="tab" role="tab" href="/settings/mailboxes">Mailboxes</a>
 </div>
 
 {% if tab == "dns" %}
@@ -52,20 +52,5 @@
 </section>
 {% endif %}
 
-{% else %}
-<section class="mbx-empty">
-  <div class="mbx-hero">
-    <span class="mbx-ic">{{ sicon("inbox", "lg") }}</span>
-    <div>
-      <h2>No mailboxes connected</h2>
-      <p class="muted">Connecting a mailbox to send email from LeadCommons arrives in v0.3. Until then LeadCommons does not send anything.</p>
-      <div class="actions">
-        {{ soon_btn("Add email & domain", "Arrives in v0.3", "primary") }}
-        <a class="btn" href="{{ roadmap_url }}" target="_blank" rel="noopener noreferrer">{{ icon("external-link") }} See the roadmap</a>
-      </div>
-    </div>
-  </div>
-  <p class="mbx-next"><b>What you can do now:</b> run a <a href="/settings/email-health">DNS check</a> on the domain you plan to send from, so it is ready when sending lands.</p>
-</section>
 {% endif %}
 {% endblock %}

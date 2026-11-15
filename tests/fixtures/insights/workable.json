@@ -1,0 +1,8 @@
+{"name": "Acme", "jobs": [
+ {"title": "Customer Success Manager", "shortcode": "AB12", "department": "Customer Success",
+  "url": "https://apply.workable.com/acme/j/AB12/", "shortlink": "https://apply.workable.com/j/AB12",
+  "city": "Madrid", "state": "", "country": "Spain", "telecommuting": false, "published_on": "2026-10-10",
+  "created_at": "2026-10-09"},
+ {"title": "DevOps Engineer", "department": "Engineering", "url": "https://apply.workable.com/acme/j/CD34/",
+  "city": "", "country": "Portugal", "telecommuting": true, "published_on": "2026-10-12"}
+]}

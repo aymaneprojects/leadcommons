@@ -1,0 +1,40 @@
+{% from "_engage_macros.html" import eic, step_icon, dlg_head, var_chips %}
+{% set action = "/sequences/" ~ seq.id ~ "/steps" ~ ("/" ~ step.id if step else "") %}
+<dialog class="eg-dlg eg-dlg-wide" data-autoopen data-eg-dlg aria-label="{{ 'Edit step' if step else 'Add a step' }}">
+  <form method="post" action="{{ action }}" hx-post="{{ action }}" hx-swap="none" data-quiet class="eg-stepform">
+    {{ dlg_head("Edit step" if step else "Add a step", seq.name, "list") }}
+    <div class="eg-dlg-body">
+      {% if position %}<input type="hidden" name="position" value="{{ position }}">{% endif %}
+      <fieldset class="eg-kind-pick"><legend>Step type</legend>
+        {% for k in kinds %}
+        <label class="eg-kind-opt"><input type="radio" name="kind" value="{{ k }}"{% if k == (kind or "auto_email") %} checked{% endif %}>
+          <span><span class="eg-step-ic k-{{ k }}">{{ step_icon(k, "sm") }}</span>{{ eg_step_labels[k] }}</span></label>
+        {% endfor %}
+      </fieldset>
+      <p class="eg-kind-help hint">
+        <span class="k-auto_email">Sent from your mailbox on its own, inside the sending window, with the unsubscribe footer.</span>
+        <span class="k-manual_email">Creates an email task with this draft. You review it, then send it from the task.</span>
+        <span class="k-call">Creates a call task for you. LeadCommons never dials anyone.</span>
+        <span class="k-linkedin">Creates a LinkedIn task. You do it yourself on LinkedIn: nothing is automated there.</span>
+        <span class="k-task">Creates a to-do for anything else.</span>
+      </p>
+      <div class="eg-row2">
+        <div class="field"><label for="eg-st-delay">{% if first %}Wait after enrolling{% else %}Wait after the previous step{% endif %}</label>
+          <div class="eg-suffix"><input id="eg-st-delay" type="number" name="delay_days" min="0" max="365" value="{{ step.delay_days if step else default_delay }}"><span>days</span></div></div>
+        <div class="field eg-f-task"><label for="eg-st-prio">Task priority</label>
+          <select id="eg-st-prio" name="priority">{% for p in priorities %}<option value="{{ p }}"{% if (step.priority if step else "medium") == p %} selected{% endif %}>{{ p|capitalize }}</option>{% endfor %}</select></div>
+      </div>
+      <div class="field eg-f-subject"><label for="eg-st-subject"><span class="eg-l-email">Subject</span><span class="eg-l-task">Task title</span></label>
+        <input id="eg-st-subject" type="text" name="subject" value="{{ step.subject if step else '' }}" maxlength="500" autocomplete="off" placeholder="{% if first %}e.g. Quick question about {{ '{{company}}' }}{% else %}Empty: reply in the same thread{% endif %}">
+        {% if not first %}<span class="hint eg-l-email">Leave it empty to send this email as a reply in the same thread.</span>{% endif %}</div>
+      <div class="field eg-f-body"><label for="eg-st-body">Email</label>
+        <textarea id="eg-st-body" name="body" rows="9" maxlength="20000" placeholder="Hi {{ '{{first_name|there}}' }}, …">{{ step.body if step else '' }}</textarea>
+        {{ var_chips("eg-st-body", variables) }}
+        <span class="hint">Write <code>{{ '{{first_name|there}}' }}</code> to fall back to "there" when the first name is unknown. Your mailbox signature and the unsubscribe footer are added at the end.</span></div>
+      <div class="field eg-f-note"><label for="eg-st-note">Instructions</label>
+        <textarea id="eg-st-note" name="note" rows="4" maxlength="4000" placeholder="What should you do or say?">{{ step.note if step else '' }}</textarea>
+        {{ var_chips("eg-st-note", variables) }}</div>
+    </div>
+    <footer class="eg-dlg-foot"><button type="button" class="btn close-dlg">Cancel</button><button class="btn primary" type="submit">{{ "Save step" if step else "Add step" }}</button></footer>
+  </form>
+</dialog>

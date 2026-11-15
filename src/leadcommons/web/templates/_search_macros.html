@@ -130,11 +130,11 @@
   <a class="btn ghost icon-only sm" href="/partials/task-new?company_id={{ rid }}" data-dlg title="Create a task" aria-label="Create a task for {{ name }}">{{ ic("square-check-big", "sm") }}</a>
   {% endif %}
   <button class="btn ghost icon-only sm" type="button" data-row-save title="Save to list" aria-label="Save {{ name }} to a list">{{ ic("list-plus", "sm") }}</button>
-  {% if kind == "people" %}<a class="btn ghost icon-only sm" href="/people/{{ rid }}" title="Open full profile" aria-label="Open {{ name }}">{{ ic("maximize-2", "sm") }}</a>{% endif %}
   <details class="dd ract-dd">
     <summary class="btn ghost icon-only sm" aria-label="More actions for {{ name }}" title="More actions">{{ ic("ellipsis", "sm") }}</summary>
     <div class="menu right ract-menu">
       {% set q = ("person_id=" ~ rid ~ ("&company_id=" ~ cid if cid else "")) if kind == "people" else ("company_id=" ~ rid) %}
+      {% if kind == "people" %}<a class="menu-item" href="/people/{{ rid }}">{{ ic("maximize-2", "sm") }}<span>Open full profile</span></a>{% endif %}
       {% if phone %}<a class="menu-item" href="{{ phone|tel }}">{{ ic("phone", "sm") }}<span>Call {{ phone }}</span></a>
       {% else %}<span class="menu-item" aria-disabled="true" data-tip="No phone number known. Refresh the company insights to look for a business number.">{{ ic("phone", "sm") }}<span>Call</span></span>{% endif %}
       {% if kind == "people" %}<a class="menu-item" href="/partials/call-log?person_id={{ rid }}" data-dlg>{{ ic("phone-call", "sm") }}<span>Log a call</span></a>

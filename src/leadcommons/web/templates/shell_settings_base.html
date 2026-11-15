@@ -1,15 +1,37 @@
 {% extends "base.html" %}
 {% from "_macros.html" import icon %}
-{% from "_shell_macros.html" import sicon %}
+{% from "_shell_macros.html" import tic %}
 {% block app_class %} settings-mode{% endblock %}
 {% block sidebar %}
+{% set secs = sections if sections is defined else settings_sections() %}
+{% set by_key = {} %}
+{% for s in secs %}{% if by_key.update({s[0]: s}) %}{% endif %}{% endfor %}
+{% set placed = [] %}
 <aside class="sidebar settings-side" aria-label="Settings menu">
-  <a class="set-back" href="/">{{ sicon("arrow-left") }}<span>Back to app</span></a>
-  <div class="set-title">Settings</div>
-  <nav aria-label="Settings sections">
-    {% for key, href, label, ico in (sections if sections is defined else []) %}
-    <a class="nav-link" href="{{ href }}"{% if section == key %} aria-current="page"{% endif %}>{{ sicon(ico) }}<span class="nav-label">{{ label }}</span></a>
+  <div class="side-top set-top">
+    <a class="set-back" href="/">{{ tic("arrow-left") }}<span>Back</span></a>
+    <button class="collapse-btn" type="button" data-collapse aria-label="Collapse sidebar" data-tip="Collapse">{{ tic("chevrons-left") }}</button>
+  </div>
+  <div class="set-search"><label class="sr-only" for="set-find">Search settings</label>{{ tic("search", "sm") }}<input id="set-find" type="search" placeholder="Search settings" autocomplete="off" data-settings-find></div>
+  <nav aria-label="Settings sections" data-settings-nav>
+    {% for label, keys in settings_groups() %}
+    {% set items = [] %}
+    {% for k in keys %}{% if k in by_key %}{% if items.append(by_key[k]) %}{% endif %}{% if placed.append(k) %}{% endif %}{% endif %}{% endfor %}
+    {% if items %}
+    {% if label and items|length > 0 %}
+    <div class="set-group{% if section in keys %} open{% endif %}" data-set-group>
+      <button class="set-group-btn" type="button" aria-expanded="{{ 'true' if section in keys else 'false' }}">{{ label }}{{ tic("chevron-down", "sm chev") }}</button>
+      <div class="set-group-items">
+        {% for key, href, lab, ico in items %}<a class="nav-link" href="{{ href }}"{% if section == key %} aria-current="page"{% endif %} data-find="{{ lab|lower }}">{{ tic(ico) }}<span class="nav-label">{{ lab }}</span></a>{% endfor %}
+      </div>
+    </div>
+    {% else %}
+    {% for key, href, lab, ico in items %}<a class="nav-link" href="{{ href }}"{% if section == key %} aria-current="page"{% endif %} data-find="{{ lab|lower }}">{{ tic(ico) }}<span class="nav-label">{{ lab }}</span></a>{% endfor %}
+    {% endif %}
+    {% endif %}
     {% endfor %}
+    {% for s in secs if s[0] not in placed %}<a class="nav-link" href="{{ s[1] }}"{% if section == s[0] %} aria-current="page"{% endif %} data-find="{{ s[2]|lower }}">{{ tic(s[3]) }}<span class="nav-label">{{ s[2] }}</span></a>{% endfor %}
+    <p class="muted set-none" data-find-none hidden>No setting matches.</p>
   </nav>
   <div class="nav-spacer"></div>
   <p class="set-foot muted">Everything here is stored on this machine.</p>

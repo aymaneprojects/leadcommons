@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% from "_engage_macros.html" import eic, step_icon, seq_chip, contact_chip, when, send_bar, dlg_link, post_btn, day_picker, hour_select, person_cell %}
+{% block title %}{{ seq.name }} · Sequences · LeadCommons{% endblock %}
+{% block content %}
+<div class="eg-page">
+<nav class="crumbs" aria-label="Breadcrumb"><a href="/sequences">Sequences</a>{{ eic("chevron-right", "sm") }}<span aria-current="page">{{ seq.name }}</span></nav>
+<div class="page-head eg-head">
+  <div class="eg-title">
+    <form method="post" action="/sequences/{{ seq.id }}/rename" class="eg-rename" data-eg-rename>
+      <label class="sr-only" for="eg-seq-title">Sequence name</label>
+      <input id="eg-seq-title" class="eg-title-input" type="text" name="name" value="{{ seq.name }}" maxlength="200" required>
+      <button class="btn sm" type="submit" data-eg-rename-save>Save name</button>
+    </form>
+    {{ seq_chip(seq.status) }}
+  </div>
+  <div class="eg-head-actions">
+    {% if seq.status != "archived" %}
+    {{ dlg_link("/partials/sequence-add?sequence_id=" ~ seq.id, "Add contacts", "user-plus") }}
+    {% endif %}
+    {% if seq.status == "active" %}
+      {{ post_btn("/sequences/" ~ seq.id ~ "/status", "Pause", "pause", "btn", {"action": "pause"}) }}
+    {% elif seq.status in ("draft", "paused") %}
+      {{ post_btn("/sequences/" ~ seq.id ~ "/status", "Activate" if seq.status == "draft" else "Resume", "play", "btn primary", {"action": "activate"}, disabled=not steps, tip="" if steps else "Add a step first") }}
+    {% else %}
+      {{ post_btn("/sequences/" ~ seq.id ~ "/status", "Unarchive", "archive", "btn", {"action": "unarchive"}) }}
+    {% endif %}
+    <details class="dd">
+      <summary class="btn icon-only" aria-label="More actions">{{ eic("ellipsis") }}</summary>
+      <div class="menu eg-menu">
+        <form method="post" action="/sequences/{{ seq.id }}/duplicate"><button class="menu-item" type="submit">{{ eic("copy", "sm") }} Duplicate</button></form>
+        {% if seq.status != "archived" %}<form method="post" action="/sequences/{{ seq.id }}/status"><input type="hidden" name="action" value="archive"><button class="menu-item" type="submit">{{ eic("archive", "sm") }} Archive</button></form>{% endif %}
+        <div class="menu-sep"></div>
+        <form method="post" action="/sequences/{{ seq.id }}/delete" data-eg-confirm="Delete {{ seq.name }} and its contact history? This cannot be undone."><button class="menu-item btn-danger" type="submit">{{ eic("trash-2", "sm") }} Delete sequence</button></form>
+      </div>
+    </details>
+  </div>
+</div>
+
+<div class="eg-stats" aria-label="Contacts by status">
+  <span><b>{{ enrolled }}</b> enrolled</span>
+  {% for k in ("active", "paused", "replied", "finished", "bounced", "unsubscribed") %}<a href="/sequences/{{ seq.id }}?tab=contacts&cstatus={{ k }}"><b>{{ counts[k] }}</b> {{ eg_contact_status[k]|lower }}</a>{% endfor %}
+</div>
+
+<nav class="tabs eg-tabs" role="tablist" aria-label="Sequence sections">
+  <a class="tab" role="tab" href="/sequences/{{ seq.id }}" {% if tab == "steps" %}aria-selected="true"{% endif %}>{{ eic("list", "sm") }} Steps <span class="tab-n">{{ steps|length }}</span></a>
+  <a class="tab" role="tab" href="/sequences/{{ seq.id }}?tab=contacts" {% if tab == "contacts" %}aria-selected="true"{% endif %}>{{ eic("users", "sm") }} Contacts <span class="tab-n">{{ enrolled }}</span></a>
+  <a class="tab" role="tab" href="/sequences/{{ seq.id }}?tab=settings" {% if tab == "settings" %}aria-selected="true"{% endif %}>{{ eic("settings", "sm") }} Settings</a>
+</nav>
+{{ send_bar(demo, demo_reason, mailboxes) }}
+
+{% if tab == "steps" %}
+<div class="eg-editor">
+  <section class="eg-steps" aria-label="Steps">
+    {% if steps %}
+    {% set ns = namespace(day=1) %}
+    <ol class="eg-timeline">
+    {% for st in steps %}
+      {% set ns.day = ns.day + st.delay_days %}
+      {% if not loop.first or st.delay_days %}
+      <li class="eg-wait" aria-label="Wait">{{ eic("hourglass", "sm") }}{% if st.delay_days %}Wait {{ st.delay_days }} day{{ "s" if st.delay_days != 1 }}{% else %}Right after the previous step{% endif %}</li>
+      {% endif %}
+      <li class="eg-step" id="step-{{ st.id }}">
+        <div class="eg-step-head">
+          <span class="eg-step-ic k-{{ st.kind }}">{{ step_icon(st.kind) }}</span>
+          <div class="eg-step-t"><b>Step {{ loop.index }} · {{ eg_step_labels[st.kind] }}</b><span class="eg-dim">Day {{ ns.day }}{% if st.kind in ("manual_email", "call", "linkedin", "task") %} · creates a task, priority {{ st.priority }}{% endif %}</span></div>
+          <div class="eg-step-tools">
+            <button type="button" class="btn ghost icon-only sm" data-eg-preview-step="{{ st.id }}" title="Preview this step" aria-label="Preview step {{ loop.index }}">{{ eic("eye", "sm") }}</button>
+            {{ post_btn("/sequences/" ~ seq.id ~ "/steps/" ~ st.id ~ "/move", "", "arrow-up", "btn ghost icon-only sm", {"dir": "up"}, "Move up", disabled=loop.first) }}
+            {{ post_btn("/sequences/" ~ seq.id ~ "/steps/" ~ st.id ~ "/move", "", "arrow-down", "btn ghost icon-only sm", {"dir": "down"}, "Move down", disabled=loop.last) }}
+            {{ dlg_link("/partials/sequence-step?sequence_id=" ~ seq.id ~ "&step_id=" ~ st.id, "", "pencil", "btn ghost icon-only sm", "Edit step " ~ loop.index) }}
+            {{ post_btn("/sequences/" ~ seq.id ~ "/steps/" ~ st.id ~ "/delete", "", "trash-2", "btn ghost icon-only sm", {}, "Delete step " ~ loop.index, "Delete step " ~ loop.index ~ "?") }}
+          </div>
+        </div>
+        <a class="eg-step-body" href="/partials/sequence-step?sequence_id={{ seq.id }}&step_id={{ st.id }}" data-eg-dialog="/partials/sequence-step?sequence_id={{ seq.id }}&step_id={{ st.id }}">
+          {% if st.is_email %}
+            <span class="eg-step-subj">{% if st.subject %}{{ st.subject }}{% else %}<span class="eg-dim">{{ eic("reply", "sm") }} Reply in the same thread</span>{% endif %}</span>
+            <span class="eg-step-text">{{ st.body|truncate(220) }}</span>
+          {% else %}
+            {% if st.subject %}<span class="eg-step-subj">{{ st.subject }}</span>{% endif %}
+            <span class="eg-step-text">{{ (st.note or "No instructions.")|truncate(220) }}</span>
+          {% endif %}
+        </a>
+      </li>
+    {% endfor %}
+    </ol>
+    <div class="eg-add-step">
+      {{ dlg_link("/partials/sequence-step?sequence_id=" ~ seq.id, "Add a step", "plus", "btn") }}
+    </div>
+    {% else %}
+    <div class="eg-nosteps">
+      <h2>Add the first step</h2>
+      <p class="eg-dim">What should happen first? Emails go out on their own; the other steps become tasks for you.</p>
+      <div class="eg-kind-grid">
+        {% for k in ("auto_email", "manual_email", "call", "linkedin", "task") %}
+        <a class="eg-kind-card" href="/partials/sequence-step?sequence_id={{ seq.id }}&kind={{ k }}" data-eg-dialog="/partials/sequence-step?sequence_id={{ seq.id }}&kind={{ k }}">
+          <span class="eg-step-ic k-{{ k }}">{{ step_icon(k) }}</span><b>{{ eg_step_labels[k] }}</b>
+          <small>{{ {"auto_email": "Sent from your mailbox on schedule.", "manual_email": "A draft you review and send.", "call": "A reminder to phone the contact.", "linkedin": "Done by you on LinkedIn, never automated.", "task": "Any other to-do."}[k] }}</small></a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </section>
+
+  <aside class="eg-preview" aria-label="Preview" data-eg-preview data-seq="{{ seq.id }}">
+    <div class="eg-preview-head">
+      <h2>{{ eic("eye", "sm") }} Preview</h2>
+      <label class="sr-only" for="eg-prev-person">Preview for</label>
+      <select id="eg-prev-person" data-eg-preview-person>
+        <option value="">Sample contact</option>
+        {% for p in preview_people %}<option value="{{ p.id }}"{% if p.id == preview_pid %} selected{% endif %}>{{ p.name }}</option>{% endfor %}
+      </select>
+      <label class="sr-only" for="eg-prev-step">Step</label>
+      <select id="eg-prev-step" data-eg-preview-stepsel>
+        {% for st in steps %}<option value="{{ st.id }}">Step {{ loop.index }} · {{ eg_step_labels[st.kind] }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="eg-preview-body" data-eg-preview-body>
+      {% if not steps %}<p class="eg-dim">Add a step to see exactly what a contact receives.</p>{% else %}<p class="eg-dim">Loading the preview…</p>{% endif %}
+    </div>
+    {% if not preview_people %}<p class="hint">Enroll contacts to preview with their real names. The sample leaves variables empty.</p>{% endif %}
+  </aside>
+</div>
+
+{% elif tab == "contacts" %}
+<div class="eg-toolbar">
+  <div class="eg-seg" role="group" aria-label="Contact status">
+    <a href="/sequences/{{ seq.id }}?tab=contacts" {% if not cstatus %}aria-current="true"{% endif %}>All <span class="n">{{ enrolled }}</span></a>
+    {% for k in ("active", "paused", "replied", "finished", "bounced", "unsubscribed") %}
+    <a href="/sequences/{{ seq.id }}?tab=contacts&cstatus={{ k }}" {% if cstatus == k %}aria-current="true"{% endif %}>{{ eg_contact_status[k] }} <span class="n">{{ counts[k] }}</span></a>
+    {% endfor %}
+  </div>
+  <span class="grow"></span>
+  {% if seq.status != "archived" %}{{ dlg_link("/partials/sequence-add?sequence_id=" ~ seq.id, "Add contacts", "user-plus", "btn primary") }}{% endif %}
+</div>
+{% if contacts %}
+<div class="table-wrap eg-table">
+  <table class="data">
+    <thead><tr><th scope="col">Contact</th><th scope="col">Email</th><th scope="col">Status</th><th scope="col">Current step</th><th scope="col">Next action</th><th scope="col">Enrolled</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>
+    {% for c in contacts %}{% set e = c.e %}
+      <tr>
+        <td>{{ person_cell(c.p, e.email) }}</td>
+        <td><span class="mono eg-addr">{{ e.email }}</span></td>
+        <td>{{ contact_chip(e.status) }}{% if e.note and e.status in ("paused", "active") and e.note not in ("Waiting on a task",) %}<span class="eg-sub">{{ e.note }}</span>{% endif %}</td>
+        <td>{% if c.step %}<span class="eg-inline-ic">{{ step_icon(c.step.kind, "sm") }} Step {{ e.step_index + 1 }}</span>{% elif e.status == "finished" %}<span class="eg-dim">All steps done</span>{% else %}<span class="eg-dim">—</span>{% endif %}</td>
+        <td>{% if e.status == "active" and e.task_id %}<a href="/tasks">Waiting on a task</a>{% elif e.status == "active" and e.next_run_at %}{{ when(e.next_run_at, true) }}{% elif e.finished_at %}<span class="eg-dim">Left {{ when(e.finished_at, true) }}</span>{% else %}<span class="eg-dim">—</span>{% endif %}</td>
+        <td class="eg-dim">{{ when(e.enrolled_at, true) }}</td>
+        <td class="eg-ract">
+          {% if e.status in ("active", "paused") %}
+          <details class="dd">
+            <summary class="btn ghost icon-only sm" aria-label="Actions for {{ c.p.name }}">{{ eic("ellipsis", "sm") }}</summary>
+            <div class="menu eg-menu">
+              {% set base = "/sequences/" ~ seq.id ~ "/contacts/" ~ e.id %}
+              {% if e.status == "active" %}
+              <form method="post" action="{{ base }}"><input type="hidden" name="action" value="pause"><input type="hidden" name="next" value="{{ current_url }}"><button class="menu-item" type="submit">{{ eic("pause", "sm") }} Pause</button></form>
+              {% else %}
+              <form method="post" action="{{ base }}"><input type="hidden" name="action" value="resume"><input type="hidden" name="next" value="{{ current_url }}"><button class="menu-item" type="submit">{{ eic("play", "sm") }} Resume</button></form>
+              {% endif %}
+              <form method="post" action="{{ base }}"><input type="hidden" name="action" value="replied"><input type="hidden" name="next" value="{{ current_url }}"><button class="menu-item" type="submit">{{ eic("reply", "sm") }} Mark as replied</button></form>
+              <a class="menu-item" href="/partials/email-compose?person_id={{ e.person_id }}" data-eg-dialog="/partials/email-compose?person_id={{ e.person_id }}">{{ eic("mail", "sm") }} Write an email</a>
+              <div class="menu-sep"></div>
+              <form method="post" action="{{ base }}" data-eg-confirm="Remove this contact from the sequence?"><input type="hidden" name="action" value="remove"><input type="hidden" name="next" value="{{ current_url }}"><button class="menu-item btn-danger" type="submit">{{ eic("user-x", "sm") }} Remove from sequence</button></form>
+            </div>
+          </details>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="eg-empty">
+  <span class="eg-empty-ic">{{ eic("users", "lg") }}</span>
+  <h2>{% if cstatus %}No {{ eg_contact_status[cstatus]|lower }} contacts{% else %}No contacts yet{% endif %}</h2>
+  <p>Add people from your saved contacts here, or select people in <a href="/people">People</a> and choose "Add to a sequence".</p>
+  {% if seq.status != "archived" %}<div class="actions">{{ dlg_link("/partials/sequence-add?sequence_id=" ~ seq.id, "Add contacts", "user-plus", "btn primary") }}</div>{% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<form class="eg-form" method="post" action="/sequences/{{ seq.id }}/settings">
+  <section class="eg-card">
+    <h2>{{ eic("mail", "sm") }} Mailbox</h2>
+    <p class="eg-dim">Automatic emails of this sequence go out from this mailbox.</p>
+    {% if mailboxes %}
+    <div class="field"><label for="eg-s-mbx">Send from</label>
+      <select id="eg-s-mbx" name="mailbox_id">
+        {% for m in mailboxes %}<option value="{{ m.id }}"{% if mailbox and m.id == mailbox.id %} selected{% endif %}>{{ m.from_name ~ " <" ~ m.from_email ~ ">" if m.from_name else m.from_email }}{% if m.status == "error" %} (needs attention){% endif %}</option>{% endfor %}
+      </select></div>
+    {% else %}
+    <p><a class="btn" href="/settings/mailboxes">{{ eic("plus", "sm") }} Connect a mailbox</a></p>
+    {% endif %}
+  </section>
+  <section class="eg-card">
+    <h2>{{ eic("calendar-clock", "sm") }} Schedule</h2>
+    <fieldset class="eg-radio-row"><legend class="sr-only">Sending window</legend>
+      <label><input type="radio" name="schedule" value="mailbox"{% if not seq.schedule_custom %} checked{% endif %} data-eg-toggle="#eg-s-custom" data-eg-toggle-off> Use the mailbox's sending window{% if mailbox %} <span class="eg-dim">({{ "%02d:00"|format(mailbox.window_start) }}–{{ "%02d:00"|format(mailbox.window_end) }}, {{ eg_days_label(mailbox.days) }}, {{ mailbox.timezone }})</span>{% endif %}</label>
+      <label><input type="radio" name="schedule" value="custom"{% if seq.schedule_custom %} checked{% endif %} data-eg-toggle="#eg-s-custom"> A window just for this sequence</label>
+    </fieldset>
+    <div id="eg-s-custom" class="eg-grid3"{% if not seq.schedule_custom %} hidden{% endif %}>
+      <div class="field"><label for="eg-s-start">From</label>{{ hour_select("window_start", seq.window_start, "eg-s-start") }}</div>
+      <div class="field"><label for="eg-s-end">Until</label>{{ hour_select("window_end", seq.window_end, "eg-s-end", true) }}</div>
+      <div class="field"><label for="eg-s-tz">Time zone</label><select id="eg-s-tz" name="timezone">{% for z in timezones %}<option{% if z == seq.timezone %} selected{% endif %}>{{ z }}</option>{% endfor %}</select></div>
+      <div class="field eg-span3"><span class="eg-label">Days</span>{{ day_picker("days", seq.days) }}</div>
+    </div>
+    <p class="hint">Emails due outside the window wait for the next opening. The daily limit of the mailbox always applies.</p>
+  </section>
+  <section class="eg-card">
+    <h2>{{ eic("reply", "sm") }} Replies</h2>
+    <label class="eg-check-row"><input type="checkbox" name="stop_on_reply"{% if seq.stop_on_reply %} checked{% endif %}> Stop the sequence for a contact when they reply</label>
+    <p class="hint">Replies are detected through the mailbox's IMAP connection. Bounces and unsubscribes always stop the sequence.</p>
+  </section>
+  <div class="eg-form-foot"><button class="btn primary" type="submit">Save settings</button></div>
+</form>
+{% endif %}
+</div>
+{% endblock %}

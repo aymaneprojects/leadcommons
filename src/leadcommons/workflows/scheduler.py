@@ -60,5 +60,5 @@ def install(app: Any) -> None:
         if sched is not None:
             sched.stop()
 
-    app.add_event_handler("startup", _start)
-    app.add_event_handler("shutdown", _stop)
+    app.on_event("startup")(_start)
+    app.on_event("shutdown")(_stop)

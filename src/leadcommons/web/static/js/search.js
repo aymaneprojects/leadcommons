@@ -229,10 +229,12 @@
   }
 
   /* ---------- tabs (company panel, person page) ---------- */
+  function lazy() { if (window.lcInitLazy) window.lcInitLazy(); }
   function selectTab(bar, name) {
     var scope = bar.parentElement;
     $$("[data-tab]", bar).forEach(function (a) { a.setAttribute("aria-selected", String(a.getAttribute("data-tab") === name)); });
     $$("[data-panel]", scope).forEach(function (p) { p.hidden = p.getAttribute("data-panel") !== name; });
+    lazy();
   }
   function initTabs() {
     $$("[data-tabs]").forEach(function (bar) {
@@ -264,7 +266,7 @@
     if ((el = t.closest("[data-open-dialog]"))) {
       var menu = el.closest("details.dd"); if (menu) menu.open = false;
       var id = el.getAttribute("data-open-dialog");
-      if (id === "save-dialog") updateSelCount();
+      if (id === "save-dialog" || id === "task-dialog") updateSelCount();
       if (id === "allf-dialog") { applyPins(); refreshCount(0); }
       if (id === "savesearch-dialog") { var nm = $("#ss-name"); if (nm) setTimeout(function () { nm.focus(); }, 30); }
     }
@@ -390,7 +392,7 @@
   }
 
   function init() {
-    applyPrefs(); applyCols(); applyPins(); restoreOpenGroups(); initTabs(); updateSelCount(); syncFiltersLabel();
+    applyPrefs(); applyCols(); applyPins(); restoreOpenGroups(); initTabs(); updateSelCount(); syncFiltersLabel(); lazy();
   }
   doc.addEventListener("htmx:afterSettle", init);
   restorePerPage();
@@ -432,5 +434,159 @@
       e.preventDefault();
       run(e.target.closest("[data-ai-box]"));
     }
+  });
+})();
+
+/* Profile + row actions: dialogs from other features, lazy panels, insights tabs, AI column. */
+(function () {
+  var doc = document;
+  function $(sel, root) { return (root || doc).querySelector(sel); }
+  function $$(sel, root) { return Array.prototype.slice.call((root || doc).querySelectorAll(sel)); }
+  function toast(message, kind) {
+    doc.body.dispatchEvent(new CustomEvent("toast", { detail: { message: message, kind: kind }, bubbles: true }));
+  }
+  function selected() { return $$("input.rowcb:checked").map(function (b) { return b.value; }); }
+  function closeMenus() { $$("details.dd[open]").forEach(function (d) { d.open = false; }); }
+  function process(el) { if (window.htmx) window.htmx.process(el); }
+  function get(url) {
+    return fetch(url, { credentials: "same-origin", headers: { "HX-Request": "true" } })
+      .then(function (r) { return r.ok ? r.text() : Promise.reject(r.status); });
+  }
+
+  /* ---- dialogs provided by other features (email, sequence, task, deal, note, call, meeting) ---- */
+  function host() {
+    var h = $("#lc-dlg-host");
+    if (!h) { h = doc.createElement("div"); h.id = "lc-dlg-host"; doc.body.appendChild(h); }
+    return h;
+  }
+  function openDialog(url) {
+    get(url).then(function (html) {
+      var h = host();
+      h.innerHTML = html;
+      var dlg = $("dialog", h);
+      if (!dlg) {
+        h.innerHTML = '<dialog class="sd host-fragment"><header class="allf-head"><h2>Details</h2>' +
+          '<button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">×</button></header>' +
+          '<div class="sd-body"></div></dialog>';
+        dlg = $("dialog", h); $(".sd-body", dlg).innerHTML = html;
+      }
+      process(h);
+      dlg.addEventListener("close", function () { h.innerHTML = ""; });
+      if (dlg.showModal) dlg.showModal();
+    }).catch(function (status) {
+      toast(status === 404 ? "This action is not available in this build yet." : "Could not open it (" + status + ").", "error");
+    });
+  }
+
+  /* ---- lazy panels: activity + company insights ---- */
+  function loadInto(el, url, failure) {
+    if (el.getAttribute("data-loaded") === url) return;
+    el.setAttribute("data-loaded", url);
+    get(url).then(function (html) { el.innerHTML = html; process(el); })
+      .catch(function () { el.removeAttribute("data-loaded"); el.innerHTML = '<p class="muted">' + failure + "</p>"; });
+  }
+  window.lcInitLazy = initLazy;
+  function initLazy() {
+    $$("[data-lazy-src]").forEach(function (el) {
+      if (!el.closest("[hidden]")) {
+        loadInto(el, el.getAttribute("data-lazy-src"), el.getAttribute("data-lazy-fail") || "The activity timeline is not available in this build yet.");
+      }
+    });
+  }
+  doc.addEventListener("htmx:afterSettle", initLazy);
+
+  /* ---- AI prompt on the selected rows ---- */
+  var aiMode = "prompt";
+  function openAi(mode, text) {
+    var ids = selected();
+    if (!ids.length) { toast("Select some rows first, then run a prompt on them."); return; }
+    var dlg = $("#ai-dialog"); if (!dlg) return;
+    aiMode = mode;
+    $("[data-ai-title]", dlg).textContent = mode === "formula" ? "Generate a formula column" : "Run a custom prompt";
+    $("[data-ai-label]", dlg).textContent = mode === "formula" ? "Describe the value to compute" : "Your prompt";
+    $("[data-ai-prompt]", dlg).placeholder = mode === "formula" ? "e.g. Number of employees at the top of the range" : $("[data-ai-prompt]", dlg).placeholder;
+    $("[data-ai-prompt]", dlg).value = text || "";
+    $("[data-ai-status]", dlg).textContent = ids.length > 25 ? "Only the first 25 selected rows are sent." : "";
+    $$("[data-sel-count]", dlg).forEach(function (el) { el.textContent = String(ids.length); });
+    dlg.showModal();
+    $("[data-ai-prompt]", dlg).focus();
+  }
+  function removeTemp() { $$("[data-temp]").forEach(function (el) { el.remove(); }); }
+  function addTempColumn(title, answers) {
+    removeTemp();
+    var head = $("table.data thead tr"); if (!head) return;
+    var th = doc.createElement("th");
+    th.setAttribute("data-temp", ""); th.scope = "col"; th.title = title;
+    th.textContent = "AI: " + (title.length > 24 ? title.slice(0, 24) + "…" : title);
+    var x = doc.createElement("button");
+    x.type = "button"; x.className = "btn ghost icon-only sm temp-x"; x.setAttribute("data-temp-remove", "");
+    x.setAttribute("aria-label", "Remove this column"); x.title = "Remove this column"; x.textContent = "×";
+    th.appendChild(x);
+    head.insertBefore(th, $("th.addcol", head));
+    $$("table.data tbody tr").forEach(function (tr) {
+      var td = doc.createElement("td"); td.setAttribute("data-temp", "");
+      var id = tr.getAttribute("data-id");
+      if (id && answers[id] !== undefined) td.textContent = answers[id];
+      else { td.textContent = "Not run"; td.className = "na"; }
+      tr.insertBefore(td, $("td.ract", tr));
+    });
+  }
+  function runAi() {
+    var dlg = $("#ai-dialog"), status = $("[data-ai-status]", dlg);
+    var prompt = $("[data-ai-prompt]", dlg).value.trim(), ids = selected().slice(0, 25);
+    if (!prompt) { status.textContent = "Write a prompt first."; return; }
+    var btn = $("[data-ai-run]", dlg); btn.disabled = true;
+    status.textContent = "Asking your model about " + ids.length + " row" + (ids.length === 1 ? "" : "s") + "…";
+    var fd = new FormData();
+    fd.append("kind", dlg.getAttribute("data-kind")); fd.append("prompt", prompt); fd.append("mode", aiMode);
+    ids.forEach(function (id) { fd.append("ids", id); });
+    fetch("/bulk/ai-prompt", { method: "POST", body: fd, credentials: "same-origin" })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (!res.ok) { status.textContent = res.d.error || "The model did not answer."; return; }
+        addTempColumn(res.d.title || prompt, res.d.answers || {});
+        dlg.close(); toast("Added a temporary column. It disappears when you change the search.");
+      })
+      .catch(function () { status.textContent = "Could not reach the server."; })
+      .then(function () { btn.disabled = false; });
+  }
+
+  /* ---- row menus float above the table (it scrolls and would clip them) ---- */
+  doc.addEventListener("toggle", function (e) {
+    var d = e.target;
+    if (!d.matches || !d.matches(".ract-dd") || !d.open) return;
+    var menu = $(".ract-menu", d), r = $("summary", d).getBoundingClientRect();
+    menu.style.position = "fixed"; menu.style.left = "auto"; menu.style.right = Math.max(8, window.innerWidth - r.right) + "px";
+    var h = menu.offsetHeight;
+    menu.style.top = (r.bottom + 4 + h > window.innerHeight ? Math.max(8, r.top - h - 4) : r.bottom + 4) + "px";
+  }, true);
+  doc.addEventListener("scroll", function (e) {
+    if (e.target && e.target.nodeType === 1 && e.target.closest && e.target.closest(".ract-dd")) return;
+    $$(".ract-dd[open]").forEach(function (d) { d.open = false; });
+  }, true);
+
+  doc.addEventListener("click", function (e) {
+    var t = e.target.closest ? e.target : e.target.parentElement;
+    if (!t || !t.closest) return;
+    var el;
+    if ((el = t.closest("[data-dlg]"))) {
+      e.preventDefault(); closeMenus(); openDialog(el.getAttribute("href")); return;
+    }
+    if ((el = t.closest("[data-dlg-ids]"))) {
+      var ids = selected(); closeMenus();
+      if (!ids.length) { toast("Select at least one row first."); return; }
+      openDialog(el.getAttribute("data-dlg-ids").replace("{ids}", encodeURIComponent(ids.join(",")))); return;
+    }
+    if ((el = t.closest("[data-dlg-one]"))) {
+      var one = selected(); closeMenus();
+      if (one.length !== 1) { toast(el.getAttribute("data-need-msg") || "Select exactly one row."); return; }
+      openDialog(el.getAttribute("data-dlg-one").replace("{id}", encodeURIComponent(one[0]))); return;
+    }
+    if ((el = t.closest("[data-ai-open]"))) {
+      if (el.disabled) return;
+      closeMenus(); openAi(el.getAttribute("data-ai-open"), el.getAttribute("data-ai-text")); return;
+    }
+    if (t.closest("[data-ai-run]")) { runAi(); return; }
+    if (t.closest("[data-temp-remove]")) { removeTemp(); return; }
   });
 })();

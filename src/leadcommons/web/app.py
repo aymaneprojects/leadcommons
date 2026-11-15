@@ -60,13 +60,13 @@ def create_app(
 
     install_auth(app, settings)
     app.include_router(api.router, prefix="/api")
-    # pages_extra first: shell pages (settings, onboarding, notifications, engage) may take over
-    # routes still present in pages.py.
-    app.include_router(pages_extra.router)
+    # First match wins: real feature pages before the shell's placeholders, and the shell
+    # (settings, onboarding, notifications) before the older handlers still in pages.py.
     app.include_router(pages_engage.router)
     app.include_router(pages_pipeline.router)
     app.include_router(pages_tools.router)
     app.include_router(pages_insights.router)
+    app.include_router(pages_extra.router)
     app.include_router(pages.router)
 
     @app.get("/healthz", include_in_schema=False)

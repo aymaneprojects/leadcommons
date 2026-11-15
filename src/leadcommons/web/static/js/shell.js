@@ -27,8 +27,13 @@
         var kind = a.getAttribute("data-dyn");
         a.hidden = !q;
         if (q) {
-          $(".pal-label", a).textContent = (kind === "companies" ? "Search companies for “" : "Search people for “") + q + "”";
-          a.setAttribute("href", "/" + kind + "?q=" + encodeURIComponent(q));
+          if (kind === "assistant") {
+            $(".pal-label", a).textContent = "Ask the Assistant: " + q;
+            a.setAttribute("href", "/assistant?prompt=" + encodeURIComponent(q));
+          } else {
+            $(".pal-label", a).textContent = (kind === "companies" ? "Search companies for “" : "Search people for “") + q + "”";
+            a.setAttribute("href", "/" + kind + "?q=" + encodeURIComponent(q));
+          }
         }
       } else if (a.closest("[data-pal-group]")) {
         var hay = ($(".pal-label", a).textContent + " " + (a.getAttribute("data-kw") || "")).toLowerCase();
@@ -137,14 +142,30 @@
     try { return JSON.parse(lsGet("lc-notif-read") || "[]"); } catch (e) { return []; }
   }
   function writeSet(ids) { lsSet("lc-notif-read", JSON.stringify(ids.slice(-300))); }
+  function dismissedSet() {
+    try { return JSON.parse(lsGet("lc-notif-dismissed") || "[]"); } catch (e) { return []; }
+  }
+  var notifTab = "notifications";
+  function showTab(name) {
+    notifTab = name;
+    $$("[data-notif-tab]").forEach(function (b) { b.setAttribute("aria-selected", String(b.getAttribute("data-notif-tab") === name)); });
+    $$("[data-notif-panel]", nlist || doc).forEach(function (p) { p.hidden = p.getAttribute("data-notif-panel") !== name; });
+    var all = $("[data-notif-readall]"); if (all) all.hidden = name !== "notifications";
+  }
   function refreshNotifs() {
     if (!nlist) return;
-    var read = readSet(), unread = 0;
+    var read = readSet(), gone = dismissedSet(), unread = 0, shown = 0;
     $$("[data-notif-id]", nlist).forEach(function (row) {
-      var isRead = read.indexOf(row.getAttribute("data-notif-id")) >= 0;
-      row.classList.toggle("unread", !isRead);
-      if (!isRead) unread++;
+      var id = row.getAttribute("data-notif-id");
+      var isGone = gone.indexOf(id) >= 0;
+      row.classList.toggle("dismissed", isGone);
+      var isRead = read.indexOf(id) >= 0;
+      row.classList.toggle("unread", !isRead && !isGone);
+      if (!isGone) shown++;
+      if (!isRead && !isGone) unread++;
     });
+    var empty = $("[data-notif-empty]", nlist); if (empty) empty.hidden = shown > 0;
+    showTab(notifTab);
     if (nbadge) nbadge.hidden = unread === 0;
     if (nbtn) nbtn.setAttribute("aria-label", unread ? "Notifications, " + unread + " unread" : "Notifications");
     var all = $("[data-notif-readall]");
@@ -165,6 +186,14 @@
     if (!t.closest) return;
     if (t.closest("[data-notif-toggle]")) { notifOpen(nmenu.hidden); return; }
     if (t.closest("[data-notif-close]")) { notifOpen(false); nbtn.focus(); return; }
+    var tabBtn = t.closest("[data-notif-tab]");
+    if (tabBtn) { showTab(tabBtn.getAttribute("data-notif-tab")); return; }
+    var dis = t.closest("[data-notif-dismiss]");
+    if (dis) {
+      var drow = dis.closest("[data-notif-id]"), g = dismissedSet();
+      g.push(drow.getAttribute("data-notif-id")); lsSet("lc-notif-dismissed", JSON.stringify(g.slice(-300)));
+      refreshNotifs(); return;
+    }
     if (t.closest("[data-notif-readall]")) {
       var ids = readSet();
       $$("[data-notif-id]", nlist).forEach(function (row) {
@@ -250,5 +279,98 @@
       var first = $("input.rowcb", table);
       if (first) first.dispatchEvent(new Event("change", { bubbles: true }));
     }, true);
+  }
+})();
+
+
+/* ---------------------------------------------------------------- shell v2 */
+(function () {
+  var doc = document;
+  function $(sel, root) { return (root || doc).querySelector(sel); }
+  function $$(sel, root) { return Array.prototype.slice.call((root || doc).querySelectorAll(sel)); }
+
+  function place(menu, anchor) {
+    var r = anchor.getBoundingClientRect();
+    menu.style.left = (r.right + 8) + "px";
+    menu.style.bottom = Math.max(8, window.innerHeight - r.bottom) + "px";
+  }
+
+  var spBtn = $("[data-settings-pop]"), sp = $("#settings-pop");
+  function spOpen(on) {
+    if (!sp) return;
+    sp.hidden = !on;
+    spBtn.setAttribute("aria-expanded", String(on));
+    if (on) place(sp, spBtn);
+  }
+  var hBtn = $("[data-help-toggle]"), hMenu = $("#help-menu");
+  function hOpen(on) { if (hMenu) { hMenu.hidden = !on; hBtn.setAttribute("aria-expanded", String(on)); } }
+  var panel = $("#assist-panel"), aBtn = $("[data-assistant-panel]");
+  function panelOpen(on) {
+    if (!panel) return;
+    var f = $("iframe", panel);
+    if (on && f && !f.getAttribute("src")) f.setAttribute("src", f.getAttribute("data-src"));
+    panel.hidden = !on;
+    doc.documentElement.classList.toggle("assist-open", on);
+    if (aBtn) aBtn.setAttribute("aria-expanded", String(on));
+  }
+  var hv = $("[data-hub-views]"), hvm = $("#hub-views-menu");
+
+  doc.addEventListener("click", function (e) {
+    var t = e.target;
+    if (!t.closest) return;
+    if (t.closest("[data-settings-pop]")) { spOpen(sp.hidden); return; }
+    if (sp && !sp.hidden && !t.closest("#settings-pop")) spOpen(false);
+    if (t.closest("[data-help-toggle]")) { hOpen(hMenu.hidden); return; }
+    if (hMenu && !hMenu.hidden && !t.closest("#help-menu")) hOpen(false);
+    if (t.closest("[data-palette-open-btn]")) {
+      hOpen(false);
+      doc.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }));
+      return;
+    }
+    if (t.closest("[data-assistant-panel]") && panel && window.innerWidth > 820) {
+      e.preventDefault(); panelOpen(panel.hidden); return;
+    }
+    if (t.closest("[data-assistant-close]")) { panelOpen(false); return; }
+    if (t.closest("[data-hub-views]")) { hvm.hidden = !hvm.hidden; hv.setAttribute("aria-expanded", String(!hvm.hidden)); return; }
+    var jump = t.closest("[data-hub-jump]");
+    if (jump) {
+      var tgt = doc.getElementById(jump.getAttribute("data-hub-jump"));
+      if (tgt) { e.preventDefault(); tgt.open = true; tgt.scrollIntoView({ behavior: "smooth", block: "start" }); }
+      hvm.hidden = true; return;
+    }
+    if (hvm && !hvm.hidden && !t.closest(".hub-views")) hvm.hidden = true;
+    var gb = t.closest(".nav-group-btn");
+    $$(".nav-group.flyout").forEach(function (g) { if (!gb || g !== gb.parentNode) g.classList.remove("flyout"); });
+    if (gb && doc.documentElement.classList.contains("nav-collapsed")) {
+      var grp = gb.parentNode, open = !grp.classList.contains("flyout");
+      grp.classList.toggle("flyout", open);
+      if (open) { var r = gb.getBoundingClientRect(); $(".nav-items", grp).style.top = Math.max(8, r.top) + "px"; }
+      e.stopPropagation();
+    }
+    var sg = t.closest(".set-group-btn");
+    if (sg) sg.setAttribute("aria-expanded", String(sg.getAttribute("aria-expanded") !== "true"));
+  }, true);
+  doc.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") return;
+    spOpen(false); hOpen(false);
+    if (hvm) hvm.hidden = true;
+    $$(".nav-group.flyout").forEach(function (g) { g.classList.remove("flyout"); });
+  });
+
+  var find = $("[data-settings-find]");
+  if (find) {
+    find.addEventListener("input", function () {
+      var q = find.value.trim().toLowerCase(), any = false;
+      $$("[data-find]").forEach(function (a) {
+        var hit = !q || a.getAttribute("data-find").indexOf(q) >= 0;
+        a.hidden = !hit; if (hit) any = true;
+      });
+      $$("[data-set-group]").forEach(function (g) {
+        var vis = $$("[data-find]", g).some(function (a) { return !a.hidden; });
+        g.hidden = !vis;
+        if (q && vis) $(".set-group-btn", g).setAttribute("aria-expanded", "true");
+      });
+      var none = $("[data-find-none]"); if (none) none.hidden = any || !q;
+    });
   }
 })();

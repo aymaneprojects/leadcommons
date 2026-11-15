@@ -1,21 +1,74 @@
 {% extends "base.html" %}
 {% from "_macros.html" import icon %}
+{% from "_shell_macros.html" import tic %}
 {% block title %}Assistant · LeadCommons{% endblock %}
+{% block app_class %}{% if embed %} embed{% endif %}{% endblock %}
+{% macro mcp_card(inline) %}
+{% if not mcp_dismissed and not embed %}
+  <aside class="mcp-card{% if inline %} mcp-inline{% endif %}" aria-label="Use LeadCommons from Claude or ChatGPT">
+    <form method="post" action="/assistant-card/dismiss" hx-post="/assistant-card/dismiss" hx-target="closest .mcp-card" hx-swap="outerHTML"><button class="btn ghost icon-only sm mcp-x" type="submit" aria-label="Dismiss">{{ icon("x", "sm") }}</button></form>
+    <b>Use LeadCommons from Claude or ChatGPT</b>
+    <p class="muted">Connect the LeadCommons MCP server and your AI workspace can search companies, find people and build lists in your own database.</p>
+    <div class="mcp-btns">
+      <a class="btn sm" href="{{ mcp_doc }}#claude-desktop-local-stdio" target="_blank" rel="noopener noreferrer">{{ tic("sparkles", "sm") }} Claude {{ tic("external-link", "sm") }}</a>
+      <a class="btn sm" href="{{ mcp_doc }}#chatgpt-and-other-remote-clients-http" target="_blank" rel="noopener noreferrer">{{ tic("message-circle", "sm") }} ChatGPT {{ tic("external-link", "sm") }}</a>
+    </div>
+  </aside>
+  {% endif %}
+{% endmacro %}
 {% block content %}
-<div class="assistant">
-  <span class="logo lg" aria-hidden="true">LC</span>
-  <h1>Hi there. What would you like to do?</h1>
-  <p class="muted lead">The Assistant will turn a sentence into searches, lists and outreach. It arrives in v0.2. Until then, these shortcuts get you going.</p>
-  <div class="cards3">
-    <a class="opt-card" href="/companies"><span class="ic">{{ icon("building-2", "lg") }}</span><b>Find companies to sell to</b><span class="muted">Filter open company data by country, size and industry.</span></a>
-    <a class="opt-card" href="/companies"><span class="ic">{{ icon("user-search", "lg") }}</span><b>Find people at a company</b><span class="muted">Open a company, then look for the people who work there.</span></a>
-    <a class="opt-card" href="/enrich"><span class="ic">{{ icon("file-up", "lg") }}</span><b>Enrich a CSV</b><span class="muted">Turn a file of names and companies into verified emails.</span></a>
+<div class="chat-page" data-chat data-cid="{{ cid or '' }}" data-autosend="{{ prefill }}">
+  <div class="chat-bar">
+    <button class="btn ghost" type="button" data-history-toggle aria-expanded="false" aria-controls="chat-history">{{ tic("history") }} History</button>
+    <a class="btn ghost" href="/assistant{% if embed %}?embed=1{% endif %}">{{ tic("square-pen") }} New chat</a>
+    {% if cid %}
+    <form method="post" action="/assistant/{{ cid }}/delete" onsubmit="return confirm('Delete this conversation?')"><button class="btn ghost" type="submit">{{ tic("trash-2") }} Delete chat</button></form>
+    {% endif %}
   </div>
-  <form class="composer" onsubmit="return false">
-    <label class="sr-only" for="ask">Message</label>
-    <input id="ask" type="text" disabled placeholder="The AI assistant arrives in v0.2" aria-disabled="true">
-    <button class="btn" type="button" disabled aria-disabled="true" title="Arrives in v0.2">{{ icon("send") }} Send</button>
-  </form>
-  <p class="hint">Nothing you type here is sent anywhere. The composer is switched off until v0.2.</p>
+  <aside class="chat-history" id="chat-history" hidden aria-label="Conversation history">
+    <h2>History</h2>
+    {% for c in history %}
+    <a class="hist-item{% if c.id == cid %} on{% endif %}" href="/assistant/{{ c.id }}{% if embed %}?embed=1{% endif %}"><span class="hist-t">{{ c.title }}</span><span class="muted hist-d">{{ ago(c.updated_at) }}</span></a>
+    {% else %}
+    <p class="muted">Your conversations are kept here, on this machine.</p>
+    {% endfor %}
+  </aside>
+
+  <div class="chat-col">
+    {% if not messages %}
+    <div class="chat-empty" id="chat-empty">
+      <span class="logo lg" aria-hidden="true">LC</span>
+      <h1>Hello, I'm the LeadCommons Assistant.</h1>
+      <p class="muted lead">Tell me who you want to sell to. I search the open company data, show you the top results and suggest the next step. Give me your website and I will work out who to target.</p>
+      <div class="cards3">
+        {% for ico, label, text in starters %}
+        <button class="opt-card" type="button" data-starter="{{ text }}"><span class="ic">{{ tic(ico, "lg") }}</span><b>{{ label }}</b><span class="muted">{{ text if not text.startswith('/') else 'Paste an address, I read the public homepage.' }}</span></button>
+        {% endfor %}
+      </div>
+      {{ mcp_card(true) }}
+    </div>
+    {% endif %}
+    <div class="chat-log" id="chat" aria-live="polite">{% include "_tools_messages.html" %}</div>
+    <div class="thinking" id="thinking" hidden>{{ tic("loader-circle", "sm spin") }} Working on it…</div>
+
+    <div class="composer-wrap">
+      <div class="slash-menu" id="slash-menu" hidden role="listbox" aria-label="Commands">
+        {% for cmd, desc, ex in commands %}<button class="slash-item" type="button" role="option" data-cmd="{{ cmd }} "><b>{{ cmd }}</b><span class="muted">{{ desc }}</span></button>{% endfor %}
+      </div>
+      <form class="composer chat-composer" id="composer" method="post" action="/assistant/send" hx-post="/assistant/send" hx-target="#chat" hx-swap="beforeend" hx-push-url="false">
+        <input type="hidden" name="conversation_id" value="{{ cid or '' }}" data-cid-field>
+        <label class="sr-only" for="ask">Message</label>
+        <textarea id="ask" name="message" rows="1" required maxlength="2000" placeholder="Find leads, save your preferences, or type / for commands" autocomplete="off">{{ prefill if False }}</textarea>
+        <div class="composer-row">
+          <button class="btn ghost icon-only sm" type="button" data-slash-open aria-label="Show commands" title="Commands">/</button>
+          <span class="grow"></span>
+          <button class="btn primary icon-only send-btn" type="submit" aria-label="Send">{{ tic("arrow-up") }}</button>
+        </div>
+      </form>
+      <p class="hint">Chats are stored on this machine only.{% if llm_on %} A language model you configured reads what you type.{% endif %} Avoid sharing sensitive information.</p>
+    </div>
+  </div>
+
+  {{ mcp_card(false) }}
 </div>
 {% endblock %}

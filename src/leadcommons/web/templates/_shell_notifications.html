@@ -1,17 +1,36 @@
 {% from "_macros.html" import icon %}
+{% from "_shell_macros.html" import tic %}
+<div class="notif-panel" data-notif-panel="notifications">
+{% set ns = namespace(last="") %}
 {% for n in items %}
+{% set grp = "Today" if n.ts.date() == today else "Older" %}
+{% if grp != ns.last %}{% set ns.last = grp %}<div class="notif-group">{{ grp }}</div>{% endif %}
 <div class="notif-row" data-notif-id="{{ n.id }}">
-  <span class="notif-ic {{ 'ok' if n.status == 'done' else 'red' }}">{{ icon("circle-check" if n.status == "done" else "circle-alert") }}</span>
+  <span class="notif-ic {{ 'ok' if n.status == 'done' else 'red' }}">{{ tic(n.icon) }}</span>
   <div class="notif-body">
     <div class="notif-title">{{ n.label }}</div>
-    <div class="notif-meta">{% if n.status == "done" %}Finished{% else %}Failed{% endif %} {{ ago(n.ts) }}{% if n.detail %} · {{ n.detail }}{% endif %}</div>
+    <div class="notif-meta">{% if n.id.startswith("job-") %}{% if n.status == "done" %}Finished{% else %}Failed{% endif %} {% endif %}{{ ago(n.ts) }}{% if n.detail %} · {{ n.detail }}{% endif %}</div>
     {% if n.href %}<a class="btn sm" href="{{ n.href }}">{{ n.href_label }}</a>{% endif %}
   </div>
-  <span class="notif-dot" aria-hidden="true" title="Unread"></span>
-</div>
-{% else %}
-<div class="notif-empty" data-notif-empty>
-  <b>You are all caught up</b>
-  <span class="muted">Finished background jobs, such as finding people or enriching a CSV, show up here.</span>
+  <span class="notif-side"><button class="btn ghost icon-only sm" type="button" data-notif-dismiss aria-label="Dismiss this notification">{{ icon("x", "sm") }}</button><span class="notif-dot" aria-hidden="true" title="Unread"></span></span>
 </div>
 {% endfor %}
+<div class="notif-empty" data-notif-empty{% if items %} hidden{% endif %}>
+  <b>You are all caught up</b>
+  <span class="muted">Finished jobs, workflow runs and replies show up here.</span>
+</div>
+</div>
+<div class="notif-panel" data-notif-panel="activities" hidden>
+{% for a in activities %}
+<div class="notif-row act" data-act-id="{{ a.id }}">
+  <span class="notif-ic">{{ tic("activity") }}</span>
+  <div class="notif-body">
+    <div class="notif-title">{{ a.summary }}</div>
+    <div class="notif-meta">{{ a.kind|replace("_", " ")|capitalize }} · {{ ago(a.ts) }}</div>
+    {% if a.href %}<a class="btn sm" href="{{ a.href }}">Open</a>{% endif %}
+  </div>
+</div>
+{% else %}
+<div class="notif-empty"><b>No activity yet</b><span class="muted">Notes, calls, emails, tasks and deals you log appear here.</span></div>
+{% endfor %}
+</div>

@@ -1,0 +1,22 @@
+{% set t = ins.trends %}
+{% if t.listings or t.revenue or t.owned_by %}
+  {% if t.listings %}
+  <section class="ins-group"><h4>Public listing</h4>
+    <ul class="ins-plain">{% for l in t.listings %}<li>{{ l.exchange }}{% if l.ticker %} <span class="mono chip plain">{{ l.ticker }}</span>{% endif %}</li>{% endfor %}</ul>
+  </section>
+  {% endif %}
+  {% if t.revenue %}
+  <section class="ins-group"><h4>Revenue</h4>
+    <div class="table-wrap ins-table"><table class="data">
+      <thead><tr><th>Year</th><th>Revenue</th></tr></thead>
+      <tbody>{% for r in t.revenue|reverse %}<tr><td>{{ r.year or "Year unknown" }}</td><td>{{ ins_money(r.amount, r.currency) }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+  {% endif %}
+  {% if t.owned_by %}
+  <section class="ins-group"><h4>Owned by</h4><p>{{ t.owned_by|join(", ") }}</p></section>
+  {% endif %}
+  <p class="muted ins-intro">Funding rounds and investors: no public data. Source: <a href="{{ t.wikidata_url }}" target="_blank" rel="noopener noreferrer">Wikidata {{ t.wikidata_id }}</a> (CC0).</p>
+{% else %}
+  <div class="ins-empty"><h4>No public data</h4><p class="muted">{% if t.wikidata_id %}Wikidata has no revenue, listing or ownership for this company.{% else %}No matching Wikidata entry was found.{% endif %} LeadCommons only shows funding that public sources hold and never estimates it.</p></div>
+{% endif %}

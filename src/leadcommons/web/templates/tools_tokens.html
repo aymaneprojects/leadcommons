@@ -1,0 +1,35 @@
+{% extends "shell_settings_base.html" %}
+{% from "_macros.html" import icon %}
+{% from "_shell_macros.html" import tic %}
+{% block title %}API tokens · LeadCommons{% endblock %}
+{% block settings_body %}
+<h1 class="set-h1">API tokens</h1>
+<p class="muted">A token lets a script or an AI assistant call the REST API and the MCP endpoint without your password. Only a hash of each token is stored here, so a token is shown once.</p>
+{% if new_token %}
+<section class="card token-new" role="alert">
+  <h2>{{ tic("circle-check") }} Token “{{ new_name }}” created</h2>
+  <p>Copy it now. You will not be able to see it again.</p>
+  <div class="token-box"><code id="new-token">{{ new_token }}</code><button class="btn sm" type="button" data-copy-text="#new-token">{{ tic("copy", "sm") }} Copy</button></div>
+</section>
+{% endif %}
+<section class="card" aria-labelledby="tk-new">
+  <h2 id="tk-new">Create a token</h2>
+  <form class="set-inline" method="post" action="/settings/api">
+    <div class="field" style="flex:1;min-width:220px"><label for="tk-name">Name</label><input id="tk-name" type="text" name="name" placeholder="e.g. Zapier, Claude, my script" maxlength="120" required></div>
+    <button class="btn primary" type="submit">{{ icon("plus") }} Create token</button>
+  </form>
+  {% if not auth %}<p class="hint">This instance has no login (local mode): the API is open on this machine and tokens are not required, but they work the same once you turn a password on.</p>{% endif %}
+</section>
+<section class="card" aria-labelledby="tk-list">
+  <h2 id="tk-list">Your tokens</h2>
+  {% if tokens %}
+  <div class="table-wrap"><table class="data"><thead><tr><th>Name</th><th>Token</th><th>Created</th><th>Last used</th><th></th></tr></thead><tbody>
+  {% for t in tokens %}
+  <tr><td>{{ t.name }}{% if t.revoked_at %} <span class="chip red">Revoked</span>{% endif %}</td><td class="mono">{{ t.prefix }}…</td><td class="muted">{{ ago(t.created_at) }}</td><td class="muted">{{ ago(t.last_used_at) if t.last_used_at else "Never" }}</td>
+    <td class="cell-actions">{% if not t.revoked_at %}<form method="post" action="/settings/api/{{ t.id }}/revoke" onsubmit="return confirm('Revoke this token? Anything using it stops working.')"><button class="btn sm btn-danger" type="submit">Revoke</button></form>{% endif %}</td></tr>
+  {% endfor %}
+  </tbody></table></div>
+  {% else %}<p class="muted">No token yet.</p>{% endif %}
+  <p class="hint">Use it as <code>Authorization: Bearer lc_…</code> on <code>{{ base }}/api/…</code>. <a href="{{ api_docs }}">API reference</a>.</p>
+</section>
+{% endblock %}

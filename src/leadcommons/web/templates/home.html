@@ -1,14 +1,16 @@
 {% extends "base.html" %}
 {% from "_macros.html" import icon %}
-{% from "_shell_checklist.html" import checklist, hub_progress %}
+{% from "_shell_macros.html" import tic %}
+{% from "_shell_checklist.html" import checklist, hub_progress, views_menu %}
 {% block title %}Home · LeadCommons{% endblock %}
 {% block content %}
 <div class="hub">
-  {% if show_banner %}
+  <div class="hub-top">{{ views_menu(groups) }}</div>
+  {% if last_chat %}
   <div class="banner" id="banner">
-    <span class="logo" aria-hidden="true">{{ icon("sparkles", "lg") }}</span>
-    <div class="t"><b>Continue with the Assistant</b><span class="muted">Describe who you sell to and let it set up your first search. Arrives in v0.2.</span></div>
-    <a class="btn" href="/assistant">Preview</a>
+    <span class="banner-ic" aria-hidden="true">{{ tic("sparkles", "lg") }}</span>
+    <div class="t"><b>Pick up where you left off with the Assistant</b><span class="muted">{{ last_chat.title }} · {{ ago(last_chat.updated_at) }}</span></div>
+    <a class="btn" href="/assistant/{{ last_chat.id }}">Continue chat</a>
     <form method="post" action="/dismiss-banner" hx-post="/dismiss-banner" hx-target="#banner" hx-swap="outerHTML">
       <button class="btn ghost icon-only" type="submit" aria-label="Dismiss">{{ icon("x") }}</button>
     </form>
@@ -17,11 +19,10 @@
   <div class="hub-head">
     <div>
       <h1>Get started with LeadCommons</h1>
-      <p class="muted">{{ tasks_done }} of {{ tasks|length }} steps done. {% if request.app.state.settings.mode != "demo" %}Everything stays on this machine.{% endif %}</p>
+      <p class="muted">Complete these steps to go from open data to a clean list of contacts, then to meetings. <b>{{ hub_done }} of {{ hub_total }}</b> done.{% if request.app.state.settings.mode != "demo" %} Everything stays on this machine.{% endif %}</p>
     </div>
-    <a class="btn" href="/onboarding">Open the getting started hub</a>
   </div>
-  {{ hub_progress(tasks, tasks_done) }}
-  {{ checklist(tasks) }}
+  {{ hub_progress(hub_done, hub_total) }}
+  {{ checklist(groups) }}
 </div>
 {% endblock %}

@@ -792,7 +792,7 @@ def deal_context(request: Request, deal: Deal) -> dict[str, Any]:
         "deal": deal,
         "stages": pl.list_stages(),
         "stage": pl.get_stage(deal.stage_id),
-        "tasks": tasks,
+        "deal_tasks": tasks,
         "meetings": [m for m in pl.list_meetings("all") if m.deal_id == deal.id],
     }
 

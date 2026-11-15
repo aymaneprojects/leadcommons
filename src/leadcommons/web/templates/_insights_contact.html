@@ -1,0 +1,24 @@
+{% set k = ins.contact %}
+{% if k.phones or k.emails or k.address or k.social %}
+<dl class="ins-rows">
+  <div class="ins-row"><dt>Business phone</dt><dd>
+    {% if k.phones %}<ul class="ins-plain">
+      {% for p in k.phones %}<li><a class="mono" href="tel:{{ p.e164 or p.number }}">{{ p.e164 or p.number }}</a>{% if p.label %} <span class="muted">{{ p.label }}</span>{% endif %}<span class="muted ins-src">{{ "structured data" if p.source == "json-ld" else "website" }}</span></li>{% endfor %}
+    </ul>{% else %}<span class="muted">None found</span>{% endif %}
+  </dd></div>
+  <div class="ins-row"><dt>Generic mailboxes</dt><dd>
+    {% if k.emails %}<ul class="ins-plain">{% for m in k.emails %}<li><a href="mailto:{{ m }}">{{ m }}</a></li>{% endfor %}</ul>{% else %}<span class="muted">None found</span>{% endif %}
+  </dd></div>
+  <div class="ins-row"><dt>Address</dt><dd>
+    {% if k.address %}
+      {% if k.address.text %}{{ k.address.text }}{% else %}{{ k.address.street }}{% if k.address.street %}<br>{% endif %}{{ k.address.postal_code }} {{ k.address.city }}{% if k.address.region %}, {{ k.address.region }}{% endif %}{% if k.address.country %}<br>{{ k.address.country }}{% endif %}{% endif %}
+    {% else %}<span class="muted">None found</span>{% endif %}
+  </dd></div>
+  <div class="ins-row"><dt>Company profiles</dt><dd>
+    {% if k.social %}<div class="chips ins-chips">{% for net, url in k.social.items() %}<a class="chip plain" href="{{ url }}" target="_blank" rel="noopener noreferrer">{{ ins_social(net) }}</a>{% endfor %}</div>{% else %}<span class="muted">None found</span>{% endif %}
+  </dd></div>
+</dl>
+{% else %}
+  <div class="ins-empty"><h4>No contact details found</h4><p class="muted">No business phone, generic mailbox or address was published on the pages that were read.</p></div>
+{% endif %}
+<p class="muted ins-intro">Business details only: numbers from tel: links and structured data, role mailboxes such as contact@ or info@, and the company's own social pages. Personal numbers and mailboxes are never collected.</p>

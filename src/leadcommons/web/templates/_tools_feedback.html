@@ -1,0 +1,5 @@
+{% from "_shell_macros.html" import tic %}
+<span class="fb" id="fb-{{ m.id }}">
+  <button class="btn ghost icon-only sm{% if m.rating == 1 %} on{% endif %}" type="button" hx-post="/assistant/feedback" hx-vals='{"message_id": {{ m.id }}, "rating": "up"}' hx-target="#fb-{{ m.id }}" hx-swap="outerHTML" aria-pressed="{{ 'true' if m.rating == 1 else 'false' }}" aria-label="Good answer" title="Good answer">{{ tic("thumbs-up", "sm") }}</button>
+  <button class="btn ghost icon-only sm{% if m.rating == -1 %} on{% endif %}" type="button" hx-post="/assistant/feedback" hx-vals='{"message_id": {{ m.id }}, "rating": "down"}' hx-target="#fb-{{ m.id }}" hx-swap="outerHTML" aria-pressed="{{ 'true' if m.rating == -1 else 'false' }}" aria-label="Bad answer" title="Bad answer">{{ tic("thumbs-down", "sm") }}</button>
+</span>

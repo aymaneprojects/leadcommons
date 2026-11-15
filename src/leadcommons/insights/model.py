@@ -37,6 +37,12 @@ class Jobs:
     postings: list[JobPosting] = field(default_factory=list)
     error: str | None = None  # why the board could not be read, if it could not
 
+    def __iter__(self):
+        return iter(self.postings)
+
+    def __len__(self) -> int:
+        return len(self.postings)
+
     def by_department(self) -> list[tuple[str, int]]:
         """Hiring signal: open postings per department, biggest first."""
         counts = Counter((p.department or "Other") for p in self.postings)
@@ -123,6 +129,16 @@ class CompanyInsights:
     pages_crawled: int = 0
     notes: list[str] = field(default_factory=list)  # honest limits of this refresh
     refreshed_at: datetime = field(default_factory=utcnow)
+
+    @property
+    def phones(self) -> list[Phone]:
+        """Business phone numbers (shortcut used by the search pages)."""
+        return self.contact.phones
+
+    @property
+    def job_postings(self) -> list[JobPosting]:
+        """Open positions (shortcut used by the search pages)."""
+        return self.jobs.postings
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)

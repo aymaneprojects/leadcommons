@@ -378,9 +378,13 @@ def _a_create_task(ctx: Ctx, s: Subject, a: dict[str, Any]) -> tuple[str, str]:
     due = utcnow() + timedelta(days=days) if days else None
     cid = s.company.id if s.company else None
     tid = engage.create_task(
-        ctx.store, title, person_id=s.person.id if s.person else None, company_id=cid,
-        due=due, kind=str(kind),
-    )  # fmt: skip
+        ctx.store,
+        title,
+        person_id=s.person.id if s.person else None,
+        company_id=cid,
+        due=due,
+        kind=str(kind),
+    )
     return "ok", f"Created task {title!r} ({tid})."
 
 
@@ -518,9 +522,14 @@ def execute(
             _log_activity(ctx, wf, subject)
     if len(steps) < total:
         steps.append(
-            {"action": None, "label": "More", "status": "skipped", "subject": "",
-             "detail": f"{total - len(steps)} more steps are not listed."}
-        )  # fmt: skip
+            {
+                "action": None,
+                "label": "More",
+                "status": "skipped",
+                "subject": "",
+                "detail": f"{total - len(steps)} more steps are not listed.",
+            }
+        )
     if not subjects:
         status, summary = "skipped", note or "No record matched the conditions."
     elif not total:
@@ -586,9 +595,13 @@ def sample_subjects(ctx: Ctx, wf: Workflow) -> tuple[list[Subject], str]:
         from leadcommons.workflows import searches
 
         found = searches.run_query(
-            ctx.search, ctx.store, str(trig.get("source") or "companies"),
-            str(trig.get("query") or ""), MAX_SUBJECTS, seen=set(),
-        )  # fmt: skip
+            ctx.search,
+            ctx.store,
+            str(trig.get("source") or "companies"),
+            str(trig.get("query") or ""),
+            MAX_SUBJECTS,
+            seen=set(),
+        )
         return [_record_subject(ctx, r) for r in found], "Ran the saved search."
     if trig.get("type") == "manual" and trig.get("list_id"):
         ids = list(ctx.members(str(trig["list_id"])))[:MAX_SUBJECTS]
@@ -660,9 +673,13 @@ def run_scheduled(ctx: Ctx, wf: Workflow, now: datetime | None = None) -> dict[s
         ctx.repo.add_run(wf.id, "schedule", "skipped", DEMO_REASON, [], now)
         return None
     found = searches.run_query(
-        ctx.search, ctx.store, str(trig.get("source") or "companies"),
-        str(trig.get("query") or ""), MAX_SUBJECTS, seen=set(seen),
-    )  # fmt: skip
+        ctx.search,
+        ctx.store,
+        str(trig.get("source") or "companies"),
+        str(trig.get("query") or ""),
+        MAX_SUBJECTS,
+        seen=set(seen),
+    )
     subjects = [_record_subject(ctx, r) for r in found]
     matched = [s for s in subjects if conditions_met(ctx, s, wf.conditions)]
     # every record we looked at counts as handled, matching or not

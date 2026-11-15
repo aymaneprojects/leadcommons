@@ -1,0 +1,27 @@
+{% from "_pipeline_macros.html" import pi, pick %}
+<dialog class="pl-dlg wide" data-autoopen aria-labelledby="dn-title">
+  <form method="post" action="/deals" hx-post="/deals" hx-swap="none" hx-push-url="false" data-quiet>
+    <input type="hidden" name="next" value="{{ next }}">
+    <header class="pl-dlg-head"><h2 id="dn-title">New deal</h2><button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">{{ pi("x") }}</button></header>
+    <div class="pl-dlg-body">
+      <div class="field"><label for="dn-name">Deal name</label><input type="text" id="dn-name" name="name" value="{{ suggested_name }}" required maxlength="200" placeholder="e.g. Annual licence, Acme" autofocus></div>
+      <div class="pl-grid2">
+        {{ pick("company", "dn", ref.company_name, ref.company_id) }}
+        {{ pick("person", "dn", ref.person_name, ref.person_id, label="Contact") }}
+      </div>
+      <div class="pl-grid3">
+        <div class="field"><label for="dn-amount">Amount</label><input type="text" id="dn-amount" name="amount" inputmode="decimal" placeholder="0"></div>
+        <div class="field"><label for="dn-cur">Currency</label><select id="dn-cur" name="currency">{% for c in pl_currencies %}<option{% if c == "EUR" %} selected{% endif %}>{{ c }}</option>{% endfor %}</select></div>
+        <div class="field"><label for="dn-close">Expected close date</label><input type="date" id="dn-close" name="close_date"></div>
+      </div>
+      <div class="pl-grid3">
+        <div class="field"><label for="dn-stage">Stage</label>
+          <select id="dn-stage" name="stage_id" data-stage-prob>{% for s in stages %}<option value="{{ s.id }}" data-prob="{{ s.probability }}"{% if s.id == stage.id %} selected{% endif %}>{{ s.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label for="dn-prob">Probability (%)</label><input type="number" id="dn-prob" name="probability" min="0" max="100" value="{{ stage.probability }}" data-prob-input></div>
+        <div class="field"><label for="dn-source">Source</label><input type="text" id="dn-source" name="source" maxlength="120" list="dn-sources" placeholder="Outbound, referral…"><datalist id="dn-sources"><option>Outbound</option><option>Referral</option><option>Inbound</option><option>Event</option><option>Partner</option></datalist></div>
+      </div>
+      <div class="field"><label for="dn-notes">Notes</label><textarea id="dn-notes" name="notes" rows="3" maxlength="4000" placeholder="Context, needs, next step"></textarea></div>
+    </div>
+    <footer class="pl-dlg-foot"><button type="button" class="btn close-dlg">Cancel</button><button type="submit" class="btn primary">Create deal</button></footer>
+  </form>
+</dialog>

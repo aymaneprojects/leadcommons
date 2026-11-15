@@ -1,0 +1,38 @@
+{% from "_macros.html" import icon %}
+{% from "_shell_macros.html" import tic %}
+{% if m.role == "user" %}
+<article class="msg u" id="msg-{{ m.id }}"><div class="bubble">{{ m.content }}</div></article>
+{% else %}
+{% set d = m.data %}
+<article class="msg a{% if d.tone == 'warn' %} warn{% endif %}" id="msg-{{ m.id }}">
+  <div class="msg-text" data-copy-src>{{ m.content|md }}</div>
+  {% if d.chips %}<div class="chips msg-chips"><span class="muted">Understood:</span>{% for c in d.chips %}<span class="chip plain">{{ c }}</span>{% endfor %}</div>{% endif %}
+  {% if d.cards %}
+  <ul class="res-cards">
+    {% for c in d.cards %}
+    <li><a class="res-item" href="{{ c.href }}"><span class="av {{ 'co' if c.kind == 'company' else 'pe' }} tone-{{ tone(c.title) }}" aria-hidden="true">{{ initials(c.title) }}</span><span class="ri-t"><b>{{ c.title }}</b><span class="muted">{{ c.sub }}</span>{% if c.meta %}<span class="muted ri-m">{{ c.meta }}</span>{% endif %}</span>{{ tic("chevron-right", "sm") }}</a></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {% if d.more %}<p class="msg-more"><a href="{{ d.more.href }}">{{ d.more.label }} {{ tic("arrow-right", "sm") }}</a></p>{% endif %}
+  {% if d.links %}<div class="actions msg-links">{% for l in d.links %}<a class="btn" href="{{ l.href }}">{{ l.label }}</a>{% endfor %}</div>{% endif %}
+  <div class="msg-actions">
+    <button class="btn ghost icon-only sm" type="button" data-copy aria-label="Copy the answer" title="Copy">{{ tic("copy", "sm") }}</button>
+    {% include "_tools_feedback.html" %}
+    <time class="muted" datetime="{{ m.created_at.isoformat() }}" title="{{ m.created_at.strftime('%Y-%m-%d %H:%M') }} UTC">{{ ago(m.created_at) }}</time>
+  </div>
+  {% if d.options %}
+  {% set o = d.options %}
+  <form class="opts-card{% if o.chosen %} answered{% endif %}" method="post" action="/assistant/{{ cid or m.conversation_id }}/choose" hx-post="/assistant/{{ cid or m.conversation_id }}/choose" hx-target="#msg-{{ m.id }}" hx-swap="outerHTML" hx-push-url="false" data-opts>
+    <input type="hidden" name="message_id" value="{{ m.id }}">
+    <div class="opts-prompt">{{ o.prompt }}</div>
+    <div class="opts-list" role="radiogroup" aria-label="{{ o.prompt }}">
+      {% for c in o.choices %}
+      <label class="opt-row{% if o.chosen == c.key %} chosen{% endif %}"><input type="radio" name="choice" value="{{ c.key }}" required{% if o.chosen %} disabled{% endif %}{% if o.chosen == c.key %} checked{% endif %}><span>{{ c.label }}</span></label>
+      {% endfor %}
+    </div>
+    {% if not o.chosen %}<div class="opts-foot"><button class="btn primary" type="submit" data-continue disabled>Continue</button></div>{% endif %}
+  </form>
+  {% endif %}
+</article>
+{% endif %}

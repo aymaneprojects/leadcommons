@@ -1,0 +1,28 @@
+{% from "_pipeline_macros.html" import pi %}
+{% from "_macros.html" import avatar %}
+{# one board card; expects d, stages #}
+<article class="pl-card" draggable="true" tabindex="0" data-deal-id="{{ d.id }}" data-stage-id="{{ d.stage_id }}" aria-label="{{ d.name }}, {{ pl_money(d.amount, d.currency) }}">
+  <div class="pl-card-top">
+    <span class="pl-grip" aria-hidden="true">{{ pi("grip", "sm") }}</span>
+    <a class="pl-card-name" href="/deals/{{ d.id }}" hx-get="/deals/{{ d.id }}" hx-target="#drawer" hx-select="unset" hx-swap="innerHTML" hx-push-url="false" draggable="false">{{ d.name }}</a>
+    <details class="dd pl-card-menu">
+      <summary class="btn ghost icon-only sm" aria-label="Move or open {{ d.name }}">{{ pi("ellipsis", "sm") }}</summary>
+      <div class="menu right" role="menu">
+        <div class="menu-note">Move to stage</div>
+        {% for s in stages %}{% if s.id != d.stage_id %}
+        <form method="post" action="/deals/{{ d.id }}/move"><input type="hidden" name="stage_id" value="{{ s.id }}"><input type="hidden" name="next" value="{{ current_url }}">
+          <button class="menu-item" type="submit" role="menuitem">{{ pi("arrow-right", "sm") }}<span>{{ s.name }}</span></button></form>
+        {% endif %}{% endfor %}
+        <div class="menu-sep"></div>
+        <a class="menu-item" href="/deals/{{ d.id }}">{{ pi("external-link", "sm") }}<span>Open deal page</span></a>
+      </div>
+    </details>
+  </div>
+  {% if d.company_name %}<div class="pl-card-co">{{ avatar(d.company_name, "co", "sm") }}<span>{{ d.company_name }}</span></div>{% endif %}
+  <div class="pl-card-meta">
+    <b class="pl-amount">{{ pl_money(d.amount, d.currency) }}</b>
+    {% if d.probability is not none %}<span class="pl-prob" title="Probability">{{ d.probability }}%</span>{% endif %}
+    {% if d.close_date %}<span class="pl-close" title="Expected close date">{{ pi("calendar", "sm") }}{{ pl_day(d.close_date) }}</span>{% endif %}
+  </div>
+  {% if d.person_name %}<div class="pl-card-person muted">{{ pi("user", "sm") }}{{ d.person_name }}</div>{% endif %}
+</article>

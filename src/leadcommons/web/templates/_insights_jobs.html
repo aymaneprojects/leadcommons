@@ -1,0 +1,29 @@
+{% if ins.jobs.postings %}
+  <p class="muted ins-intro">{{ ins.jobs.postings|length }} open position{{ "" if ins.jobs.postings|length == 1 else "s" }} from the public {{ ins.jobs.ats|capitalize }} job board{% if ins.jobs.board_url %} (<a href="{{ ins.jobs.board_url }}" target="_blank" rel="noopener noreferrer">{{ ins.jobs.board }}</a>){% endif %}. Hiring signal by department:</p>
+  <ul class="ins-bars" aria-label="Open positions by department">
+    {% set top = jobs_view.by_department[0][1] %}
+    {% for dept, n in jobs_view.by_department[:8] %}
+    <li><span class="lbl">{{ dept }}</span><span class="bar"><i style="width: {{ (n * 100 / top)|round|int }}%"></i></span><span class="num">{{ n }}</span></li>
+    {% endfor %}
+  </ul>
+  <div class="table-wrap ins-table">
+    <table class="data">
+      <thead><tr><th>Title</th><th>Department</th><th>Location</th><th>Posted</th></tr></thead>
+      <tbody>
+        {% for j in jobs_view.rows %}
+        <tr>
+          <td>{% if j.url %}<a href="{{ j.url }}" target="_blank" rel="noopener noreferrer">{{ j.title }}</a>{% else %}{{ j.title }}{% endif %}</td>
+          <td>{{ j.department or "–" }}</td>
+          <td>{{ j.location or "–" }}{% if j.remote %} <span class="chip ok">Remote</span>{% endif %}</td>
+          <td class="muted">{{ j.posted_at[:10] if j.posted_at else "–" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if jobs_view.hidden %}<p class="muted ins-intro">{{ jobs_view.hidden }} more not shown.</p>{% endif %}
+{% elif ins.jobs.ats %}
+  <div class="ins-empty"><h4>{{ "Job board unreadable" if ins.jobs.error else "No open positions" }}</h4><p class="muted">{{ ins.jobs.error or "The " ~ ins.jobs.ats|capitalize ~ " board lists no open positions right now." }}</p></div>
+{% else %}
+  <div class="ins-empty"><h4>No job board found</h4><p class="muted">The site does not link to a Greenhouse, Lever, Ashby, Workable, Recruitee or SmartRecruiters board, so open positions are unknown. This does not mean the company is not hiring.</p></div>
+{% endif %}

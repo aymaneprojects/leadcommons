@@ -1,10 +1,18 @@
 {%- from "_macros.html" import icon -%}
-{%- from "_shell_macros.html" import sicon -%}
-{% macro nav(href, key, label, ico, soon=False) -%}
+{%- from "_shell_macros.html" import sicon, tic -%}
+{% macro nav(href, key, label, ico) -%}
 <a class="nav-link" href="{{ href }}" data-tip="{{ label }}" aria-label="{{ label }}"{% if active == key %} aria-current="page"{% endif %}>
-  {{ icon(ico) }}<span class="nav-label">{{ label }}</span>{% if soon %}<span class="badge">Soon</span>{% endif %}
+  {{ tic(ico) }}<span class="nav-label">{{ label }}</span>
 </a>
 {%- endmacro -%}
+{% macro group(key, label, ico, keys) -%}
+<div class="nav-group{% if active in keys %} has-active{% endif %}" data-nav-group="{{ key }}">
+  <button class="nav-group-btn" type="button" data-group="{{ key }}" aria-expanded="true" data-tip="{{ label }}">{{ tic(ico) }}<span>{{ label }}</span>{{ tic("chevron-down", "sm chev") }}</button>
+  <div class="nav-items">{{ caller() }}</div>
+</div>
+{%- endmacro -%}
+{% set hub = hub_stats(request) %}
+{% set hub_pct = (hub[0] * 100 // hub[1]) if hub[1] else 0 %}
 <!doctype html>
 <html lang="en" data-theme="dark">
 <head>
@@ -16,42 +24,60 @@
 <div class="app{% block app_class %}{% endblock %}">
   {% block sidebar %}
   <aside class="sidebar" aria-label="Sidebar">
-    <a class="brand" href="/" aria-label="LeadCommons home"><span class="logo" aria-hidden="true">LC</span><span class="brand-name">LeadCommons</span></a>
+    <div class="side-top">
+      <a class="brand" href="/" aria-label="LeadCommons home"><span class="logo" aria-hidden="true">LC</span><span class="brand-name">LeadCommons</span></a>
+      <button class="collapse-btn" type="button" data-collapse aria-expanded="true" aria-label="Collapse sidebar" data-tip="Expand sidebar">{{ tic("chevrons-left") }}</button>
+    </div>
     <nav aria-label="Main">
-      {{ nav("/", "home", "Home", "house") }}
+      <div class="nav-home">
+        {{ nav("/", "home", "Home", "house") }}
+        <a class="nav-phone" href="/calls" aria-label="Calls" data-tip="Calls"{% if active == 'calls' %} aria-current="page"{% endif %}>{{ tic("phone") }}</a>
+      </div>
       {{ nav("/assistant", "assistant", "Assistant", "sparkles") }}
-      <div class="nav-group">
-        <button class="nav-group-btn" type="button" data-group="prospect" aria-expanded="true">{{ icon("chevron-down", "sm") }}<span>Prospect</span></button>
-        <div class="nav-items">
-          {{ nav("/people", "people", "People", "users") }}
-          {{ nav("/companies", "companies", "Companies", "building-2") }}
-          {{ nav("/lists", "lists", "Lists", "list") }}
-          {{ nav("/enrich", "enrich", "Enrichment", "file-up") }}
-        </div>
-      </div>
-      <div class="nav-group">
-        <button class="nav-group-btn" type="button" data-group="engage" aria-expanded="true">{{ icon("chevron-down", "sm") }}<span>Engage</span></button>
-        <div class="nav-items">
-          {{ nav("/sequences", "sequences", "Sequences", "send", True) }}
-          {{ nav("/emails", "emails", "Emails", "mail", True) }}
-          {{ nav("/tasks", "tasks", "Tasks", "square-check-big", True) }}
-        </div>
-      </div>
-      <div class="nav-group">
-        <button class="nav-group-btn" type="button" data-group="pipeline" aria-expanded="true">{{ icon("chevron-down", "sm") }}<span>Pipeline</span></button>
-        <div class="nav-items">
-          {{ nav("/deals", "deals", "Deals", "handshake", True) }}
-        </div>
-      </div>
+      <hr class="nav-sep">
+      {% call group("prospect", "Prospect and enrich", "search", ["people", "companies", "lists", "enrich"]) %}
+        {{ nav("/people", "people", "People", "users") }}
+        {{ nav("/companies", "companies", "Companies", "building-2") }}
+        {{ nav("/lists", "lists", "Lists", "list") }}
+        {{ nav("/enrich", "enrich", "Data enrichment", "file-up") }}
+      {% endcall %}
+      {% call group("engage", "Engage", "send", ["sequences", "emails", "calls", "tasks"]) %}
+        {{ nav("/sequences", "sequences", "Sequences", "send") }}
+        {{ nav("/emails", "emails", "Emails", "mail") }}
+        {{ nav("/calls", "calls", "Calls", "phone") }}
+        {{ nav("/tasks", "tasks", "Tasks", "square-check-big") }}
+      {% endcall %}
+      {% call group("deals", "Win deals", "handshake", ["meetings", "conversations", "deals"]) %}
+        {{ nav("/meetings", "meetings", "Meetings", "calendar") }}
+        {{ nav("/conversations", "conversations", "Conversations", "messages-square") }}
+        {{ nav("/deals", "deals", "Deals", "handshake") }}
+      {% endcall %}
+      {% call group("tools", "Tools and automation", "workflow", ["workflows", "analytics", "integrations"]) %}
+        {{ nav("/workflows", "workflows", "Workflows", "workflow") }}
+        {{ nav("/analytics", "analytics", "Analytics", "chart-column") }}
+        {{ nav("/settings/integrations", "integrations", "Integrations", "plug") }}
+      {% endcall %}
     </nav>
     <div class="nav-spacer"></div>
-    <a class="gs-card{% if active == 'onboarding' %} current{% endif %}" href="/onboarding" data-tip="Getting started" aria-label="Getting started, {{ tasks_done }} of {{ tasks|length }} done">
-      <div class="t"><b>{{ icon("rocket", "sm") }}<span class="gs-extra"> Getting started</span></b><span>{{ tasks_done }}/{{ tasks|length }}</span></div>
-      <div class="progress" role="progressbar" aria-label="Getting started progress" aria-valuemin="0" aria-valuemax="{{ tasks|length }}" aria-valuenow="{{ tasks_done }}"><i style="width: {{ (tasks_done * 100 // (tasks|length)) }}%"></i></div>
+    <a class="gs-card{% if active == 'onboarding' %} current{% endif %}" href="/onboarding" data-tip="Onboarding hub, {{ hub_pct }}% completed" aria-label="Onboarding hub, {{ hub_pct }}% completed">
+      <div class="t"><b class="gs-extra">Onboarding hub</b><span class="gs-ico">{{ tic("rocket", "sm") }}</span></div>
+      <div class="progress" role="progressbar" aria-label="Onboarding progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ hub_pct }}"><i style="width: {{ hub_pct }}%"></i></div>
+      <div class="gs-pct gs-extra">{{ hub_pct }}% Completed</div>
     </a>
-    {{ nav("/settings/email-health", "email-health", "Email health", "heart-pulse") }}
-    {{ nav("/settings", "settings", "Settings", "settings") }}
-    <button class="collapse-btn" type="button" data-collapse aria-expanded="true" data-tip="Expand sidebar">{{ icon("panel-left") }}<span>Collapse</span></button>
+    {{ nav("/settings/email-health", "email-health", "Email setup and health", "heart-pulse") }}
+    <div class="set-pop-wrap">
+      <button class="nav-link set-pop-btn" type="button" data-settings-pop aria-expanded="false" aria-controls="settings-pop" data-tip="Settings"{% if active == 'settings' %} aria-current="page"{% endif %}>{{ tic("settings") }}<span class="nav-label">Settings</span>{{ tic("chevron-right", "sm chev-r") }}</button>
+      <div class="menu set-pop" id="settings-pop" hidden role="menu" aria-label="Settings shortcuts">
+        <div class="sp-head">Workspace setup<span class="muted">{{ hub_pct }}% Completed</span><div class="progress"><i style="width: {{ hub_pct }}%"></i></div></div>
+        <a class="menu-item" role="menuitem" href="/settings/mailboxes">{{ tic("mail") }} Mailboxes</a>
+        <a class="menu-item" role="menuitem" href="/settings/data-packs">{{ tic("database") }} Data packs</a>
+        <a class="menu-item" role="menuitem" href="/settings/privacy">{{ tic("shield-check") }} Privacy and opt-out</a>
+        <a class="menu-item" role="menuitem" href="/settings/api">{{ tic("key-round") }} API tokens</a>
+        <a class="menu-item" role="menuitem" href="/settings/integrations">{{ tic("plug") }} Integrations</a>
+        <div class="menu-sep"></div>
+        <a class="menu-item" role="menuitem" href="/settings">{{ tic("settings") }} All settings</a>
+      </div>
+    </div>
   </aside>
   {% endblock %}
 
@@ -59,8 +85,8 @@
     <header class="topbar">
       <form class="topsearch" action="/companies" method="get" role="search">
         {{ icon("search") }}
-        <label class="sr-only" for="shell-topsearch">Search companies or jump to a page</label>
-        <input id="shell-topsearch" type="search" name="q" placeholder="Search companies, or jump to a page…" autocomplete="off" data-palette-open>
+        <label class="sr-only" for="shell-topsearch">Search or ask a question in LeadCommons</label>
+        <input id="shell-topsearch" type="search" name="q" placeholder="Search or ask a question in LeadCommons" autocomplete="off" data-palette-open>
         <span class="kbd" aria-hidden="true" data-kbd>Ctrl K</span>
       </form>
       <div class="top-right">
@@ -71,26 +97,30 @@
           <div class="menu" id="jobs-menu" hidden role="region" aria-label="Recent jobs" data-quiet
                hx-get="/partials/jobs" hx-trigger="load-jobs, every 3s [!document.getElementById('jobs-menu').hidden]" hx-swap="innerHTML"></div>
         </div>
+        <a class="btn assistant-btn" href="/assistant" data-assistant-panel aria-controls="assist-panel" aria-expanded="false">{{ tic("sparkles") }} AI Assistant</a>
         <div class="notif">
           <button class="btn ghost icon-only notif-btn" type="button" data-notif-toggle aria-expanded="false" aria-controls="notif-menu" aria-label="Notifications">
             {{ icon("bell") }}<span class="notif-badge" data-notif-badge hidden></span>
           </button>
           <div class="menu notif-menu" id="notif-menu" hidden role="region" aria-label="Notifications" data-quiet>
             <div class="notif-head">
-              <b>Notifications</b>
+              <div class="notif-tabs" role="tablist">
+                <button class="notif-tab" type="button" role="tab" data-notif-tab="activities" aria-selected="false">Activities</button>
+                <button class="notif-tab" type="button" role="tab" data-notif-tab="notifications" aria-selected="true">Notifications</button>
+              </div>
               <span class="notif-actions">
-                <button class="btn sm ghost" type="button" data-notif-readall>{{ sicon("check-check", "sm") }} Mark all as read</button>
+                <button class="btn sm ghost" type="button" data-notif-readall>{{ tic("check-check", "sm") }} Mark all as read</button>
                 <button class="btn sm ghost icon-only" type="button" data-notif-close aria-label="Close notifications">{{ icon("x", "sm") }}</button>
               </span>
             </div>
             <div class="notif-list" id="notif-list" hx-get="/partials/notifications" hx-trigger="load, every 15s" hx-swap="innerHTML" aria-live="polite"></div>
           </div>
         </div>
-        <a class="btn accent" href="/assistant">{{ icon("sparkles") }} Assistant</a>
         <details class="dd">
           <summary class="avatar" aria-label="Account menu">U</summary>
           <div class="menu">
             <a class="menu-item" href="/settings">{{ icon("settings") }} Settings</a>
+            <a class="menu-item" href="/settings/api">{{ tic("key-round") }} API tokens</a>
             <button class="menu-item" type="button" data-theme-toggle>{{ icon("sun") }} Switch light / dark theme</button>
             <a class="menu-item" href="/opt-out">{{ icon("eye-off") }} Opt-out page</a>
             {% if settings.auth_required %}
@@ -103,7 +133,7 @@
     <main id="main" class="content">
       {% if request.app.state.settings.mode == "demo" %}
       <div class="demo-banner" role="note">
-        <b>Public demo.</b> Search the open company data freely. Finding people and emails is turned off here,
+        <b>Public demo.</b> Search the open company data freely. Finding people and emails, the Assistant's website reading, webhooks and scheduled workflows are turned off here,
         and lists you save are temporary and visible to other visitors.
         <a href="https://github.com/aymaneprojects/leadcommons#install">Install LeadCommons</a> to use everything, privately, on your own machine or server.
       </div>
@@ -114,7 +144,22 @@
   </div>
 </div>
 
+<aside id="assist-panel" class="assist-panel" hidden aria-label="Assistant">
+  <button class="btn ghost icon-only assist-close" type="button" data-assistant-close aria-label="Close the Assistant">{{ icon("x") }}</button>
+  <iframe title="Assistant" data-src="/assistant?embed=1" loading="lazy"></iframe>
+</aside>
+<div class="help-fab">
+  <button class="btn help-btn" type="button" data-help-toggle aria-expanded="false" aria-controls="help-menu">{{ tic("circle-question-mark") }} Help</button>
+  <div class="menu help-menu" id="help-menu" hidden role="menu">
+    <a class="menu-item" role="menuitem" href="https://github.com/aymaneprojects/leadcommons/tree/main/docs" target="_blank" rel="noopener noreferrer">{{ tic("book-open") }} Documentation</a>
+    <button class="menu-item" type="button" role="menuitem" data-palette-open-btn>{{ tic("keyboard") }} Search and shortcuts <span class="kbd" data-kbd>Ctrl K</span></button>
+    <a class="menu-item" role="menuitem" href="/assistant">{{ tic("sparkles") }} Ask the Assistant</a>
+    <a class="menu-item" role="menuitem" href="https://github.com/aymaneprojects/leadcommons/issues" target="_blank" rel="noopener noreferrer">{{ tic("message-square") }} Report a problem</a>
+  </div>
+</div>
+
 <div id="drawer" aria-live="polite"></div>
+<div id="lc-dialog-host"></div>
 <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
 <div id="nav-tip" class="nav-tip" role="tooltip" hidden></div>
 
@@ -123,37 +168,58 @@
 <dialog id="lc-palette" class="palette" aria-label="Command palette">
   <div class="pal-search">
     {{ icon("search") }}
-    <input id="lc-palette-input" type="text" name="q" placeholder="Search companies or jump to a page…" autocomplete="off" spellcheck="false"
+    <input id="lc-palette-input" type="text" name="q" placeholder="Search or ask a question in LeadCommons" autocomplete="off" spellcheck="false"
            role="combobox" aria-expanded="true" aria-controls="lc-palette-list" aria-label="Search or jump to">
   </div>
   <div id="lc-palette-list" class="pal-list" role="listbox" aria-label="Results">
+    <div class="pal-group" data-pal-group="AI suggestions">
+      <div class="pal-head">AI suggestions</div>
+      <a class="pal-item" role="option" href="/assistant?prompt=Find%20companies%20I%20can%20sell%20to" data-top data-kw="target audience companies sell icp">{{ tic("sparkles") }}<span class="pal-label">Build your target audience</span>{{ tic("arrow-right", "sm pal-go") }}</a>
+      <a class="pal-item" role="option" href="/assistant?prompt=%2Fsite" data-top data-kw="summarise website company profile read">{{ tic("sparkles") }}<span class="pal-label">Summarise my website</span>{{ tic("arrow-right", "sm pal-go") }}</a>
+      <a class="pal-item" role="option" href="/assistant?prompt=See%20leads%20in%20my%20market" data-top data-kw="leads market people tam">{{ tic("sparkles") }}<span class="pal-label">See leads in my market</span>{{ tic("arrow-right", "sm pal-go") }}</a>
+      <a class="pal-item" role="option" href="/assistant" data-dyn="assistant" hidden>{{ tic("sparkles") }}<span class="pal-label"></span>{{ tic("arrow-right", "sm pal-go") }}</a>
+    </div>
     <div class="pal-group" data-pal-group="Pages">
       <div class="pal-head">Pages</div>
-      <a class="pal-item" role="option" href="/" data-top data-kw="home dashboard getting started">{{ icon("house") }}<span class="pal-label">Home</span></a>
-      <a class="pal-item" role="option" href="/companies" data-top data-kw="companies search find">{{ icon("building-2") }}<span class="pal-label">Companies</span></a>
-      <a class="pal-item" role="option" href="/people" data-top data-kw="people leads contacts">{{ icon("users") }}<span class="pal-label">People</span></a>
-      <a class="pal-item" role="option" href="/lists" data-top data-kw="lists saved">{{ icon("list") }}<span class="pal-label">Lists</span></a>
-      <a class="pal-item" role="option" href="/enrich" data-top data-kw="enrich enrichment csv upload">{{ icon("file-up") }}<span class="pal-label">Enrichment</span></a>
-      <a class="pal-item" role="option" href="/settings" data-top data-kw="settings preferences">{{ icon("settings") }}<span class="pal-label">Settings</span></a>
-      <a class="pal-item" role="option" href="/assistant" data-kw="assistant ai chat">{{ icon("sparkles") }}<span class="pal-label">Assistant</span></a>
-      <a class="pal-item" role="option" href="/onboarding" data-kw="getting started onboarding checklist">{{ icon("rocket") }}<span class="pal-label">Getting started</span></a>
-      <a class="pal-item" role="option" href="/settings/data-packs" data-kw="data packs sources">{{ icon("layers") }}<span class="pal-label">Data packs</span></a>
-      <a class="pal-item" role="option" href="/settings/email-health" data-kw="email health dns spf dmarc mx">{{ icon("heart-pulse") }}<span class="pal-label">Email setup and health</span></a>
-      <a class="pal-item" role="option" href="/settings/privacy" data-kw="privacy opt-out suppression">{{ icon("eye-off") }}<span class="pal-label">Privacy and opt-out</span></a>
-      <a class="pal-item" role="option" href="/sequences" data-kw="sequences outreach">{{ icon("send") }}<span class="pal-label">Sequences</span><span class="pal-sub">v0.3</span></a>
-      <a class="pal-item" role="option" href="/emails" data-kw="emails inbox">{{ icon("mail") }}<span class="pal-label">Emails</span><span class="pal-sub">v0.3</span></a>
-      <a class="pal-item" role="option" href="/tasks" data-kw="tasks todo">{{ icon("square-check-big") }}<span class="pal-label">Tasks</span><span class="pal-sub">v0.3</span></a>
-      <a class="pal-item" role="option" href="/deals" data-kw="deals pipeline">{{ icon("handshake") }}<span class="pal-label">Deals</span><span class="pal-sub">v0.3</span></a>
+      <a class="pal-item" role="option" href="/" data-kw="home dashboard getting started">{{ tic("house") }}<span class="pal-label">Home</span></a>
+      <a class="pal-item" role="option" href="/assistant" data-kw="assistant ai chat">{{ tic("sparkles") }}<span class="pal-label">Assistant</span></a>
+      <a class="pal-item" role="option" href="/people" data-kw="people leads contacts">{{ tic("users") }}<span class="pal-label">People</span></a>
+      <a class="pal-item" role="option" href="/companies" data-kw="companies search find">{{ tic("building-2") }}<span class="pal-label">Companies</span></a>
+      <a class="pal-item" role="option" href="/lists" data-kw="lists saved">{{ tic("list") }}<span class="pal-label">Lists</span></a>
+      <a class="pal-item" role="option" href="/enrich" data-kw="enrich enrichment csv upload">{{ tic("file-up") }}<span class="pal-label">Data enrichment</span></a>
+      <a class="pal-item" role="option" href="/sequences" data-kw="sequences outreach cadence">{{ tic("send") }}<span class="pal-label">Sequences</span></a>
+      <a class="pal-item" role="option" href="/emails" data-kw="emails inbox replies">{{ tic("mail") }}<span class="pal-label">Emails</span></a>
+      <a class="pal-item" role="option" href="/calls" data-kw="calls phone">{{ tic("phone") }}<span class="pal-label">Calls</span></a>
+      <a class="pal-item" role="option" href="/tasks" data-kw="tasks todo follow up">{{ tic("square-check-big") }}<span class="pal-label">Tasks</span></a>
+      <a class="pal-item" role="option" href="/meetings" data-kw="meetings calendar">{{ tic("calendar") }}<span class="pal-label">Meetings</span></a>
+      <a class="pal-item" role="option" href="/conversations" data-kw="conversations notes">{{ tic("messages-square") }}<span class="pal-label">Conversations</span></a>
+      <a class="pal-item" role="option" href="/deals" data-kw="deals pipeline board">{{ tic("handshake") }}<span class="pal-label">Deals</span></a>
+      <a class="pal-item" role="option" href="/workflows" data-kw="workflows automation automate rules">{{ tic("workflow") }}<span class="pal-label">Workflows</span></a>
+      <a class="pal-item" role="option" href="/analytics" data-kw="analytics reports numbers statistics">{{ tic("chart-column") }}<span class="pal-label">Analytics</span></a>
+      <a class="pal-item" role="option" href="/settings/integrations" data-kw="integrations webhooks mcp api">{{ tic("plug") }}<span class="pal-label">Integrations</span></a>
+      <a class="pal-item" role="option" href="/settings/api" data-kw="api tokens keys">{{ tic("key-round") }}<span class="pal-label">API tokens</span></a>
+      <a class="pal-item" role="option" href="/onboarding" data-kw="getting started onboarding hub checklist">{{ tic("rocket") }}<span class="pal-label">Onboarding hub</span></a>
+      <a class="pal-item" role="option" href="/settings" data-kw="settings preferences">{{ tic("settings") }}<span class="pal-label">Settings</span></a>
+      <a class="pal-item" role="option" href="/settings/mailboxes" data-kw="mailboxes smtp imap">{{ tic("mail") }}<span class="pal-label">Mailboxes</span></a>
+      <a class="pal-item" role="option" href="/settings/sending" data-kw="sending limits schedule">{{ tic("timer") }}<span class="pal-label">Sending</span></a>
+      <a class="pal-item" role="option" href="/settings/deal-stages" data-kw="deal stages pipeline">{{ tic("kanban") }}<span class="pal-label">Deal stages</span></a>
+      <a class="pal-item" role="option" href="/settings/data-packs" data-kw="data packs sources">{{ tic("layers") }}<span class="pal-label">Data packs</span></a>
+      <a class="pal-item" role="option" href="/settings/email-health" data-kw="email health dns spf dmarc mx verification">{{ tic("heart-pulse") }}<span class="pal-label">Email setup and health</span></a>
+      <a class="pal-item" role="option" href="/settings/privacy" data-kw="privacy opt-out suppression">{{ tic("eye-off") }}<span class="pal-label">Privacy and opt-out</span></a>
     </div>
     <div class="pal-group" data-pal-group="Actions">
       <div class="pal-head">Actions</div>
-      <a class="pal-item" role="option" href="/companies" data-dyn="companies" hidden>{{ icon("search") }}<span class="pal-label"></span></a>
-      <a class="pal-item" role="option" href="/people" data-dyn="people" hidden>{{ icon("user-search") }}<span class="pal-label"></span></a>
-      <a class="pal-item" role="option" href="/lists?create=people" data-top data-kw="create new list people">{{ icon("plus") }}<span class="pal-label">Create a people list</span></a>
-      <a class="pal-item" role="option" href="/lists?create=companies" data-top data-kw="create new list company companies">{{ icon("plus") }}<span class="pal-label">Create a company list</span></a>
-      <a class="pal-item" role="option" href="/enrich" data-kw="enrich csv upload file">{{ icon("file-up") }}<span class="pal-label">Enrich a CSV file</span></a>
-      <a class="pal-item" role="option" href="/settings/email-health" data-kw="check dns domain spf dmarc mx">{{ icon("heart-pulse") }}<span class="pal-label">Check a domain's email setup</span></a>
-      <a class="pal-item" role="option" href="#" data-theme-toggle data-kw="theme dark light mode">{{ icon("sun") }}<span class="pal-label">Switch light / dark theme</span></a>
+      <a class="pal-item" role="option" href="/companies" data-dyn="companies" hidden>{{ tic("search") }}<span class="pal-label"></span></a>
+      <a class="pal-item" role="option" href="/people" data-dyn="people" hidden>{{ tic("user-search") }}<span class="pal-label"></span></a>
+      <a class="pal-item" role="option" href="/workflows/new" data-kw="create new workflow automation">{{ tic("plus") }}<span class="pal-label">Create a workflow</span></a>
+      <a class="pal-item" role="option" href="/assistant" data-kw="new chat conversation assistant">{{ tic("message-circle") }}<span class="pal-label">Start a new chat with the Assistant</span></a>
+      <a class="pal-item" role="option" href="/lists?create=people" data-kw="create new list people">{{ tic("plus") }}<span class="pal-label">Create a people list</span></a>
+      <a class="pal-item" role="option" href="/lists?create=companies" data-kw="create new list company companies">{{ tic("plus") }}<span class="pal-label">Create a company list</span></a>
+      <a class="pal-item" role="option" href="/settings/api" data-kw="create api token key">{{ tic("key-round") }}<span class="pal-label">Create an API token</span></a>
+      <a class="pal-item" role="option" href="/settings/integrations" data-kw="add webhook endpoint">{{ tic("webhook") }}<span class="pal-label">Add a webhook</span></a>
+      <a class="pal-item" role="option" href="/enrich" data-kw="enrich csv upload file">{{ tic("file-up") }}<span class="pal-label">Enrich a CSV file</span></a>
+      <a class="pal-item" role="option" href="/settings/email-health" data-kw="check dns domain spf dmarc mx">{{ tic("heart-pulse") }}<span class="pal-label">Check a domain's email setup</span></a>
+      <a class="pal-item" role="option" href="#" data-theme-toggle data-kw="theme dark light mode">{{ tic("sun") }}<span class="pal-label">Switch light / dark theme</span></a>
     </div>
     <div id="lc-palette-remote"></div>
     <div class="pal-none" data-pal-none hidden>No match. Press Enter to search companies.</div>

@@ -1341,7 +1341,7 @@ SOON_FILTERS: tuple[dict[str, str], ...] = (
         "label": "Revenue",
         "icon": "dollar-sign",
         "col": "company",
-        "tip": "Revenue is not in the open data packs; insights only show what a company publishes.",
+        "tip": "Revenue is not in the open data packs; insights show what a company publishes.",
     },
     {
         "label": "Website visitors",
@@ -1403,6 +1403,8 @@ def _remove_url(
     return f"{base}?{q}" if q else base
 
 
+templates.env.globals["demo_reason"] = DEMO_REASON
+templates.env.filters["tel"] = lambda phone: tel_href(phone) or "#"
 templates.env.globals["remove_url"] = lambda ui, key, value: _remove_url(
     ui["base"], ui["params"], key, value
 )

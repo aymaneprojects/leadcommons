@@ -1,0 +1,10 @@
+{"offers": [
+ {"id": 11, "title": "Sales Development Representative", "department": "Sales", "location": "Amsterdam, Netherlands",
+  "city": "Amsterdam", "country": "Netherlands", "remote": false, "status": "published",
+  "careers_url": "https://acme.recruitee.com/o/sdr", "published_at": "2026-10-02 09:00:00 UTC"},
+ {"id": 12, "title": "Frontend Developer", "department": "Engineering", "location": "Utrecht",
+  "remote": true, "status": "published", "careers_url": "https://acme.recruitee.com/o/fe",
+  "created_at": "2026-10-03 09:00:00 UTC"},
+ {"id": 13, "title": "Old draft", "department": "Engineering", "status": "closed",
+  "careers_url": "https://acme.recruitee.com/o/old"}
+]}

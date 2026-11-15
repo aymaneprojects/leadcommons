@@ -1,0 +1,36 @@
+{% from "_pipeline_macros.html" import pi, pick %}
+<dialog class="pl-dlg wide" data-autoopen aria-labelledby="cl-title">
+  <form method="post" action="/calls" hx-post="/calls" hx-swap="none" hx-push-url="false" data-quiet>
+    <input type="hidden" name="next" value="{{ next }}">
+    <input type="hidden" name="deal_id" value="{{ deal_id }}">
+    <header class="pl-dlg-head"><h2 id="cl-title">Log a call</h2><button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">{{ pi("x") }}</button></header>
+    <div class="pl-dlg-body">
+      <div class="pl-grid2">
+        {{ pick("person", "cl", ref.person_name, ref.person_id, label="Who did you call?") }}
+        <div class="field"><label for="cl-phone">Number</label><input type="tel" id="cl-phone" name="phone" value="{{ phone }}" maxlength="64" placeholder="+33 1 23 45 67 89">
+          {% if phone %}<a class="hint" href="{{ pl_tel(phone) }}">{{ pi("phone", "sm") }} Open in your phone app</a>{% endif %}</div>
+      </div>
+      {{ pick("company", "cl", ref.company_name, ref.company_id) }}
+      <fieldset class="pl-outcomes"><legend>How did it go?</legend>
+        <div class="pl-choices">
+          {% for o in outcomes %}<label class="pl-choice"><input type="radio" name="outcome" value="{{ o }}" required{% if loop.first %} checked{% endif %}><span>{{ pl_outcomes[o] }}</span></label>{% endfor %}
+        </div>
+      </fieldset>
+      <div class="pl-grid3">
+        <div class="field"><label for="cl-min">Minutes</label><input type="number" id="cl-min" name="minutes" min="0" max="600" value="0"></div>
+        <div class="field"><label for="cl-sec">Seconds</label><input type="number" id="cl-sec" name="seconds" min="0" max="59" value="0"></div>
+        <label class="pl-check"><input type="checkbox" name="remember" value="1" checked><span>Remember this number for the person</span></label>
+      </div>
+      <div class="field"><label for="cl-notes">Notes</label><textarea id="cl-notes" name="notes" rows="4" maxlength="4000" placeholder="What was said, objections, what to do next"></textarea></div>
+      <div class="pl-followup">
+        <label class="pl-check"><input type="checkbox" name="followup" value="1" data-followup-toggle><span>Create a follow-up task</span></label>
+        <div class="pl-grid2 pl-followup-fields" data-followup-fields>
+          <div class="field"><label for="cl-ftitle">Task</label><input type="text" id="cl-ftitle" name="followup_title" maxlength="200" placeholder="Call back, send the proposal…"></div>
+          <div class="field"><label for="cl-fdue">Due</label><input type="date" id="cl-fdue" name="followup_due" value="{{ tomorrow.isoformat() }}"></div>
+        </div>
+        <p class="hint">Need more than a title? <button type="button" class="pl-linkbtn" data-pl-dialog="/partials/task-new?person_id={{ ref.person_id or "" }}&company_id={{ ref.company_id or "" }}">Open the full task form</button>.</p>
+      </div>
+    </div>
+    <footer class="pl-dlg-foot"><button type="button" class="btn close-dlg">Cancel</button><button type="submit" class="btn primary">Save call</button></footer>
+  </form>
+</dialog>

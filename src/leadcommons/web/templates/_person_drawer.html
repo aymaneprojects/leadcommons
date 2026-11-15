@@ -1,5 +1,5 @@
 {% from "_macros.html" import ic, avatar %}
-{% from "_search_profile.html" import addlist, contact_card, company_fields %}
+{% from "_search_profile.html" import profile_actions, contact_card, company_fields, insights_card, activity_panel %}
 {% set back = "/people/" ~ person.id %}
 {% if page_mode is not defined %}<div class="drawer-scrim" data-close-drawer></div>{% endif %}
 <article class="pe-panel drawer-inner" aria-label="Person profile">
@@ -17,13 +17,19 @@
     </div>
   </header>
   <div class="cp-actions">
-    {{ addlist("people", person.id, lists, back, "pl") }}
+    {{ profile_actions("person", person.id, back, lists, phone, tel, demo, person, company, is_saved, best is not none) }}
     <form method="post" action="/people/{{ person.id }}/find-email" hx-post="/people/{{ person.id }}/find-email" hx-swap="none" hx-push-url="false">
-      <button class="btn primary" type="submit">{{ ic("mail") }}<span>Find email</span></button>
+      <button class="btn primary" type="submit"{% if demo %} disabled data-tip="{{ demo_reason }}"{% endif %}>{{ ic("mail") }}<span>Find email</span></button>
     </form>
   </div>
+  <div class="tabs" role="tablist" data-tabs aria-label="Person sections">
+    <a href="#pe-overview" role="tab" data-tab="overview" aria-selected="true">Overview</a>
+    {% if company %}<a href="#pe-insights" role="tab" data-tab="insights" aria-selected="false">Company insights</a>{% endif %}
+    <a href="#pe-activity" role="tab" data-tab="activity" aria-selected="false">Activity</a>
+  </div>
   <div class="cp-body">
-    {{ contact_card(person, best, candidates, suppressed, opted_out, score, lists) }}
+    <div class="tab-stack" id="pe-overview" data-panel="overview">
+    {{ contact_card(person, best, candidates, suppressed, opted_out, score, lists, dnc, company, true, phone, tel, demo) }}
     <section class="card">
       <h3>Profile</h3>
       <div class="kv2">
@@ -40,5 +46,11 @@
       {{ company_fields(company) }}
     </section>
     {% endif %}
+    </div>
+    {% if company %}<div class="tab-stack" id="pe-insights" data-panel="insights">{{ insights_card(company, demo) }}</div>{% endif %}
+    <section class="card" id="pe-activity" data-panel="activity" aria-label="Activity">
+      <h3>Activity</h3>
+      {{ activity_panel("/partials/activity?person_id=" ~ person.id ~ ("&company_id=" ~ company.id if company else "")) }}
+    </section>
   </div>
 </article>

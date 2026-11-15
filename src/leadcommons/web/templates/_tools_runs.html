@@ -1,0 +1,18 @@
+{# Run history with per-step results. Needs: runs, ev_labels #}
+{% from "_shell_macros.html" import tic %}
+<div class="runs" id="runs">
+{% for r in runs %}
+<details class="run"{% if loop.first %} open{% endif %}>
+  <summary><span class="chip {{ 'ok' if r.status == 'success' else ('red' if r.status == 'failed' else ('amber' if r.status == 'partial' else 'plain')) }}">{{ r.status }}</span>
+    <b>{{ ev_labels.get(r.trigger, r.trigger|capitalize) }}</b><span class="muted">{{ r.summary }}</span><span class="muted run-when" title="{{ r.started_at.strftime('%Y-%m-%d %H:%M:%S') }} UTC">{{ ago(r.started_at) }}</span></summary>
+  {% if r.steps %}
+  <table class="data compact">
+    <thead><tr><th>Record</th><th>Step</th><th>Result</th></tr></thead>
+    <tbody>{% for s in r.steps %}<tr><td>{{ s.subject }}</td><td>{{ s.label }}</td><td><span class="dot {{ 'ok' if s.status == 'ok' else ('red' if s.status == 'failed' else 'amber') }}"></span> {{ s.detail }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% else %}<p class="muted run-none">No step ran.</p>{% endif %}
+</details>
+{% else %}
+<div class="empty"><h3>No run yet</h3><p>Use Run now to try it, or wait for its trigger.</p></div>
+{% endfor %}
+</div>

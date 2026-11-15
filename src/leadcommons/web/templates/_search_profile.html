@@ -39,6 +39,96 @@
 </div>
 {%- endmacro %}
 
+{# A 0-100 completeness meter with its breakdown (profile fields, company fields). #}
+{% macro completeness_block(title, tip, sc, label) -%}
+<div class="score pscore">
+  <div class="score-label">{{ title }} <span class="tip" tabindex="0" data-tip="{{ tip }}">{{ ic("info", "sm") }}</span></div>
+  <div class="score-top"><span class="sc-num">{{ sc.value }}</span><span class="sc-of">/ 100</span><span class="chip {{ sc.tone }}">{{ sc.label }}</span></div>
+  <div class="meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ sc.value }}" aria-label="{{ label }}"><i class="{{ sc.tone }}" style="width: {{ sc.value }}%"></i></div>
+  <details class="breakdown">
+    <summary>Show breakdown {{ ic("chevron-down", "sm") }}</summary>
+    <dl>{% for k, v in sc.rows %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endfor %}</dl>
+  </details>
+</div>
+{%- endmacro %}
+
+{# Do not contact: shows the suppression state and lets you change it. Forms post to the page
+   itself; in the drawer they swap the drawer so you stay on the search results. #}
+{% macro dnc_block(kind, rid, dnc, drawer=False, company=none) -%}
+{% set hxa = ('hx-target="#drawer" hx-swap="innerHTML" hx-push-url="false"' | safe) if drawer else "" %}
+<section class="card dnc{% if dnc.suppressed %} on{% endif %}" aria-label="Do not contact">
+  <h3>{{ ic("ban") }} Do not contact</h3>
+  {% if dnc.suppressed %}
+    <div class="optout-box" role="status">
+      {{ ic("shield-alert") }}
+      <div><b>On your do-not-contact list</b><span>{% if kind == "company" %}Everyone at <span class="mono">{{ dnc.domain }}</span> is excluded: never exported, never emailed.{% elif dnc.domain_suppressed %}The whole domain <span class="mono">{{ dnc.domain }}</span> is excluded.{% else %}This address is excluded: never exported, never emailed.{% endif %}</span></div>
+    </div>
+    {% if kind == "person" and dnc.domain_suppressed %}
+      <p class="fnote">The domain is suppressed, so this person cannot be removed alone.{% if company %} <a href="/companies/{{ company.id }}">Manage it on the company page</a>.{% endif %}</p>
+    {% else %}
+    <form method="post" action="/{{ 'people' if kind == 'person' else 'companies' }}/{{ rid }}/unsuppress" hx-post="/{{ 'people' if kind == 'person' else 'companies' }}/{{ rid }}/unsuppress" {{ hxa }}>
+      <button class="btn sm" type="submit">{{ ic("shield-check", "sm") }}<span>Remove from the list</span></button>
+    </form>
+    {% endif %}
+  {% else %}
+    <p class="muted">Not on your do-not-contact list.</p>
+    <form method="post" action="/{{ 'people' if kind == 'person' else 'companies' }}/{{ rid }}/suppress" hx-post="/{{ 'people' if kind == 'person' else 'companies' }}/{{ rid }}/suppress" {{ hxa }}>
+      {% set blocked = (kind == "person" and not dnc.address) or (kind == "company" and not dnc.domain) %}
+      <button class="btn sm" type="submit" {% if blocked %}disabled data-tip="{{ 'No email address on file. Suppress the company domain from the company page.' if kind == 'person' else 'No known domain.' }}"{% endif %}>{{ ic("shield-off", "sm") }}<span>{{ "Mark this person as do not contact" if kind == "person" else "Mark everyone at this company" }}</span></button>
+    </form>
+    <span class="fnote">{{ "Adds this person's email address to the list." if kind == "person" else "Adds the whole domain to the list." }} You can undo it here at any time.</span>
+  {% endif %}
+</section>
+{%- endmacro %}
+
+{# Actions of a profile: buttons that open the dialogs other features provide. #}
+{% macro profile_actions(kind, rid, back, lists, phone, tel, demo, person=none, company=none, is_saved=False, has_email=False) -%}
+{% set q = ("person_id=" ~ rid ~ ("&company_id=" ~ company.id if company else "")) if kind == "person" else ("company_id=" ~ rid) %}
+{{ addlist("people" if kind == "person" else "companies", rid, lists, back, "pa-" ~ rid) }}
+{% if kind == "person" %}
+<a class="btn" href="/partials/email-compose?person_id={{ rid }}" data-dlg>{{ ic("mail") }}<span>Email</span></a>
+{% endif %}
+{% if tel %}<a class="btn" href="{{ tel }}">{{ ic("phone") }}<span>Call</span></a>
+{% else %}<span class="btn off" aria-disabled="true" data-tip="No phone number known. Refresh the company insights to look for a business number.">{{ ic("phone") }}<span>Call</span></span>{% endif %}
+{% if kind == "person" %}<a class="btn" href="/partials/sequence-picker?ids={{ rid }}" data-dlg>{{ ic("send") }}<span>Add to sequence</span></a>{% endif %}
+<a class="btn" href="/partials/task-new?{{ q }}" data-dlg>{{ ic("square-check-big") }}<span>Create task</span></a>
+<details class="dd more-dd">
+  <summary class="btn" aria-label="More actions">{{ ic("ellipsis") }}<span>More</span></summary>
+  <div class="menu left">
+    {% if kind == "person" %}<a class="menu-item" href="/partials/call-log?person_id={{ rid }}" data-dlg>{{ ic("phone-call", "sm") }}<span>Log a call</span></a>{% endif %}
+    <a class="menu-item" href="/partials/deal-new?{{ q }}" data-dlg>{{ ic("handshake", "sm") }}<span>Create deal</span></a>
+    <a class="menu-item" href="/partials/note-new?{{ q }}" data-dlg>{{ ic("square-pen", "sm") }}<span>Add note</span></a>
+    <a class="menu-item" href="/partials/meeting-new?{{ q }}" data-dlg>{{ ic("calendar-plus", "sm") }}<span>Schedule meeting</span></a>
+    {% if kind == "company" %}
+    <div class="menu-sep"></div>
+    <form method="post" action="/companies/{{ rid }}/refresh-insights" hx-post="/companies/{{ rid }}/refresh-insights" hx-swap="none" hx-push-url="false">
+      <button class="menu-item" type="submit"{% if demo %} disabled data-tip="{{ demo_reason }}"{% endif %}>{{ ic("refresh-cw", "sm") }}<span>Refresh company insights</span></button>
+    </form>
+    {% endif %}
+  </div>
+</details>
+{%- endmacro %}
+
+{# Company insights: the card (tabs, refresh, tab body) comes from the data module's
+   /partials/insights and is loaded when this block is shown. Items we cannot offer lawfully
+   for free are listed below it with the reason. #}
+{% macro insights_card(c, demo=False) -%}
+<div class="ins-wrap" aria-label="Company insights">
+  <div class="ins-host" data-lazy-src="/partials/insights?company_id={{ c.id }}&amp;tab=overview" data-lazy-fail="Insights are not available in this build yet.">
+    <p class="muted">Loading insights… <a href="/partials/insights?company_id={{ c.id }}&amp;tab=overview">Open on its own</a></p>
+  </div>
+  <p class="ins-soon">
+    <span class="tab-off" aria-disabled="true" data-tip="News needs a licensed feed. LeadCommons only uses sources you can use for free.">News <span class="badge soon-badge">Soon</span></span>
+    <span class="tab-off" aria-disabled="true" data-tip="Website visitors need a tracking script on your own website. Not built yet.">Website visitors <span class="badge soon-badge">Soon</span></span>
+  </p>
+</div>
+{%- endmacro %}
+
+{# Activity timeline from the pipeline module, loaded when its tab or card is shown. #}
+{% macro activity_panel(src, title="Activity") -%}
+<div class="act-body" data-lazy-src="{{ src }}"><p class="muted">Loading activity… <a href="{{ src }}">Open on its own</a></p></div>
+{%- endmacro %}
+
 {% macro optout_notice() -%}
 <div class="optout-box" role="alert">
   {{ ic("shield-alert") }}
@@ -47,7 +137,7 @@
 {%- endmacro %}
 
 {# Contact information card, shared by the person page and the drawer. #}
-{% macro contact_card(person, best, candidates, suppressed, opted_out, score, lists) -%}
+{% macro contact_card(person, best, candidates, suppressed, opted_out, score, lists, dnc=none, company=none, drawer=False, phone=none, tel=none, demo=False) -%}
 <section class="card cinfo" aria-label="Contact information">
   <h2>Contact information</h2>
   <div class="crow">
@@ -67,7 +157,7 @@
     <div class="ca">
       {% if best and best.address not in suppressed %}<button class="btn ghost icon-only sm" type="button" data-copy="{{ best.address }}" title="Copy email" aria-label="Copy email address">{{ ic("copy", "sm") }}</button>{% endif %}
       <form method="post" action="/people/{{ person.id }}/find-email" hx-post="/people/{{ person.id }}/find-email" hx-swap="none" hx-push-url="false">
-        <button class="btn sm" type="submit">{{ "Re-check" if best else "Find email" }}</button>
+        <button class="btn sm" type="submit"{% if demo %} disabled data-tip="{{ demo_reason }}"{% endif %}>{{ "Re-check" if best else "Find email" }}</button>
       </form>
     </div>
   </div>
@@ -78,7 +168,11 @@
   {% endif %}
   <div class="crow">
     <span class="ci">{{ ic("phone") }}</span>
-    <div class="cv"><span class="muted">No phone data</span><span class="cmeta"><span class="fnote">LeadCommons does not collect phone numbers.</span></span></div>
+    <div class="cv">
+      {% if phone %}<a class="addr" href="{{ tel or '#' }}">{{ phone }}</a><span class="cmeta"><span class="chip plain">Business</span><span class="fnote">Company number from its public website.</span></span>
+      {% else %}<span class="muted">No phone data</span><span class="cmeta"><span class="fnote">LeadCommons does not collect personal phone numbers. Refresh the company insights to look for a business number.</span></span>{% endif %}
+    </div>
+    <div class="ca"><a class="btn sm" href="/partials/call-log?person_id={{ person.id }}" data-dlg>Log a call</a></div>
   </div>
   {% if person.source_urls %}
   <div class="crow">
@@ -90,8 +184,9 @@
   {% endif %}
   <hr>
   {{ score_block(score) }}
-  {% if opted_out %}{{ optout_notice() }}{% endif %}
+  {% if score.profile %}{{ completeness_block("Profile completeness", "How many of the fields we look for are filled in for this person. It says nothing about the person.", score.profile, "Profile completeness") }}{% endif %}
 </section>
+{% if dnc %}{{ dnc_block("person", person.id, dnc, drawer, company) }}{% elif opted_out %}{{ optout_notice() }}{% endif %}
 {%- endmacro %}
 
 {# Company fields with source chips: used by the company panel and the person page. #}

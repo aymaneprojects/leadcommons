@@ -3,6 +3,11 @@
 <svg class="icon {{ cls }}" aria-hidden="true" focusable="false"><use href="/static/icons/shell-sprite.svg#i-{{ name }}"></use></svg>
 {%- endmacro %}
 
+{# tic(): icon from tools-sprite.svg (every Lucide icon the tools and shell screens use) #}
+{% macro tic(name, cls="") -%}
+<svg class="icon {{ cls }}" aria-hidden="true" focusable="false"><use href="/static/icons/tools-sprite.svg#t-{{ name }}"></use></svg>
+{%- endmacro %}
+
 {% macro page_head(title, lead="") -%}
 <div class="page-head"><div><h1>{{ title }}</h1>{% if lead %}<p>{{ lead }}</p>{% endif %}</div>{{ caller() if caller else "" }}</div>
 {%- endmacro %}

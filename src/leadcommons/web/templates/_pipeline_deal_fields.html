@@ -1,0 +1,25 @@
+{# Deal field form, used by the drawer and the full page. Expects deal, stages. #}
+{% from "_pipeline_macros.html" import pi, pick %}
+<form class="pl-fields" method="post" action="/deals/{{ deal.id }}" hx-post="/deals/{{ deal.id }}" hx-swap="none" hx-push-url="false" data-quiet data-pl-dirty>
+  <input type="hidden" name="next" value="/deals/{{ deal.id }}">
+  <div class="field"><label for="df-name">Deal name</label><input type="text" id="df-name" name="name" value="{{ deal.name }}" required maxlength="200"></div>
+  <div class="pl-grid2">
+    {{ pick("company", "df", deal.company_name, deal.company_id) }}
+    {{ pick("person", "df", deal.person_name, deal.person_id, label="Contact") }}
+  </div>
+  <div class="pl-grid3">
+    <div class="field"><label for="df-amount">Amount</label><input type="text" id="df-amount" name="amount" inputmode="decimal" value="{% if deal.amount is not none %}{{ '%g' % deal.amount }}{% endif %}"></div>
+    <div class="field"><label for="df-cur">Currency</label><select id="df-cur" name="currency">{% for c in pl_currencies %}<option{% if c == deal.currency %} selected{% endif %}>{{ c }}</option>{% endfor %}</select></div>
+    <div class="field"><label for="df-close">Expected close</label><input type="date" id="df-close" name="close_date" value="{{ deal.close_date.isoformat() if deal.close_date else '' }}"></div>
+  </div>
+  <div class="pl-grid3">
+    <div class="field"><label for="df-stage">Stage</label><select id="df-stage" name="stage_id">{% for s in stages %}<option value="{{ s.id }}"{% if s.id == deal.stage_id %} selected{% endif %}>{{ s.name }}</option>{% endfor %}</select></div>
+    <div class="field"><label for="df-prob">Probability (%)</label><input type="number" id="df-prob" name="probability" min="0" max="100" value="{{ deal.probability if deal.probability is not none else '' }}"></div>
+    <div class="field"><label for="df-source">Source</label><input type="text" id="df-source" name="source" maxlength="120" value="{{ deal.source or '' }}"></div>
+  </div>
+  <div class="field"><label for="df-notes">Notes</label><textarea id="df-notes" name="notes" rows="4" maxlength="4000">{{ deal.notes or '' }}</textarea></div>
+  <div class="pl-fields-foot">
+    <button type="submit" class="btn primary">Save changes</button>
+    <button type="submit" class="btn btn-danger" formaction="/deals/{{ deal.id }}/delete" hx-post="/deals/{{ deal.id }}/delete" hx-confirm="Delete this deal? Its activity stays in the timeline.">{{ pi("trash", "sm") }} Delete</button>
+  </div>
+</form>

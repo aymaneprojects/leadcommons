@@ -1,6 +1,7 @@
 """Engage: mailboxes, sequences, outbound email, tasks. Owner: engage agent.
 
 SHARED CONTRACT (signatures used by workflows and the assistant; implement, keep them).
+The rules live in leadcommons.engage.core; the sender in leadcommons.engage.scheduler.
 """
 
 from __future__ import annotations
@@ -11,8 +12,14 @@ from typing import Any
 
 def enroll(store: Any, sequence_id: str, person_ids: list[str]) -> dict[str, int]:
     """Enroll people in a sequence. Returns {"enrolled": n, "skipped": m}; skips suppressed
-    people, people without a usable email and people already active in it."""
-    raise NotImplementedError
+    people, people without a usable email and people already active in it.
+
+    The result also breaks the skips down: duplicate, no_email, invalid_email, suppressed,
+    missing. Raises leadcommons.engage.core.EngageError when the sequence is missing or
+    archived."""
+    from leadcommons.engage.core import enroll_people
+
+    return enroll_people(store, sequence_id, list(person_ids or []))
 
 
 def create_task(
@@ -26,4 +33,14 @@ def create_task(
     kind: str = "action",
 ) -> str:
     """Create a task (kind: call, email, action, linkedin) and return its id."""
-    raise NotImplementedError
+    from leadcommons.engage.core import new_task
+
+    return new_task(
+        store,
+        title,
+        person_id=person_id,
+        company_id=company_id,
+        deal_id=deal_id,
+        due=due,
+        kind=kind,
+    )

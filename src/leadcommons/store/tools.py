@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Workflows, assistant conversations, API tokens, webhooks, notifications. Owner: tools agent.
 
 Tables live on leadcommons.store.tables.Base and are created by Store() at start-up.
@@ -46,7 +47,7 @@ def _id() -> str:
 # ------------------------------------------------------------------------------ tables
 
 
-class ConversationRow(Base):
+class AssistantConversationRow(Base):
     __tablename__ = "assistant_conversations"
 
     id: Mapped[str] = mapped_column(String(12), primary_key=True)
@@ -57,7 +58,7 @@ class ConversationRow(Base):
     )
 
 
-class MessageRow(Base):
+class AssistantMessageRow(Base):
     __tablename__ = "assistant_messages"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -246,46 +247,76 @@ class Notification:
     created_at: datetime
 
 
-def _conv(r: ConversationRow, n: int = 0) -> Conversation:
+def _conv(r: AssistantConversationRow, n: int = 0) -> Conversation:
     return Conversation(
         r.id, r.title, utc(r.created_at) or utcnow(), utc(r.updated_at) or utcnow(), n
     )
 
 
-def _msg(r: MessageRow, rating: int = 0) -> Message:
+def _msg(r: AssistantMessageRow, rating: int = 0) -> Message:
     return Message(
-        r.id, r.conversation_id, r.role, r.content, dict(r.data or {}),
-        utc(r.created_at) or utcnow(), rating,
-    )  # fmt: skip
+        r.id,
+        r.conversation_id,
+        r.role,
+        r.content,
+        dict(r.data or {}),
+        utc(r.created_at) or utcnow(),
+        rating,
+    )
 
 
 def _run(r: WorkflowRunRow) -> WorkflowRun:
     return WorkflowRun(
-        r.id, r.workflow_id, r.trigger, r.status, r.summary, list(r.steps or []),
-        utc(r.started_at) or utcnow(), utc(r.finished_at),
-    )  # fmt: skip
+        r.id,
+        r.workflow_id,
+        r.trigger,
+        r.status,
+        r.summary,
+        list(r.steps or []),
+        utc(r.started_at) or utcnow(),
+        utc(r.finished_at),
+    )
 
 
 def _wf(r: WorkflowRow, last: WorkflowRun | None = None) -> Workflow:
     return Workflow(
-        r.id, r.name, bool(r.enabled), dict(r.trigger or {}), list(r.conditions or []),
-        list(r.actions or []), dict(r.state or {}), utc(r.created_at) or utcnow(),
-        utc(r.updated_at) or utcnow(), utc(r.next_run_at), last,
-    )  # fmt: skip
+        r.id,
+        r.name,
+        bool(r.enabled),
+        dict(r.trigger or {}),
+        list(r.conditions or []),
+        list(r.actions or []),
+        dict(r.state or {}),
+        utc(r.created_at) or utcnow(),
+        utc(r.updated_at) or utcnow(),
+        utc(r.next_run_at),
+        last,
+    )
 
 
 def _hook(r: WebhookRow, last: WebhookDelivery | None = None) -> Webhook:
     return Webhook(
-        r.id, r.url, list(r.events or []), r.secret, bool(r.enabled),
-        utc(r.created_at) or utcnow(), last,
-    )  # fmt: skip
+        r.id,
+        r.url,
+        list(r.events or []),
+        r.secret,
+        bool(r.enabled),
+        utc(r.created_at) or utcnow(),
+        last,
+    )
 
 
 def _delivery(r: WebhookDeliveryRow) -> WebhookDelivery:
     return WebhookDelivery(
-        r.id, r.webhook_id, r.event, bool(r.ok), r.status_code, r.error, r.duration_ms,
+        r.id,
+        r.webhook_id,
+        r.event,
+        bool(r.ok),
+        r.status_code,
+        r.error,
+        r.duration_ms,
         utc(r.created_at) or utcnow(),
-    )  # fmt: skip
+    )
 
 
 def hash_token(token: str) -> str:
@@ -309,26 +340,33 @@ class ToolsRepo:
         cid = _id()
         now = utcnow()
         with self._sessions.begin() as s:
-            s.add(ConversationRow(id=cid, title=title[:120], created_at=now, updated_at=now))
+            s.add(
+                AssistantConversationRow(id=cid, title=title[:120], created_at=now, updated_at=now)
+            )
         return cid
 
     def get_conversation(self, cid: str) -> Conversation | None:
         with self._sessions() as s:
-            r = s.get(ConversationRow, cid)
+            r = s.get(AssistantConversationRow, cid)
             return _conv(r) if r else None
 
     def rename_conversation(self, cid: str, title: str) -> None:
         with self._sessions.begin() as s:
             s.execute(
-                update(ConversationRow).where(ConversationRow.id == cid).values(title=title[:120])
+                update(AssistantConversationRow)
+                .where(AssistantConversationRow.id == cid)
+                .values(title=title[:120])
             )
 
     def conversations(self, limit: int = 50) -> list[Conversation]:
         q = (
-            select(ConversationRow, func.count(MessageRow.id))
-            .outerjoin(MessageRow, MessageRow.conversation_id == ConversationRow.id)
-            .group_by(ConversationRow.id)
-            .order_by(ConversationRow.updated_at.desc())
+            select(AssistantConversationRow, func.count(AssistantMessageRow.id))
+            .outerjoin(
+                AssistantMessageRow,
+                AssistantMessageRow.conversation_id == AssistantConversationRow.id,
+            )
+            .group_by(AssistantConversationRow.id)
+            .order_by(AssistantConversationRow.updated_at.desc())
             .limit(limit)
         )
         with self._sessions() as s:
@@ -340,18 +378,22 @@ class ToolsRepo:
 
     def delete_conversation(self, cid: str) -> None:
         with self._sessions.begin() as s:
-            ids = list(s.scalars(select(MessageRow.id).where(MessageRow.conversation_id == cid)))
+            ids = list(
+                s.scalars(
+                    select(AssistantMessageRow.id).where(AssistantMessageRow.conversation_id == cid)
+                )
+            )
             if ids:
                 s.execute(delete(FeedbackRow).where(FeedbackRow.message_id.in_(ids)))
-            s.execute(delete(MessageRow).where(MessageRow.conversation_id == cid))
-            s.execute(delete(ConversationRow).where(ConversationRow.id == cid))
+            s.execute(delete(AssistantMessageRow).where(AssistantMessageRow.conversation_id == cid))
+            s.execute(delete(AssistantConversationRow).where(AssistantConversationRow.id == cid))
 
     def add_message(
         self, cid: str, role: str, content: str, data: dict[str, Any] | None = None
     ) -> Message:
         now = utcnow()
         with self._sessions.begin() as s:
-            row = MessageRow(
+            row = AssistantMessageRow(
                 conversation_id=cid,
                 role=role,
                 content=content,
@@ -361,13 +403,15 @@ class ToolsRepo:
             s.add(row)
             s.flush()
             s.execute(
-                update(ConversationRow).where(ConversationRow.id == cid).values(updated_at=now)
+                update(AssistantConversationRow)
+                .where(AssistantConversationRow.id == cid)
+                .values(updated_at=now)
             )
             return _msg(row)
 
     def get_message(self, message_id: int) -> Message | None:
         with self._sessions() as s:
-            r = s.get(MessageRow, message_id)
+            r = s.get(AssistantMessageRow, message_id)
             if r is None:
                 return None
             fb = s.get(FeedbackRow, message_id)
@@ -375,14 +419,16 @@ class ToolsRepo:
 
     def update_message_data(self, message_id: int, data: dict[str, Any]) -> None:
         with self._sessions.begin() as s:
-            r = s.get(MessageRow, message_id)
+            r = s.get(AssistantMessageRow, message_id)
             if r is not None:
                 r.data = dict(data)
 
     def messages(self, cid: str) -> list[Message]:
         with self._sessions() as s:
             rows = s.scalars(
-                select(MessageRow).where(MessageRow.conversation_id == cid).order_by(MessageRow.id)
+                select(AssistantMessageRow)
+                .where(AssistantMessageRow.conversation_id == cid)
+                .order_by(AssistantMessageRow.id)
             ).all()
             fb = (
                 {
@@ -435,11 +481,18 @@ class ToolsRepo:
         with self._sessions.begin() as s:
             s.add(
                 WorkflowRow(
-                    id=wid, name=name[:160], enabled=enabled, trigger=trigger,
-                    conditions=conditions, actions=actions, state={}, created_at=now,
-                    updated_at=now, next_run_at=next_run_at,
+                    id=wid,
+                    name=name[:160],
+                    enabled=enabled,
+                    trigger=trigger,
+                    conditions=conditions,
+                    actions=actions,
+                    state={},
+                    created_at=now,
+                    updated_at=now,
+                    next_run_at=next_run_at,
                 )
-            )  # fmt: skip
+            )
         return wid
 
     def update_workflow(
@@ -536,9 +589,13 @@ class ToolsRepo:
 
     def has_event_listeners(self) -> bool:
         with self._sessions() as s:
-            return bool(s.scalar(select(func.count()).select_from(WorkflowRow).where(
-                WorkflowRow.enabled.is_(True)
-            )))  # fmt: skip
+            return bool(
+                s.scalar(
+                    select(func.count())
+                    .select_from(WorkflowRow)
+                    .where(WorkflowRow.enabled.is_(True))
+                )
+            )
 
     def add_run(
         self,
@@ -551,9 +608,14 @@ class ToolsRepo:
     ) -> int:
         with self._sessions.begin() as s:
             row = WorkflowRunRow(
-                workflow_id=workflow_id, trigger=trigger[:60], status=status, summary=summary[:500],
-                steps=steps, started_at=started_at, finished_at=utcnow(),
-            )  # fmt: skip
+                workflow_id=workflow_id,
+                trigger=trigger[:60],
+                status=status,
+                summary=summary[:500],
+                steps=steps,
+                started_at=started_at,
+                finished_at=utcnow(),
+            )
             s.add(row)
             s.flush()
             rid = row.id
@@ -587,10 +649,14 @@ class ToolsRepo:
         with self._sessions.begin() as s:
             s.add(
                 WebhookRow(
-                    id=hid, url=url[:2000], events=list(events), secret=new_secret(),
-                    enabled=True, created_at=utcnow(),
+                    id=hid,
+                    url=url[:2000],
+                    events=list(events),
+                    secret=new_secret(),
+                    enabled=True,
+                    created_at=utcnow(),
                 )
-            )  # fmt: skip
+            )
         return hid
 
     def update_webhook(self, hid: str, *, url: str, events: list[str], enabled: bool) -> bool:
@@ -648,11 +714,15 @@ class ToolsRepo:
         with self._sessions.begin() as s:
             s.add(
                 WebhookDeliveryRow(
-                    webhook_id=webhook_id, event=event[:60], ok=ok, status_code=status_code,
-                    error=(error or None) and error[:300], duration_ms=duration_ms,
+                    webhook_id=webhook_id,
+                    event=event[:60],
+                    ok=ok,
+                    status_code=status_code,
+                    error=(error or None) and error[:300],
+                    duration_ms=duration_ms,
                     created_at=utcnow(),
                 )
-            )  # fmt: skip
+            )
             s.flush()
             old = list(
                 s.scalars(
@@ -681,21 +751,28 @@ class ToolsRepo:
         with self._sessions.begin() as s:
             s.add(
                 ApiTokenRow(
-                    id=tid, name=name[:120], hash=hash_token(plain), prefix=plain[:8],
+                    id=tid,
+                    name=name[:120],
+                    hash=hash_token(plain),
+                    prefix=plain[:8],
                     created_at=now,
                 )
-            )  # fmt: skip
+            )
         return plain, ApiToken(tid, name[:120], plain[:8], now)
 
     def tokens(self) -> list[ApiToken]:
         with self._sessions() as s:
             return [
                 ApiToken(
-                    r.id, r.name, r.prefix, utc(r.created_at) or utcnow(),
-                    utc(r.last_used_at), utc(r.revoked_at),
+                    r.id,
+                    r.name,
+                    r.prefix,
+                    utc(r.created_at) or utcnow(),
+                    utc(r.last_used_at),
+                    utc(r.revoked_at),
                 )
                 for r in s.scalars(select(ApiTokenRow).order_by(ApiTokenRow.created_at.desc()))
-            ]  # fmt: skip
+            ]
 
     def revoke_token(self, tid: str) -> bool:
         with self._sessions.begin() as s:

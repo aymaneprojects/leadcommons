@@ -1,0 +1,46 @@
+{# Company insights card. Context: c, ins, tab, tabs, counts, refreshing, job_id, error, demo, can_refresh ... #}
+{% set hx_url = "/partials/insights?company_id=" ~ c.id %}
+<section class="ins" id="ins-{{ c.id }}" aria-label="Company insights"
+  {% if refreshing and job_id %}hx-get="{{ hx_url }}&tab={{ tab }}&job={{ job_id }}" hx-trigger="load delay:2s" hx-target="this" hx-swap="outerHTML"{% endif %}>
+  <header class="ins-head">
+    <div class="ins-title">
+      <h3>Company insights</h3>
+      <p class="ins-state muted" role="status">
+        {% if refreshing %}<span class="ins-dot busy" aria-hidden="true"></span>Refreshing now, this takes a minute…
+        {% elif ins %}<span class="ins-dot ok" aria-hidden="true"></span>Refreshed {{ ins_ago(ins.refreshed_at) }}{% if ins.pages_crawled %} · {{ ins.pages_crawled }} page{{ "" if ins.pages_crawled == 1 else "s" }} read{% endif %}
+        {% else %}<span class="ins-dot off" aria-hidden="true"></span>Never refreshed{% endif %}
+      </p>
+    </div>
+    <form method="post" action="/api/companies/{{ c.id }}/insights/refresh?tab={{ tab }}"
+          hx-post="/api/companies/{{ c.id }}/insights/refresh?tab={{ tab }}" hx-target="#ins-{{ c.id }}" hx-swap="outerHTML" hx-push-url="false">
+      <button class="btn sm {{ '' if ins else 'primary' }}" type="submit" {% if refreshing or not can_refresh %}disabled{% endif %}
+        {% if demo %}title="{{ demo_reason }}"{% elif not c.domain %}title="No known domain"{% endif %}>
+        <svg class="icon sm {{ 'spin' if refreshing }}" aria-hidden="true" focusable="false"><use href="/static/icons/tools-sprite.svg#t-refresh-cw"></use></svg>
+        <span>{{ "Refreshing" if refreshing else "Refresh" }}</span>
+      </button>
+    </form>
+  </header>
+  {% if demo %}<p class="ins-note" role="note">{{ demo_reason }}{% if ins %} The data below was saved earlier.{% endif %}</p>{% endif %}
+  {% if error %}<p class="ins-note err" role="alert">{{ error }}</p>{% endif %}
+  <nav class="ins-tabs" role="tablist" aria-label="Insight sections">
+    {% for key, label in tabs %}
+    <a href="{{ hx_url }}&tab={{ key }}" role="tab" aria-selected="{{ 'true' if key == tab else 'false' }}"
+       hx-get="{{ hx_url }}&tab={{ key }}{% if job_id %}&job={{ job_id }}{% endif %}" hx-target="#ins-{{ c.id }}" hx-swap="outerHTML" hx-push-url="false">{{ label }}{% if counts.get(key) %}<span class="n">{{ counts[key] }}</span>{% endif %}</a>
+    {% endfor %}
+  </nav>
+  <div class="ins-body" role="tabpanel">
+    {% if not ins %}
+      <div class="ins-empty">
+        <h4>No insights yet</h4>
+        <p class="muted">Refresh reads {{ c.domain or "the company website" }}, the job board it links to and Wikidata, then shows technologies, open positions, business phone numbers and trends. Only public pages are read, and robots.txt is respected.</p>
+      </div>
+    {% else %}
+      {% include "_insights_" ~ tab ~ ".html" %}
+      {% if tab == "overview" and ins.notes %}
+      <ul class="ins-limits" aria-label="What this refresh could not find">
+        {% for n in ins.notes %}<li>{{ n }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+    {% endif %}
+  </div>
+</section>

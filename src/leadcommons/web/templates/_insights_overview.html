@@ -1,0 +1,53 @@
+<dl class="ins-rows">
+  <div class="ins-row">
+    <dt>Relevant jobs</dt>
+    <dd>
+      {% if ins.jobs.postings %}
+        <strong>{{ ins.jobs.postings|length }} open position{{ "" if ins.jobs.postings|length == 1 else "s" }}</strong>
+        <span class="muted">on {{ ins.jobs.ats|capitalize }}</span>
+        <div class="chips ins-chips">
+          {% for dept, n in jobs_view.by_department[:4] %}<span class="chip plain">{{ dept }}<span class="n">{{ n }}</span></span>{% endfor %}
+        </div>
+      {% elif ins.jobs.error %}<span class="muted">{{ ins.jobs.error }}</span>
+      {% else %}<span class="muted">No relevant jobs</span>{% endif %}
+    </dd>
+  </div>
+  <div class="ins-row">
+    <dt>Relevant technology</dt>
+    <dd>
+      {% if ins.technologies %}
+        <div class="chips ins-chips">
+          {% for t in ins.technologies[:8] %}<span class="chip plain" title="{{ t.category }}">{{ t.name }}</span>{% endfor %}
+          {% if ins.technologies|length > 8 %}<a class="chip plain" href="/partials/insights?company_id={{ c.id }}&tab=technologies" hx-get="/partials/insights?company_id={{ c.id }}&tab=technologies" hx-target="#ins-{{ c.id }}" hx-swap="outerHTML" hx-push-url="false">+{{ ins.technologies|length - 8 }} more</a>{% endif %}
+        </div>
+      {% else %}<span class="muted">No relevant technologies</span>{% endif %}
+    </dd>
+  </div>
+  <div class="ins-row">
+    <dt>Recent funding</dt>
+    <dd>
+      {% if ins.trends.listings %}
+        {% for l in ins.trends.listings[:2] %}<div>Listed on {{ l.exchange }}{% if l.ticker %} <span class="mono">{{ l.ticker }}</span>{% endif %}</div>{% endfor %}
+      {% else %}<span class="muted">No public funding data</span>{% endif %}
+    </dd>
+  </div>
+  <div class="ins-row">
+    <dt>Employees</dt>
+    <dd>
+      {% if ins.trends.employees %}
+        {% set last = ins.trends.employees[-1] %}
+        <strong>{{ fmt_int(last.count) }}</strong>{% if last.date %} <span class="muted">in {{ last.date[:4] }} (Wikidata)</span>{% endif %}
+        {% if growth_1y is not none %}<span class="chip {{ 'ok' if growth_1y >= 0 else 'red' }}">{{ "%+.1f"|format(growth_1y) }}% in 1 year</span>{% endif %}
+      {% else %}<span class="muted">No public data</span>{% endif %}
+    </dd>
+  </div>
+  <div class="ins-row">
+    <dt>Business phone</dt>
+    <dd>
+      {% if ins.contact.phones %}
+        {% set p = ins.contact.phones[0] %}
+        <a class="mono" href="tel:{{ p.e164 or p.number }}">{{ p.e164 or p.number }}</a>{% if p.label %} <span class="muted">{{ p.label }}</span>{% endif %}
+      {% else %}<span class="muted">No phone number found</span>{% endif %}
+    </dd>
+  </div>
+</dl>

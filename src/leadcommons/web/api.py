@@ -10,7 +10,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
@@ -120,6 +120,50 @@ def company_find_people(
         {"domain": company.domain, "company_id": company.id},
         f"Find people at {company.domain}",
     )
+    return {"job_id": job_id}
+
+
+@router.get("/companies/{company_id}/insights")
+def company_insights(
+    company_id: str, search: Any = Depends(get_search), store: Any = Depends(get_store)
+) -> dict[str, Any]:
+    from leadcommons import insights
+
+    if search.get_company(company_id) is None:
+        raise HTTPException(404, "Company not found")
+    found = insights.get(store, company_id)
+    if found is None:
+        return {"company_id": company_id, "refreshed": False, "insights": None}
+    return {"company_id": company_id, "refreshed": True, "insights": to_jsonable(found)}
+
+
+@router.post("/companies/{company_id}/insights/refresh")
+def company_insights_refresh(
+    company_id: str,
+    request: Request,
+    search: Any = Depends(get_search),
+    jobs: Any = Depends(get_jobs),
+    settings: Any = Depends(get_settings),
+) -> Any:
+    from leadcommons.web import pages_insights
+
+    pages_insights.csrf(request)
+    company = search.get_company(company_id)
+    if company is None:
+        raise HTTPException(404, "Company not found")
+    if not settings.enrichment_enabled:
+        raise HTTPException(403, pages_insights.DEMO_REASON)
+    if not company.domain:
+        raise HTTPException(400, "Company has no known domain")
+    job_id = jobs.submit(
+        "company_insights",
+        {"company_id": company.id, "domain": company.domain},
+        f"Refresh insights for {company.name}",
+    )
+    if request.headers.get("hx-request") == "true":
+        return pages_insights.refreshing_response(
+            request, company, request.query_params.get("tab", "overview"), job_id
+        )
     return {"job_id": job_id}
 
 

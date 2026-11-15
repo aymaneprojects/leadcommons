@@ -25,6 +25,37 @@
       <button type="submit" class="btn primary" formaction="/lists/save-to" hx-post="/lists/save-to" hx-swap="none" hx-push-url="false">Save</button>
     </footer>
   </dialog>
+  <dialog id="task-dialog" class="sd narrow" aria-labelledby="td-title">
+    <header class="allf-head"><h2 id="td-title">Create tasks</h2><button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">{{ ic("x") }}</button></header>
+    <div class="sd-body">
+      <p class="sd-sub">One task for each of the <b data-sel-count>0</b> selected {{ s.kind }}.</p>
+      <label class="flabel" for="td-name">Task</label>
+      <input id="td-name" type="text" name="title" maxlength="200" placeholder="{{ 'e.g. Send intro email' if s.kind == 'people' else 'e.g. Research this account' }}" autocomplete="off">
+      <label class="flabel" for="td-kind">Type</label>
+      <select id="td-kind" name="task_kind"><option value="action">To do</option><option value="email">Email</option><option value="call">Call</option><option value="linkedin">Social message</option></select>
+      <label class="flabel" for="td-due">Due in</label>
+      <select id="td-due" name="due_days"><option value="">No due date</option><option value="0">Today</option><option value="1">1 day</option><option value="3">3 days</option><option value="7">1 week</option><option value="14">2 weeks</option></select>
+    </div>
+    <footer class="sd-foot">
+      <button type="button" class="btn close-dlg">Cancel</button>
+      <button type="submit" class="btn primary" formaction="/bulk/create-tasks" hx-post="/bulk/create-tasks" hx-swap="none" hx-push-url="false">Create tasks</button>
+    </footer>
+  </dialog>
+
+  <dialog id="ai-dialog" class="sd" aria-labelledby="ai-title" data-kind="{{ s.kind }}">
+    <header class="allf-head"><h2 id="ai-title" data-ai-title>Run a custom prompt</h2><button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">{{ ic("x") }}</button></header>
+    <div class="sd-body">
+      <p class="sd-sub" data-ai-sub>Asks your model about each of the <b data-sel-count>0</b> selected {{ s.kind }} (at most 25) and shows the answers in a temporary column.</p>
+      <label class="flabel" for="ai-prompt" data-ai-label>Your prompt</label>
+      <textarea id="ai-prompt" rows="4" maxlength="500" data-ai-prompt placeholder="{{ 'e.g. In one line, what does this company sell?' if s.kind == 'companies' else 'e.g. Write a one-line opener that mentions their role.' }}"></textarea>
+      <span class="fnote">Sent to your model: for each row its name, {{ 'domain, industry, country, size' if s.kind == 'companies' else 'title, company and domain' }}. Nothing else leaves this machine.</span>
+      <p class="ai-status muted" data-ai-status role="status" aria-live="polite"></p>
+    </div>
+    <footer class="sd-foot">
+      <button type="button" class="btn close-dlg">Cancel</button>
+      <button type="button" class="btn primary" data-ai-run>{{ ic("wand-sparkles", "sm") }}<span>Run on selected rows</span></button>
+    </footer>
+  </dialog>
 </form>
 
 <form id="savesearch" method="post" action="/searches" data-save-search-form>

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% from "_pipeline_macros.html" import pi, title, empty, dlg_btn %}
+{% from "_macros.html" import avatar %}
+{% block title %}Meetings · LeadCommons{% endblock %}
+{% block content %}
+<div class="pl-page">
+  {% call title("Meetings") %}
+    {{ dlg_btn("/partials/meeting-new", "Schedule meeting", "calendar-plus", "btn primary") }}
+  {% endcall %}
+
+  <section class="pl-booking card" aria-labelledby="bk-title">
+    <div class="pl-booking-text">
+      <h2 id="bk-title">{{ pi("link", "sm") }} Your booking link</h2>
+      <p class="muted">Paste the link to your own scheduling page (Cal.com, Calendly, a Google appointment page…). Copy it into emails and sequences so prospects can pick a time.</p>
+    </div>
+    <form class="pl-booking-form" method="post" action="/meetings/booking-link" hx-post="/meetings/booking-link" hx-swap="none" hx-push-url="false" data-quiet>
+      <input type="hidden" name="next" value="/meetings">
+      <label class="sr-only" for="bk-url">Booking link</label>
+      <input type="url" id="bk-url" name="booking_url" value="{{ booking_url }}" placeholder="https://cal.example.com/your-name" maxlength="500">
+      <button class="btn" type="submit">Save</button>
+      <button class="btn" type="button" data-copy-from="#bk-url"{% if not booking_url %} disabled{% endif %}>{{ pi("copy", "sm") }}<span>Copy</span></button>
+      {% if booking_url %}<a class="btn" href="{{ booking_url }}" target="_blank" rel="noopener noreferrer">{{ pi("external-link", "sm") }}<span>Open</span></a>{% endif %}
+    </form>
+  </section>
+
+  <div class="pl-tabs" role="navigation" aria-label="Meeting lists">
+    <a href="/meetings?tab=upcoming"{% if tab == "upcoming" %} aria-current="page"{% endif %}>Upcoming <span class="n">{{ n_upcoming }}</span></a>
+    <a href="/meetings?tab=past"{% if tab == "past" %} aria-current="page"{% endif %}>Past <span class="n">{{ n_past }}</span></a>
+  </div>
+
+  {% if n_upcoming or n_past or q %}
+  <form class="pl-toolbar" method="get" action="/meetings" role="search">
+    <input type="hidden" name="tab" value="{{ tab }}">
+    <label class="pl-search">{{ pi("search", "sm") }}<span class="sr-only">Search meetings</span><input type="search" name="q" value="{{ q }}" placeholder="Search meetings" autocomplete="off"></label>
+    <button class="btn" type="submit">Search</button>
+    {% if q %}<a class="btn ghost" href="/meetings?tab={{ tab }}">Clear</a>{% endif %}
+  </form>
+  {% endif %}
+
+  {% if meetings %}
+  <div class="table-wrap pl-wrap">
+    <table class="data pl-table">
+      <thead><tr><th>When</th><th>Meeting</th><th>With</th><th>Where</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead>
+      <tbody>
+      {% for m in meetings %}
+      <tr>
+        <td class="nowrap"><b>{{ pl_when(m.start) }}</b><span class="sub">{{ pl_hours(m.duration_min) }}</span></td>
+        <td><button type="button" class="pl-linkbtn co-name" data-pl-dialog="/partials/meeting/{{ m.id }}">{{ m.title }}</button>{% if m.agenda %}<span class="sub pl-clip">{{ m.agenda }}</span>{% endif %}</td>
+        <td>
+          {% if m.person_name %}<div>{% if m.person_id %}<a href="/people/{{ m.person_id }}">{{ m.person_name }}</a>{% else %}{{ m.person_name }}{% endif %}</div>{% endif %}
+          {% if m.company_name %}<div class="muted">{% if m.company_id %}<a href="/companies/{{ m.company_id }}">{{ m.company_name }}</a>{% else %}{{ m.company_name }}{% endif %}</div>{% endif %}
+          {% if not m.person_name and not m.company_name %}<span class="muted">—</span>{% endif %}
+        </td>
+        <td>{% if m.video_url %}<a href="{{ m.video_url }}" target="_blank" rel="noopener noreferrer">{{ pi("video", "sm") }} Video call</a>{% elif m.location %}{{ pi("map-pin", "sm") }} {{ m.location }}{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td><span class="chip {{ {'scheduled': '', 'done': 'ok', 'no_show': 'amber', 'cancelled': 'red'}.get(m.status, 'plain') }}">{{ pl_meeting_labels.get(m.status, m.status) }}</span>{% if m.outcome %}<span class="sub pl-clip" title="{{ m.outcome }}">{{ m.outcome }}</span>{% endif %}</td>
+        <td class="cell-actions">
+          <details class="dd">
+            <summary class="btn sm" aria-label="Add {{ m.title }} to a calendar">{{ pi("calendar-plus", "sm") }}<span>Calendar</span></summary>
+            <div class="menu right">
+              <a class="menu-item" href="/meetings/{{ m.id }}.ics">{{ pi("download", "sm") }}<span>Download .ics file</span></a>
+              <a class="menu-item" href="{{ pl_google_url(m) }}" target="_blank" rel="noopener noreferrer">{{ pi("external-link", "sm") }}<span>Add to Google Calendar</span></a>
+              <a class="menu-item" href="{{ pl_outlook_url(m) }}" target="_blank" rel="noopener noreferrer">{{ pi("external-link", "sm") }}<span>Add to Outlook calendar</span></a>
+            </div>
+          </details>
+          <button type="button" class="btn sm" data-pl-dialog="/partials/meeting/{{ m.id }}">{{ "Notes" if m.status != "scheduled" or tab == "past" else "Open" }}</button>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% elif q %}
+  <div class="pl-empty slim"><h2>No meetings match</h2><p class="muted">Try another search.</p></div>
+  {% elif tab == "past" %}
+  {% call empty("calendar", "No past meetings", "Meetings you hold show up here, so you can write down the outcome and next steps.") %}{% endcall %}
+  {% else %}
+  {% call empty("calendar", "No upcoming meetings", "Schedule a meeting with a person or company. You can download an .ics file or add it to Google or Outlook calendar in one click.") %}
+    {{ dlg_btn("/partials/meeting-new", "Schedule meeting", "calendar-plus", "btn primary") }}
+  {% endcall %}
+  {% endif %}
+</div>
+{% endblock %}

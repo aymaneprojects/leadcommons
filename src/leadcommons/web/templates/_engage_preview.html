@@ -1,0 +1,28 @@
+{% from "_engage_macros.html" import eic, step_icon %}
+{% if step %}
+<div class="eg-mail">
+  <div class="eg-mail-meta">
+    <span class="eg-inline-ic">{{ step_icon(step.kind, "sm") }} {{ eg_step_labels[step.kind] }}</span>
+    <span class="eg-dim">{% if who %}for {{ who }}{% else %}sample contact{% endif %}</span>
+  </div>
+  {% if missing %}
+  <p class="eg-warn-line">{{ eic("triangle-alert", "sm") }} Empty for this contact: {% for m in missing %}<code>{{ '{{' ~ m ~ '}}' }}</code>{% if not loop.last %}, {% endif %}{% endfor %}. Add a fallback like <code>{{ '{{first_name|there}}' }}</code>.</p>
+  {% endif %}
+  {% if step.is_email %}
+    <div class="eg-mail-subj">{{ subject or "(no subject)" }}</div>
+    <div class="eg-mail-body">{{ body }}</div>
+    {% if signature %}<div class="eg-mail-sig">-- <br>{{ signature }}</div>{% endif %}
+    {% if step.kind == "auto_email" %}
+    <div class="eg-mail-foot">{{ cfg.footer_text }}{% if cfg.postal_address %}<br>{{ cfg.postal_address }}{% endif %}<br><u>Unsubscribe</u></div>
+    {% else %}
+    <p class="hint">This draft becomes an email task. The footer is added when you send it.</p>
+    {% endif %}
+  {% else %}
+    {% if subject %}<div class="eg-mail-subj">{{ subject }}</div>{% endif %}
+    <div class="eg-mail-body">{{ body or "No instructions." }}</div>
+    <p class="hint">This step creates a {{ eg_step_labels[step.kind]|lower }} in <a href="/tasks">Tasks</a>.</p>
+  {% endif %}
+</div>
+{% else %}
+<p class="eg-dim">Add a step to see exactly what a contact receives.</p>
+{% endif %}
