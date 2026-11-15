@@ -61,6 +61,25 @@ numbers, opt-outs honoured everywhere, packs that contain companies only.
   INPI annual accounts. Funding rounds from SEC Form D. Job postings from public ATS feeds.
 - Domain-level email patterns learned from public pages, shipped in packs (pattern only, no names).
 
+## Closing the people and email gap: an opt-in community network
+
+Apollo's people coverage comes largely from its users: its browser extension and mailbox
+connections feed a shared "data network". The lawful version for LeadCommons, off by default:
+
+- **Shared domain intelligence (no personal data):** with the user's consent, the app sends only
+  domain-level facts it learned: `example.com uses {first}.{last}`, `example.com is catch-all`,
+  "an address in this format bounced / was delivered". No names, no addresses of people. Merged
+  monthly into the packs, this gives every user Apollo-like email accuracy on domains they never
+  visited.
+- **Shared company facts:** a user can confirm or correct a company's website, phone or industry;
+  corrections are reviewed by rules (two independent confirmations) before entering the packs.
+- **No shared people records.** Sharing third parties' names, emails or phones from users'
+  mailboxes is personal-data processing on a large scale; it stays out unless a lawyer designs
+  the consent and information model first.
+
+Measure the effect: email precision on the gold set and on users' (local, opt-in) bounce
+statistics, before and after.
+
 ## Phase 3: more countries and signals
 
 - More open registers: Brazil CNPJ, Japan corporate numbers, Switzerland Zefix, Czech ARES,
