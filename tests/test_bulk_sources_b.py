@@ -431,6 +431,15 @@ class FakeWdqs:
         self.agents.add(request.headers["User-Agent"])
         if self.fail(query):
             return httpx.Response(200, text='{"head": {"vars": ["item"]}, "results": {"bindi')
+        if "wdt:P297 ?code" in query:  # ISO code -> country item
+            codes = re.findall(r'"([A-Z]{2})"', query)
+            items = {"NO": "Q20", "AU": "Q408", "FR": "Q142", "GB": "Q145", "US": "Q30"}
+            bindings = [
+                {"country": {"type": "uri", "value": f"http://www.wikidata.org/entity/{items[c]}"},
+                 "code": {"type": "literal", "value": c}}
+                for c in codes if c in items
+            ]  # fmt: skip
+            return httpx.Response(200, json={"results": {"bindings": bindings}})
         if query.startswith("SELECT DISTINCT ?item"):
             bindings = []
             for prop in PROPERTIES:
@@ -464,14 +473,18 @@ def fake_wdqs(monkeypatch) -> FakeWdqs:
 
 def test_wikidata_queries() -> None:
     sel = {s.name: s for s in wikidata_orgs.SELECTORS}
-    q = wikidata_orgs.ids_query(sel["lei"], "07", ["no", "FR"], 10)
-    assert "wdt:P1278" in q and 'VALUES ?cc { "FR" "NO" }' in q and 'STRENDS(STR(?item), "07")' in q
-    assert q.endswith("LIMIT 10")
-    assert "?cc" not in wikidata_orgs.ids_query(sel["no_orgnr"], countries=["NO"])  # implied
+    q = wikidata_orgs.ids_query(sel["lei"], "07", ["Q20", "Q142"], 10)
+    assert "wdt:P1278" in q and "VALUES ?ctry { wd:Q142 wd:Q20 }" in q
+    assert 'STRENDS(STR(?item), "07")' in q and q.endswith("LIMIT 10")
+    one = wikidata_orgs.ids_query(sel["industry_site"], country_items=["Q408"])
+    assert one.endswith("?item wdt:P452 ?ind . ?item wdt:P856 ?site . ?item wdt:P17 wd:Q408 . }")
+    assert "P297" in wikidata_orgs.countries_query(["no", "AU"])
     with pytest.raises(ValueError):
         wikidata_orgs.ids_query(sel["lei"], "7'")
     with pytest.raises(ValueError):
-        wikidata_orgs.ids_query(sel["lei"], countries=["N0'"])
+        wikidata_orgs.ids_query(sel["lei"], country_items=["Q1 }"])
+    with pytest.raises(ValueError):
+        wikidata_orgs.countries_query(["N0'"])
     with pytest.raises(ValueError):
         wikidata_orgs.details_query(["Q1", "Q2 }"])
     d = wikidata_orgs.details_query(["Q1", "Q42"])
@@ -543,6 +556,18 @@ def test_wikidata_country_run_and_test_mode(tmp_path: Path, fake_wdqs: FakeWdqs)
     assert not any("P1278" in q or "P856 ?site . FILTER" in q for q in ids_queries)
     assert not any("wdt:P2622" in q for q in ids_queries)  # a GB-only selector
     assert all("LIMIT" not in q for q in ids_queries)  # national selectors are listed in full
+    full = FakeWdqs()
+    client = httpx.Client(transport=httpx.MockTransport(full))
+    fetch = wikidata_orgs.Fetch(
+        wikidata_orgs.Sparql(client, min_interval=0, sleep=lambda s: None),
+        tmp_path / "full",
+        frozenset({"NO"}),
+    )
+    fetch.item_ids()
+    listed = [q for q in full.queries if q.startswith("SELECT DISTINCT")]
+    worldwide = [q for q in listed if "P1278" in q or "P856 ?site" in q and "P1616" not in q]
+    assert len(worldwide) == 3  # LEI, company classes, industry: one query each for Norway
+    assert all("wdt:P17 wd:Q20 ." in q and "STRENDS" not in q for q in worldwide)
 
 
 def test_wikidata_splits_chunks_that_time_out(tmp_path: Path, monkeypatch) -> None:
@@ -561,6 +586,8 @@ def test_wikidata_splits_chunks_that_time_out(tmp_path: Path, monkeypatch) -> No
     no_rows = rows(stats.files[0])
     assert {r["wikidata_id"] for r in no_rows} >= {"Q108025", "Q697074", "Q1208134"}
     assert any('STRENDS(STR(?item), "5")' in q and "P2333" in q for q in server.queries)
+    unsplit = [q for q in server.queries if "wdt:P2333 ?id" in q and "STRENDS" not in q]
+    assert len(unsplit) == 2  # a timed-out query is retried once, then split
     assert "chunks failed" not in stats.notes
 
 

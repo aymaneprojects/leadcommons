@@ -277,6 +277,8 @@ def generate(rows: int, out: Path, stamp: str = "20261201") -> None:
     out.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect()
     con.execute("SET preserve_insertion_order = false")
+    # spill next to the output, not into '.tmp' of the current directory
+    con.execute(f"SET temp_directory = {_q(str(out / '.duckdb-tmp'))}")
     countries = []
     offset = 100_000_000
     for cc, share in COUNTRY_SHARE.items():

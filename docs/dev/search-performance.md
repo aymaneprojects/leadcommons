@@ -46,24 +46,76 @@ Before: the previous `DuckDBCompanySearch` (a view over `read_parquet` of every 
 and `LIKE` per request), DuckDB defaults (memory limit 80% of RAM, 4 threads).
 After: the local index, memory limit 512 MB (the default on an 8 GB laptop), 4 threads.
 
-| query path | before p50 | before p95 | after p50 | after p95 |
-|---|---:|---:|---:|---:|
-| results page (count + 25 rows), all filters | 820 ms | 3,732 ms | AFTER | AFTER |
-| … browse | 1,175 ms | 1,223 ms | AFTER | AFTER |
-| … country | 410 ms | 812 ms | AFTER | AFTER |
-| … country + industry + size | 615 ms | 1,063 ms | AFTER | AFTER |
-| … region / city | 778 ms | 1,392 ms | AFTER | AFTER |
-| … text | 3,501 ms | 3,732 ms | AFTER | AFTER |
-| … keywords | 3,036 ms | 5,467 ms | AFTER | AFTER |
-| facets (3 lists) | 311 ms | 2,221 ms | AFTER | AFTER |
-| full /companies request | 1,503 ms | 5,961 ms | AFTER | AFTER |
-| sorted by name (scan 5,000 rows) | 16,312 ms | 25,025 ms | AFTER | AFTER |
-| get_company(id) | 47 ms | 60 ms | AFTER | AFTER |
-| lookup by domain | 62 ms | 78 ms | AFTER | AFTER |
-| lookup by registry number (before: column scan, no API) | 64 ms | 76 ms | AFTER | AFTER |
-| place suggestions | 207 ms | 223 ms | AFTER | AFTER |
+| query path | before p50 | before p95 | after p50 | after p95 | after p95, 2 threads |
+|---|---:|---:|---:|---:|---:|
+| results page (count + 25 rows), all filters | 820 ms | 3,732 ms | 56 ms | 285 ms | 510 ms |
+| … browse | 1,175 ms | 1,223 ms | 46 ms | 99 ms | 193 ms |
+| … country | 410 ms | 812 ms | 10 ms | 50 ms | 60 ms |
+| … country + industry + size | 615 ms | 1,063 ms | 13 ms | 39 ms | 51 ms |
+| … region / city | 778 ms | 1,392 ms | 158 ms | 285 ms | 512 ms |
+| … text | 3,501 ms | 3,732 ms | 234 ms | 302 ms | 552 ms |
+| … keywords | 3,036 ms | 5,467 ms | 199 ms | 322 ms | 502 ms |
+| facets (3 lists) | 311 ms | 2,221 ms | 4 ms | 127 ms | 245 ms |
+| full /companies request | 1,503 ms | 5,961 ms | 165 ms | 325 ms | 575 ms |
+| sorted by name (scan 5,000 rows) | 16,312 ms | 25,025 ms | 194 ms | 306 ms | 437 ms |
+| get_company(id) | 47 ms | 60 ms | 9 ms | 13 ms | 13 ms |
+| lookup by domain | 62 ms | 78 ms | 19 ms | 27 ms | 18 ms |
+| lookup by registry number (before: column scan, no API) | 64 ms | 76 ms | 10 ms | 105 ms | 136 ms |
+| place suggestions | 207 ms | 223 ms | 10 ms | 11 ms | 16 ms |
 
-MEMORY_AND_BUILD
+Runs differ by up to ~2x on the cold paths (what is in the OS page cache and in DuckDB's
+buffer when a query starts); the table is one full run after a fresh build. The registry-number
+p95 comes from synthetic GB numbers that repeat (those lookups return 10 companies, each a cold
+row fetch).
+
+Memory (resident size of the Python process):
+
+| | before | after, 512 MB limit | after, 512 MB, 2 threads |
+|---|---:|---:|---:|
+| after opening the search | 83 MB | 140 MB | 83 MB |
+| after all the queries | 183 MB (peak 815 MB) | 648 MB | 621 MB (peak 645 MB) |
+
+Before, DuckDB was allowed 80% of RAM; peaks grow with the data and the query (the 815 MB peak
+was on 12M rows). After, DuckDB keeps its buffer under the limit (what stays resident is mostly
+cached column blocks, which make the next query fast) and spills to disk beyond it.
+
+Building the index (once per download, in the download job):
+
+| | 12.0M rows, 8 files |
+|---|---|
+| time (4 threads, build memory 2 GB) | 73 s, of which the FR file (7M rows) ~45 s |
+| peak resident memory | 2.1 GB at the 2 GB build limit (an earlier build at a 1 GB limit peaked at 1.2 GB and took 1.6x longer) |
+| disk | 1.16 GB of indexes + 279 MB combined key table, next to 563 MB of Parquet |
+
+So a downloaded country takes about 2.5x its Parquet size on disk (Parquet plus index).
+
+## 30M rows (the "30M+ in total" case)
+
+Same benchmark on `generate --rows 30000000` (1.4 GB of Parquet; FR alone 17.4M rows, more than
+the largest real country), with the limits of a 16 GB laptop: search memory 1 GB, build memory
+1 GB, 4 threads.
+
+| query path | p50 | p95 |
+|---|---:|---:|
+| results page (count + 25 rows) | 80 ms | 582 ms |
+| results page: browse | 62 ms | 166 ms |
+| results page: country | 13 ms | 63 ms |
+| results page: country+industry+size | 19 ms | 54 ms |
+| results page: region/city | 300 ms | 745 ms |
+| results page: text | 465 ms | 587 ms |
+| results page: keywords | 355 ms | 582 ms |
+| facets (3 lists) | 6 ms | 319 ms |
+| full /companies request | 291 ms | 764 ms |
+| sorted by name (scan 5,000) | 234 ms | 376 ms |
+| get_company(id) | 8 ms | 11 ms |
+| lookup by domain | 17 ms | 20 ms |
+| lookup by registry number | 9 ms | 93 ms |
+| place suggestions | 8 ms | 11 ms |
+
+Build: 230 s for the 8 files and the combined key table, peak resident memory 1.17 GB (the sorts
+run in chunks, so the peak follows the limit, not the data). Search memory: 1.15 GB resident after
+the queries at the 1 GB limit. Disk: 3.6 GB of indexes (FR 1.7 GB, combined keys 0.7 GB) next to
+the 1.4 GB of Parquet.
 
 ## Storage design
 
@@ -103,6 +155,8 @@ Why these choices (prototype numbers on the 7M-row FR file, 4 threads):
 | ART indexes or sorted key table? | ART on id + domain + number: +666 MB on disk, 1.5-3.7 ms lookups; sorted key table: +156 MB, 2-3 ms | sorted key table |
 | zstd for text columns? | zstd on all display columns: 925 MB (sparse columns waste a block per row group); only on `sources_json` and `address`: 724 MB; none: 810 MB | zstd on the two dense display columns |
 | DuckDB block size? | 256 KB: cold row fetch 26 ms, 723 MB; 64 KB: 7.7 ms, 683 MB, same scan speed, build 1.6x longer | 64 KB |
+| one sort or chunks? | a 65.8M-key sort (30M companies) ran out of memory at a 2 GB limit: a DuckDB sort needs memory per row | big sorts run in consecutive ranges (2M companies, 6M keys; split points from a sample), appended in order |
+| two sorts (`row_number() OVER (ORDER BY ...)` + `ORDER BY`) or one? | 72 s vs 38 s for 7M rows | one sort, numbered by a streaming `row_number() OVER ()`, checked on a sample |
 | pre-normalised lower-case city/region/industry columns? | `lower(city) IN` 28 ms vs a stored `city_lc` 20 ms on 7M rows (DuckDB works on the dictionary) | not stored (smaller file) |
 
 Packs without an index are still searched: up to 300,000 rows they are loaded into the same
@@ -137,4 +191,22 @@ disk beyond it.
 
 ## What remains slow
 
-REMAINS
+- **City filters** scan the city column of every matching pack (`lower(city) IN ...`): results
+  page p95 285 ms here (512 ms on 2 threads), and the filter panel counts for a city filter scan
+  too (~130 ms). A cube that includes the city, or resolving the typed city to its spellings
+  through the `places` table, would make them instant.
+- **Free text** is a substring scan of `txt` (no word index: DuckDB's full-text extension is
+  downloaded at runtime, which the offline desktop app cannot rely on). It grows linearly with the
+  rows of the countries searched: ~0.2 s per 12M rows on 4 threads, ~0.4 s on 2.
+- **Cold row fetches**: `get_company` for a company whose data is not cached reads one 64 KB block
+  per column (~10-20 ms). Pages that call it in a loop for many saved companies would be faster
+  with `get_companies(ids)`, which fetches many in one query (not used by the pages yet).
+- **Deep pages** cost more: page N reads the first N x 25 rows of each pack (page 40: ~90 ms).
+- **Index build** takes about 45 s per 7M rows on 4 threads and up to 2 GB of memory (it spills
+  beyond the limit); it runs once per download, with progress shown in the jobs menu.
+- **Disk**: the index roughly doubles the space a country takes. The Parquet file is kept so a
+  new index format can be built without downloading again; deleting it after indexing would save
+  ~40%.
+- Packs over 300,000 rows that have no index yet (copied by hand, or an index format change after
+  an update) are searched through Parquet views at the old speed until their index is built (the
+  desktop app starts that by itself; Settings > Data packs offers a button).

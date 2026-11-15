@@ -39,15 +39,21 @@ the drops, ~15-20 MB of Parquet over ~200 country files.
 one minute of query time per minute and per client, and answers 429 (with Retry-After) beyond
 that; a query that times out while streaming can come back as HTTP 200 with a truncated JSON
 body. So: queries run one at a time, at least 1 s apart, with a User-Agent naming the project
-(and the declared contact); 429 waits for Retry-After; errors and truncated answers are retried
-with backoff, then the chunk is split: an id listing is partitioned by the last digit(s) of the
-item number (`FILTER(STRENDS(STR(?item), "7"))`, then "07", "17"...; the two big website
-selectors start with ten partitions of ~17k ids, 10-40 s each), a details batch is halved down to
-single items. After 8 failed queries in a row the run stops (endpoint down or blocking us). Every
-finished chunk is written to the work dir, so a rerun resumes where it stopped.
+(and the declared contact); 429 waits for Retry-After; network errors are retried twice with
+backoff, a timed-out query (truncated answer, HTTP 500 / 504) once. A listing that still fails is
+split by the last digits of the item number (`FILTER(STRENDS(STR(?item), "7"))`, then "07",
+"17"... down to two digits) and a details batch is halved down to single items. The worldwide run
+lists the two big website selectors in ten partitions from the start (~17k ids each, 10-40 s
+measured); a `--country` run resolves the ISO code to the country's item (Australia: Q408) and
+lists each selector in one query with `?item wdt:P17 wd:Q408` (measured: 74 s for all of
+Australia's listings, against 735 s with partitions and a join through P297). After 8 failed
+queries in a row the run stops (endpoint down or blocking us). Every finished chunk is written to
+the work dir, so a rerun resumes where it stopped.
 
-**Runtime.** Phase 1: ~40 queries, ~8 minutes. Phase 2: ~750 queries of 1-5 s, ~60 minutes.
-About 70 minutes in all for the worldwide run; a `--country` run takes minutes.
+**Runtime.** Worldwide: phase 1 ~40 queries, ~8 minutes; phase 2 ~750 queries of 1-5 s, ~60
+minutes; ~70 minutes in all. One country: Norway (11,570 items, test mode) 3 minutes, Australia
+(5,362 items, full) 2 minutes. A test run (`--limit`) lists the national-number selectors only,
+in full (~40,000 items, ~10 minutes), so its hash sample overlaps the register shards' samples.
 """
 
 from __future__ import annotations
@@ -85,7 +91,7 @@ ENDPOINT_ENV = "LEADCOMMONS_WIKIDATA_SPARQL"  # override: another WDQS-compatibl
 LABEL_LANGS = "en,mul,fr,de,es,it,nl,nb,nn,no,sv,da,fi,pt,pl,cs"
 DETAIL_BATCH = 400
 MIN_INTERVAL = 1.0  # seconds between two queries
-MAX_SUFFIX = 3  # deepest id partition: last three digits of the item number
+MAX_SUFFIX = 2  # deepest id partition: last two digits of the item number
 MAX_CONSECUTIVE_FAILURES = 8
 SLEEP: Callable[[float], None] = time.sleep  # tests replace it
 
@@ -157,23 +163,40 @@ SELECTORS: tuple[Selector, ...] = (
 def ids_query(
     selector: Selector,
     suffix: str = "",
-    countries: Iterable[str] | None = None,
+    country_items: Iterable[str] | None = None,
     limit: int | None = None,
 ) -> str:
-    """List the item ids of one selector (optionally one id partition, some countries)."""
+    """List the item ids of one selector: optionally one id partition (item numbers ending in
+    `suffix`) and the items of some countries (`country_items`: the countries' own item ids,
+    e.g. Q408 for Australia; `?item wdt:P17 wd:Q408` after the selector's patterns is fast, a
+    join through the ISO code property P297 is not)."""
     if suffix and not suffix.isdigit():
         raise ValueError(f"bad partition suffix {suffix!r}")
     parts = [selector.where]
-    if countries and selector.country is None:
-        codes = sorted({c.upper() for c in countries})
-        if not all(re.fullmatch(r"[A-Z]{2}", c) for c in codes):
-            raise ValueError(f"bad country codes: {codes}")
-        values = " ".join(f'"{c}"' for c in codes)
-        parts.append(f"?item wdt:P17 ?ctry . ?ctry wdt:P297 ?cc . VALUES ?cc {{ {values} }}")
+    if country_items:
+        qids = sorted(set(country_items))
+        if not all(_QID.fullmatch(q) for q in qids):
+            raise ValueError(f"bad country items: {qids}")
+        if len(qids) == 1:
+            parts.append(f"?item wdt:P17 wd:{qids[0]} .")
+        else:
+            values = " ".join(f"wd:{q}" for q in qids)
+            parts.append(f"?item wdt:P17 ?ctry . VALUES ?ctry {{ {values} }}")
     if suffix:
         parts.append(f'FILTER(STRENDS(STR(?item), "{suffix}"))')
     query = "SELECT DISTINCT ?item WHERE { " + " ".join(parts) + " }"
     return query + (f" LIMIT {int(limit)}" if limit else "")
+
+
+def countries_query(codes: Iterable[str]) -> str:
+    """Items whose ISO 3166-1 alpha-2 code (P297) is one of `codes`."""
+    codes = sorted({c.upper() for c in codes})
+    if not codes or not all(re.fullmatch(r"[A-Z]{2}", c) for c in codes):
+        raise ValueError(f"bad country codes: {codes}")
+    values = " ".join(f'"{c}"' for c in codes)
+    return (
+        f"SELECT ?country ?code WHERE {{ VALUES ?code {{ {values} }} ?country wdt:P297 ?code . }}"
+    )
 
 
 def details_query(qids: list[str]) -> str:
@@ -247,6 +270,7 @@ class Sparql:
     user_agent: str = rules.user_agent()
     min_interval: float = MIN_INTERVAL
     attempts: int = 3
+    timeout_attempts: int = 2  # a query that ran out of time gets one retry, then it is split
     sleep: Callable[[float], None] = time.sleep
     queries: int = 0
     failures_in_a_row: int = 0
@@ -254,7 +278,10 @@ class Sparql:
 
     def select(self, query: str) -> list[dict]:
         problem = ""
-        for attempt in range(1, self.attempts + 1):
+        budget = self.attempts
+        attempt = 0
+        while attempt < budget:
+            attempt += 1
             wait = self.min_interval - (time.monotonic() - self._last)
             if wait > 0:
                 self.sleep(wait)
@@ -273,6 +300,7 @@ class Sparql:
                         bindings = resp.json()["results"]["bindings"]
                     except (ValueError, KeyError, TypeError):
                         problem = "truncated answer (query timeout)"
+                        budget = min(budget, self.timeout_attempts)
                     else:
                         self.failures_in_a_row = 0
                         return bindings
@@ -283,10 +311,12 @@ class Sparql:
                     raise SparqlError(f"HTTP {resp.status_code}: {resp.text[:200]}")
                 else:
                     problem = f"HTTP {resp.status_code}"
+                    if resp.status_code in (500, 504):  # the endpoint's query timeout
+                        budget = min(budget, self.timeout_attempts)
             except (httpx.TransportError, httpx.TimeoutException) as exc:
                 self._last = time.monotonic()
                 problem = f"{type(exc).__name__}: {exc}"
-            if attempt < self.attempts:
+            if attempt < budget:
                 log.warning("%s: %s; retrying in %.0f s", NAME, problem, pause)
                 self.sleep(min(pause, 300.0))
         self.failures_in_a_row += 1
@@ -345,41 +375,66 @@ class Fetch:
             and not (self.limit and s.name in TEST_RUN_SKIPS)
         ]
 
+    def country_items(self) -> dict[str, list[str]]:
+        """{ISO code: the country's item ids} for the requested countries (cached)."""
+        path = self.work_dir / "ids" / self.scope() / "countries.json"
+        if path.exists():
+            return json.loads(path.read_text(encoding="utf-8"))
+        found: dict[str, list[str]] = {c: [] for c in sorted(self.countries or ())}
+        for row in self.sparql.select(countries_query(found)):
+            qid = (row.get("country") or {}).get("value", "").rsplit("/", 1)[-1]
+            code = (row.get("code") or {}).get("value", "")
+            if _QID.fullmatch(qid) and code in found:
+                found[code] = sorted({*found[code], qid}, key=lambda q: int(q[1:]))
+        _write_atomic(path, json.dumps(found))
+        return found
+
+    def chunks(self, sel: Selector) -> list[tuple[str, tuple[str, ...]]]:
+        """(label, country items) per id listing of a selector. A country run lists each
+        country in one query; a worldwide run lists the big selectors in ten partitions."""
+        if not self.countries or sel.country:
+            return [("", ())]
+        items = self.country_items()
+        missing = sorted(c for c, q in items.items() if not q)
+        if missing:
+            log.warning("%s: no Wikidata item for country codes %s", NAME, missing)
+        return [(cc, tuple(q)) for cc, q in items.items() if q]
+
     def item_ids(self) -> list[str]:
         ids_dir = self.work_dir / "ids" / self.scope()
         found: dict[str, None] = {}
         t0 = time.monotonic()
         for sel in self.selectors():
             got_sel = 0
-            pending = deque(list("0123456789") if sel.split else [""])
-            while pending:
-                suffix = pending.popleft()
-                path = ids_dir / f"{sel.name}-{suffix or 'all'}.txt"
-                if path.exists():
-                    qids = path.read_text(encoding="utf-8").split()
-                else:
-                    query = ids_query(sel, suffix, self.countries)
-                    try:
-                        rows = self.sparql.select(query)
-                    except SparqlError as exc:
-                        if len(suffix) < MAX_SUFFIX:
-                            log.warning("%s: %s ids%s failed (%s); splitting it", NAME, sel.name,
-                                        f" ending in {suffix}" if suffix else "", exc)  # fmt: skip
-                            pending.extendleft(reversed([d + suffix for d in "0123456789"]))
-                        else:
-                            log.error("%s: %s ids ending in %s skipped (%s)", NAME, sel.name,
-                                      suffix, exc)  # fmt: skip
-                            self.failed.append(f"ids {sel.name}/{suffix}")
-                        continue
-                    qids = [
-                        q
-                        for q in ((r.get("item") or {}).get("value", "").rsplit("/", 1)[-1]
-                                  for r in rows)
-                        if _QID.fullmatch(q)
-                    ]  # fmt: skip
-                    _write_atomic(path, "\n".join(qids) + "\n")
-                got_sel += len(qids)
-                found.update(dict.fromkeys(qids))
+            for cc, country in self.chunks(sel):
+                split = sel.split and not country
+                pending = deque(list("0123456789") if split else [""])
+                while pending:
+                    suffix = pending.popleft()
+                    tag = "-".join(x for x in (sel.name, cc, suffix or "all") if x)
+                    path = ids_dir / f"{tag}.txt"
+                    if path.exists():
+                        qids = path.read_text(encoding="utf-8").split()
+                    else:
+                        try:
+                            rows = self.sparql.select(ids_query(sel, suffix, country))
+                        except SparqlError as exc:
+                            if len(suffix) < MAX_SUFFIX:
+                                log.warning("%s: ids %s failed (%s); splitting it", NAME, tag, exc)
+                                pending.extendleft(reversed([d + suffix for d in "0123456789"]))
+                            else:
+                                log.error("%s: ids %s skipped (%s)", NAME, tag, exc)
+                                self.failed.append(f"ids {tag}")
+                            continue
+                        qids = [
+                            q
+                            for q in ((r.get("item") or {}).get("value", "").rsplit("/", 1)[-1]
+                                      for r in rows)
+                            if _QID.fullmatch(q)
+                        ]  # fmt: skip
+                        _write_atomic(path, "\n".join(qids) + "\n")
+                    got_sel += len(qids)
+                    found.update(dict.fromkeys(qids))
             log.info("%s: selector %s: %s ids (%s unique so far, %.0f s)", NAME, sel.name,
                      f"{got_sel:,}", f"{len(found):,}", time.monotonic() - t0)  # fmt: skip
         return list(found)

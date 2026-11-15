@@ -26,6 +26,7 @@ extension is downloaded at runtime (the desktop app works offline).
 from __future__ import annotations
 
 import contextlib
+import functools
 import hashlib
 import json
 import logging
@@ -125,6 +126,7 @@ def has_fresh_index(parquet: Path, data_dir: Path | None = None) -> bool:
 # -- DuckDB settings --------------------------------------------------------------------------
 
 
+@functools.cache
 def total_memory_bytes() -> int:
     """Physical memory of this computer (DuckDB's default limit is 80% of it)."""
     try:
@@ -238,6 +240,90 @@ def kv_metadata(con: duckdb.DuckDBPyConnection, parquet: Path) -> dict[str, str]
         return {}
 
 
+# Rows sorted in one go. A sort needs memory per row: beyond these, the rows are sorted in
+# consecutive ranges (see _ranges), so a 15M-row country builds within ~1 GB.
+SORT_CHUNK_ROWS = 2_000_000  # companies (wide rows)
+KEY_CHUNK_ROWS = 6_000_000  # key tables (narrow rows)
+
+
+def _ranges(
+    con: duckdb.DuckDBPyConnection,
+    values_sql: str,
+    expr: str,
+    total: int,
+    chunk: int,
+    params: list[Any] | None = None,
+) -> list[tuple[str, list[Any]]]:
+    """Conditions on expr that split rows into consecutive parts of about `chunk` rows, in
+    expr order (NULLs in the last part). values_sql returns the expr values of those rows;
+    the split points come from a sample (DuckDB and Python order strings the same way, by
+    code point)."""
+    if total <= chunk:
+        return [("true", [])]
+    parts = -(-total // chunk)
+    rows = con.execute(
+        f"SELECT * FROM ({values_sql}) USING SAMPLE reservoir(20000 ROWS) REPEATABLE (7)",
+        params or [],
+    ).fetchall()
+    sample = sorted(r[0] for r in rows if r[0] is not None)
+    bounds = sorted({sample[len(sample) * i // parts] for i in range(1, parts)} if sample else ())
+    if not bounds:
+        return [("true", [])]
+    out = [(f"{expr} < ?", [bounds[0]])]
+    pairs = zip(bounds[:-1], bounds[1:], strict=True)
+    out += [(f"({expr} >= ? AND {expr} < ?)", [lo, hi]) for lo, hi in pairs]
+    out.append((f"({expr} >= ? OR {expr} IS NULL)", [bounds[-1]]))
+    return out
+
+
+def _insert_companies(
+    con: duckdb.DuckDBPyConnection, schema: str, source_sql: str, names: str, streaming: bool
+) -> None:
+    """Fill companies in ORDER_SQL order with rk = position, one chunk at a time."""
+    flags = con.execute(
+        f"SELECT domain IS NULL AS a, size_range IS NULL AS b, count(*) FROM ({source_sql}) src "
+        "GROUP BY ALL ORDER BY ALL"
+    ).fetchall()
+    offset = 0
+    for a, b, n in flags:
+        flag = f"(domain IS NULL) = {bool(a)} AND (size_range IS NULL) = {bool(b)}"
+        values = f"SELECT lower(name) FROM ({source_sql}) src WHERE {flag}"
+        for cond, params in _ranges(con, values, "lower(name)", int(n), SORT_CHUNK_ROWS):
+            part = f"FROM ({source_sql}) src WHERE {flag} AND {cond}"
+            number = (
+                f"row_number() OVER () - 1 + {offset}"
+                if streaming
+                else f"row_number() OVER (ORDER BY {ORDER_SQL}) - 1 + {offset}"
+            )
+            if streaming:
+                sql = (
+                    f"INSERT INTO {schema}.companies SELECT {number} AS rk, * FROM ("
+                    f"SELECT {names}, {TXT_SQL} AS txt {part} ORDER BY {ORDER_SQL})"
+                )
+            else:
+                sql = (
+                    f"INSERT INTO {schema}.companies SELECT {number} AS rk, {names}, "
+                    f"{TXT_SQL} AS txt {part} ORDER BY {ORDER_SQL}"
+                )
+            con.execute(sql, params)
+            offset = int(con.execute(f"SELECT count(*) FROM {schema}.companies").fetchone()[0])
+
+
+def _insert_keys(
+    con: duckdb.DuckDBPyConnection, table: str, by_kind: dict[str, str], tail: str
+) -> None:
+    """Fill a key table sorted by (k, v, tail) from a query per kind (columns v, then tail)."""
+    for kind in sorted(by_kind):
+        src = by_kind[kind]
+        total = int(con.execute(f"SELECT count(*) FROM ({src})").fetchone()[0])
+        for cond, params in _ranges(con, f"SELECT v FROM ({src})", "v", total, KEY_CHUNK_ROWS):
+            con.execute(
+                f"INSERT INTO {table} SELECT '{kind}' AS k, * FROM ({src}) "
+                f"WHERE {cond} ORDER BY v, {tail}",
+                params,
+            )
+
+
 def _rk_in_order(con: duckdb.DuckDBPyConnection, schema: str, sample: int = 4000) -> bool:
     """rk follows the result order (checked on a sample of rows)."""
     rows = con.execute(
@@ -273,36 +359,31 @@ def build_tables(
     t0 = time.perf_counter()
     say("sorting companies")
     # preserve_insertion_order keeps the ORDER BY: rows are stored in rk order, so the min/max
-    # zone maps of rk (and the first page of results) need only a few row groups. One sort:
-    # row_number() OVER () numbers the sorted stream as it goes (a streaming window).
+    # zone maps of rk (and the first page of results) need only a few row groups. Big packs are
+    # sorted in consecutive chunks (a sort needs memory per row), each numbered by a streaming
+    # row_number() OVER () that continues where the previous chunk stopped.
     con.execute("SET preserve_insertion_order = true")
-    con.execute(
-        f"INSERT INTO {schema}.companies SELECT row_number() OVER () - 1 AS rk, * FROM ("
-        f"SELECT {names}, {TXT_SQL} AS txt FROM ({source_sql}) src ORDER BY {ORDER_SQL})"
-    )
-    if not _rk_in_order(con, schema):  # never seen; costs a second sort if it happens
+    _insert_companies(con, schema, source_sql, names, streaming=True)
+    if not _rk_in_order(con, schema):  # never seen; costs a second pass if it happens
         log.warning("index %s: rows numbered out of order; sorting again", schema)
         con.execute(f"DELETE FROM {schema}.companies")
-        con.execute(
-            f"INSERT INTO {schema}.companies "
-            f"SELECT row_number() OVER (ORDER BY {ORDER_SQL}) - 1 AS rk, {names}, "
-            f"{TXT_SQL} AS txt FROM ({source_sql}) src ORDER BY {ORDER_SQL}"
-        )
+        _insert_companies(con, schema, source_sql, names, streaming=False)
     rows = int(con.execute(f"SELECT count(*) FROM {schema}.companies").fetchone()[0])
     log.info("index %s: %s rows sorted in %.1f s", schema, rows, time.perf_counter() - t0)
     say("building lookups")
-    numbers = " ".join(
-        f"UNION ALL SELECT '{KEY_NUMBER}', {norm_number_sql(c)}, rk FROM {schema}.companies "
-        f"WHERE {c} IS NOT NULL AND {c} <> ''"
+    t = f"{schema}.companies"
+    numbers = " UNION ALL ".join(
+        f"SELECT {norm_number_sql(c)} AS v, rk FROM {t} WHERE {c} IS NOT NULL AND {c} <> ''"
         + (" AND company_number IS DISTINCT FROM " + c if c != "company_number" else "")
         for c in ("company_number", "siren", "cik", "lei")
     )
-    con.execute(
-        f"CREATE TABLE {schema}.keys AS SELECT k, v, rk FROM ("
-        f"SELECT '{KEY_ID}' AS k, id AS v, rk FROM {schema}.companies WHERE id IS NOT NULL "
-        f"UNION ALL SELECT '{KEY_DOMAIN}', domain, rk FROM {schema}.companies "
-        f"WHERE domain IS NOT NULL {numbers}) ORDER BY k, v, rk"
-    )
+    by_kind = {
+        KEY_DOMAIN: f"SELECT domain AS v, rk FROM {t} WHERE domain IS NOT NULL",
+        KEY_ID: f"SELECT id AS v, rk FROM {t} WHERE id IS NOT NULL",
+        KEY_NUMBER: numbers,
+    }
+    con.execute(f"CREATE TABLE {schema}.keys (k VARCHAR, v VARCHAR, rk BIGINT)")
+    _insert_keys(con, f"{schema}.keys", by_kind, "rk")
     say("counting")
     regions = int(
         con.execute(f"SELECT count(DISTINCT region) FROM {schema}.companies").fetchone()[0]
@@ -470,14 +551,18 @@ def build_global_keys(
     con = _connect_new(tmp)
     try:
         configure(con, data_dir, memory_limit or build_memory_limit(), threads)
-        parts = []
         for n, path in enumerate(indexes):
             con.execute(f"ATTACH {_q(str(path))} AS s{n} (READ_ONLY)")
-            parts.append(f"SELECT k, v, {n}::USMALLINT AS f, rk FROM s{n}.keys")
         con.execute("SET preserve_insertion_order = true")
-        con.execute(
-            f"CREATE TABLE keys AS SELECT * FROM ({' UNION ALL '.join(parts)}) ORDER BY k, v, f"
-        )
+        con.execute("CREATE TABLE keys (k VARCHAR, v VARCHAR, f USMALLINT, rk BIGINT)")
+        by_kind = {
+            kind: " UNION ALL ".join(
+                f"SELECT v, {n}::USMALLINT AS f, rk FROM s{n}.keys WHERE k = '{kind}'"
+                for n in range(len(indexes))
+            )
+            for kind in (KEY_DOMAIN, KEY_ID, KEY_NUMBER)
+        }
+        _insert_keys(con, "keys", by_kind, "f, rk")
         con.execute("CREATE TABLE files (f USMALLINT, name VARCHAR)")
         con.executemany(
             "INSERT INTO files VALUES (?, ?)", [[n, p.name] for n, p in enumerate(indexes)]

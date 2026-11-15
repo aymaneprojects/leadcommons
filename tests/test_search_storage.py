@@ -73,15 +73,19 @@ def pack_dir(tmp_path_factory) -> Path:
     return d
 
 
-@pytest.fixture(scope="module", params=["index", "memory", "raw"])
+@pytest.fixture(scope="module", params=["index", "chunked", "memory", "raw"])
 def search(request, pack_dir: Path, tmp_path_factory) -> DuckDBCompanySearch:
     kind = request.param
     d = tmp_path_factory.mktemp(kind)
     for f in pack_dir.iterdir():
         (d / f.name).write_bytes(f.read_bytes())
-    if kind == "index":
-        pack_index.ensure_index(d)
     mp = pytest.MonkeyPatch()
+    if kind == "chunked":  # sorted in many small ranges, as a 15M-row country is
+        mp.setattr(pack_index, "SORT_CHUNK_ROWS", 37)
+        mp.setattr(pack_index, "KEY_CHUNK_ROWS", 53)
+    if kind in ("index", "chunked"):
+        pack_index.ensure_index(d)
+        kind = "index"
     if kind == "raw":
         mp.setattr(duck, "MEMORY_ROWS", 0)
     s = DuckDBCompanySearch(d)
