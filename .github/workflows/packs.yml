@@ -243,6 +243,12 @@ jobs:
           files=(packs-out/*)
           if gh release view "$RELEASE" >/dev/null 2>&1; then
             gh release upload "$RELEASE" "${files[@]}" --clobber
+            # Drop pack files from an earlier build of this month that this build did not make.
+            gh release view "$RELEASE" --json assets --jq '.assets[].name' | while read -r name; do
+              case "$name" in
+                companies-*.parquet) [ -e "packs-out/$name" ] || gh release delete-asset "$RELEASE" "$name" --yes ;;
+              esac
+            done
           else
             gh release create "$RELEASE" "${files[@]}" \
               --latest=false \

@@ -349,7 +349,15 @@ def test_manifest(merged: Path) -> None:
     assert m["schema"] == 3 and m["release"] == "packs-2026-12"
     assert m["built_at"] == "2026-12-01T03:40:00+00:00"
     assert m["files"] == {"attribution": "ATTRIBUTION.md", "quality": "QUALITY.md",
-                          "quality_json": "quality.json"}  # fmt: skip
+                          "quality_json": "quality.json",
+                          "demo": "companies-0-demo-20261201.parquet"}  # fmt: skip
+    # The demo file: every country's companies, websites first; its name sorts before the
+    # country files so app versions before schema 3 pick it, and it is not a country entry.
+    demo = m["demo"]
+    assert demo["file"] == "companies-0-demo-20261201.parquet" and demo["rows"] > 0
+    demo_path = merged / demo["file"]
+    assert demo["sha256"] == hashlib.sha256(demo_path.read_bytes()).hexdigest()
+    assert sorted(p.name for p in merged.glob("companies-*.parquet"))[0] == demo["file"]
     by_cc = {c["country"]: c for c in m["countries"]}
     assert sorted(by_cc) == ["AU", "DE", "FR", "GB", "NO", "US"]
     fr_entry = by_cc["FR"]

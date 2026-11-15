@@ -654,6 +654,40 @@ def _link_country_stats(con) -> tuple[dict, dict, dict]:
     return inputs, merges, dups
 
 
+DEMO_ROWS = int(os.environ.get("LEADCOMMONS_DEMO_ROWS", "250000"))
+
+
+def _write_demo(out_dir: Path, results: list, now: datetime) -> dict | None:
+    """A small all-countries file for the public demo and for app versions before schema 3.
+
+    Old apps take the first companies-*.parquet of the newest release (the name sorts first);
+    the hosted demo has a size limit. Companies with a website come first, then larger ones.
+    """
+    import duckdb
+
+    name = f"companies-0-demo-{now:%Y%m%d}.parquet"
+    path = out_dir / name
+    files = ", ".join(lit(str(out_dir / c.file)) for c in results)
+    con = duckdb.connect()
+    try:
+        con.execute(
+            f"""COPY (
+                SELECT * FROM (
+                    SELECT * FROM read_parquet([{files}], union_by_name=true)
+                    ORDER BY (domain IS NULL), (employees IS NULL), employees DESC, name, id
+                    LIMIT {DEMO_ROWS}
+                ) ORDER BY name, id
+            ) TO {lit(str(path))} (FORMAT PARQUET, COMPRESSION ZSTD)"""
+        )
+        rows = int(
+            con.execute(f"SELECT count(*) FROM read_parquet({lit(str(path))})").fetchone()[0]
+        )
+    finally:
+        con.close()
+    log.info("merge: demo file %s, %d rows", name, rows)
+    return {"file": name, "rows": rows, "bytes": path.stat().st_size, "sha256": _file_sha256(path)}
+
+
 def merge_shards(
     shards_dir: Path,
     out_dir: Path,
@@ -792,7 +826,8 @@ def merge_shards(
         if os.environ.get("LEADCOMMONS_KEEP_WORK") != "1":
             shutil.rmtree(work, ignore_errors=True)
 
-    written = {c.file for c in results}
+    demo = _write_demo(out_dir, results, now) if results else None
+    written = {c.file for c in results} | ({demo["file"]} if demo else set())
     stale = sorted(p.name for p in out_dir.glob("companies-*.parquet") if p.name not in written)
     if stale:
         log.warning("merge: %s also holds files outside this release: %s", out_dir, stale)
@@ -809,7 +844,9 @@ def merge_shards(
             "attribution": "ATTRIBUTION.md",
             "quality": "QUALITY.md",
             "quality_json": "quality.json",
+            **({"demo": demo["file"]} if demo else {}),
         },
+        **({"demo": demo} if demo else {}),
     }
     tmp_manifest = out_dir / "manifest.json.tmp"
     tmp_manifest.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
