@@ -13,13 +13,37 @@ LeadCommons only uses public data that it is allowed to use.
 
 Each pack ships with an `ATTRIBUTION.md` listing sources and licences. Packs contain companies only, never people.
 
+## Bulk registers (monthly packs)
+
+The monthly packs are built from whole official registers, downloaded in bulk
+(`leadcommons pack sources` lists them; `leadcommons pack fetch-source <name> --out shards/`
+builds one shard). Active companies only.
+
+| Source (`name`) | Licence | Kept | Left out |
+| --- | --- | --- | --- |
+| GLEIF golden copy (`gleif_golden`), ~2.9M LEI records, worldwide | CC0 1.0 | entities with status ACTIVE and an ISSUED, LAPSED, PENDING_TRANSFER or PENDING_ARCHIVAL LEI: legal name, legal address (headquarters for US entities, whose legal address is usually a registered agent), legal form text, creation year, LEI, and the register number behind the registration authority code (`registry` + `company_number`, below) | funds, branches, sole proprietors, inactive entities, retired / merged / annulled LEIs |
+| INSEE SIRENE stock (`sirene_stock`), France | Licence Ouverte 2.0 (Etalab) | active, fully diffusible legal units with their head office: name, SIREN, address, postal code, city, region, NAF section, workforce band, creation year, legal category | units with partial diffusion; sole traders (entrepreneurs individuels), except those with a trade name that does not contain the person's name (the person's name is never written) |
+| UK Companies House basic company data (`companies_house`) | OGL v3.0 | companies with status Active registered in the UK: name, number, registered office, postcode, town, nation, company category, incorporation year, first SIC code | companies in liquidation, administration, receivership or with a proposal to strike off; overseas entities |
+| SEC EDGAR bulk submissions (`edgar_bulk`) | US public domain | operating companies with a ticker or a 10-K / 10-Q / 20-F / 40-F in the last two years: name, CIK, business address and state, SIC industry, website, business phone (E.164) | people filing insider forms, funds and other non-operating filers, shells without recent reports |
+
+GLEIF registration authority codes mapped to registers (how GLEIF records join national
+registers): RA000189 INSEE SIRENE -> `FR-SIREN`; RA000585 / RA000586 / RA000587 Companies House
+(England and Wales / Northern Ireland / Scotland) -> `GB-CH`; RA000472 / RA000473 Brønnøysund
+(Foretaksregisteret / Enhetsregisteret) -> `NO-BRREG`; RA000013 Australian Business Register ->
+`AU-ABN` (and RA000014 ASIC, whose ACN gives the company's ABN); RA000072 Corporations Canada ->
+`CA-CORP`; RA000463 KvK -> `NL-KVK`; RA000170 CVR -> `DK-CVR`.
+
+Attribution lines: "Source: INSEE, base SIRENE des entreprises"; "Contains public sector
+information from Companies House licensed under the Open Government Licence v3.0".
+
 ## SEC EDGAR contact address
 
 The SEC asks every automated client to say who it is. Set `LEADCOMMONS_CONTACT_EMAIL` before
 building a pack and LeadCommons adds it to its User-Agent; without it, EDGAR is skipped. The
 monthly workflow uses the project's GitHub no-reply address, or the repository variable
 `EDGAR_CONTACT_EMAIL` when it is set. Requests stay
-under the SEC's limit of 10 per second.
+under the SEC's limit of 10 per second. The bulk source `edgar_bulk` (one download of
+`submissions.zip`) refuses to run without a contact address.
 
 ## Build your own pack
 

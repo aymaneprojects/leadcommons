@@ -1,65 +1,231 @@
 name: Build data packs
 
+# Monthly: every bulk register source (`leadcommons pack sources`) builds one shard in its own
+# job, then one job merges the shards into per-country packs and publishes a packs-YYYY-MM
+# release. Pushing to a data/** branch runs the same pipeline in test mode (5,000 rows per
+# source, quality report and sample rows in the log, nothing published).
+
 on:
   schedule:
-    - cron: "17 3 1 * *"
+    - cron: "17 3 5 * *" # after Companies House and SIRENE publish their monthly files
   workflow_dispatch:
     inputs:
-      countries:
-        description: "Space-separated ISO country codes (empty = all)"
+      sources:
+        description: "Space-separated bulk sources to build (empty = every registered source)"
         required: false
-        default: "FR DE GB US ES IT NL BE CA MA"
+        default: ""
       limit:
-        description: "Max companies per source and country"
+        description: "Max rows per source shard (empty = whole registers)"
         required: false
-        default: "1500"
+        default: ""
+      publish:
+        description: "Publish the packs-YYYY-MM release"
+        type: boolean
+        required: false
+        default: true
+  push:
+    branches:
+      - "data/**"
 
 permissions:
   contents: read
 
 concurrency:
-  group: packs
-  cancel-in-progress: false
+  group: packs-${{ github.event_name == 'push' && github.ref || 'release' }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
-  build-pack:
+  plan:
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 15
+    outputs:
+      sources: ${{ steps.plan.outputs.sources }}
+      limit: ${{ steps.plan.outputs.limit }}
+      publish: ${{ steps.plan.outputs.publish }}
+      release: ${{ steps.plan.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install
+        run: uv sync --python 3.13 --extra build
+      - name: Plan the run
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_SOURCES: ${{ inputs.sources }}
+          INPUT_LIMIT: ${{ inputs.limit }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
+        run: |
+          uv run leadcommons pack sources
+          registered=$(uv run leadcommons pack sources --json | jq -c '[.[].name]')
+          sources="$registered"
+          if [ -n "$INPUT_SOURCES" ]; then
+            # shellcheck disable=SC2086 # split the space-separated list on purpose
+            sources=$(printf '%s\n' $INPUT_SOURCES | jq -R . | jq -cs .)
+            unknown=$(jq -cn --argjson want "$sources" --argjson have "$registered" '$want - $have')
+            if [ "$unknown" != "[]" ]; then
+              echo "::error::unknown bulk sources: $unknown (registered: $registered)"
+              exit 1
+            fi
+          fi
+          limit=""
+          publish=true
+          if [ "$EVENT" = "push" ]; then
+            limit=5000
+            publish=false
+          elif [ "$EVENT" = "workflow_dispatch" ]; then
+            limit="$INPUT_LIMIT"
+            publish="$INPUT_PUBLISH"
+          fi
+          {
+            echo "sources=$sources"
+            echo "limit=$limit"
+            echo "publish=$publish"
+            echo "release=packs-$(date -u +%Y-%m)"
+          } >> "$GITHUB_OUTPUT"
+          echo "sources=$sources limit=${limit:-none} publish=$publish"
+
+  fetch:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        source: ${{ fromJSON(needs.plan.outputs.sources) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install
+        run: uv sync --python 3.13 --extra build
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL || true
+          df -h /
+      - name: Fetch ${{ matrix.source }}
+        env:
+          SOURCE: ${{ matrix.source }}
+          LIMIT: ${{ needs.plan.outputs.limit }}
+          # SEC EDGAR asks every client to declare a contact address in its User-Agent.
+          # The repository variable EDGAR_CONTACT_EMAIL overrides the project's GitHub no-reply address.
+          LEADCOMMONS_CONTACT_EMAIL: ${{ vars.EDGAR_CONTACT_EMAIL || '181950936+aymaneprojects@users.noreply.github.com' }}
+          # 16 GB runners: leave room for Python and the page cache; DuckDB spills to the work dir.
+          LEADCOMMONS_DUCKDB_MEMORY: 10GB
+        run: |
+          # Raw downloads go to the runner's large scratch disk when there is one.
+          work="$RUNNER_TEMP/bulk-work"
+          if [ -d /mnt ] && sudo mkdir -p /mnt/bulk-work && sudo chown "$(id -u):$(id -g)" /mnt/bulk-work; then
+            work=/mnt/bulk-work
+          fi
+          df -h "$(dirname "$work")"
+          args=(--out shards --work "$work")
+          if [ -n "$LIMIT" ]; then
+            args+=(--limit "$LIMIT")
+          fi
+          uv run leadcommons pack fetch-source "$SOURCE" "${args[@]}"
+          rm -rf "$work"
+          ls -l shards
+      - name: Shard summary
+        run: |
+          uv run python - <<'PY'
+          import glob
+
+          import duckdb
+
+          for path in sorted(glob.glob("shards/*.parquet")):
+              con = duckdb.connect()
+              print(f"== {path}")
+              con.sql(
+                  f"SELECT country, count(*) AS rows, count(registry) AS with_registry, "
+                  f"count(lei) AS with_lei, count(domain) AS with_domain, count(postal_code) AS "
+                  f"with_postcode FROM read_parquet('{path}') GROUP BY country "
+                  f"ORDER BY rows DESC LIMIT 20"
+              ).show()
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shard-${{ matrix.source }}
+          path: shards/*.parquet
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  merge:
+    needs: [plan, fetch]
+    # Runs with the shards that were built, so a test run shows results even if a source broke;
+    # the release is only published when every source succeeded.
+    if: ${{ !cancelled() && needs.plan.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
       - name: Install
         run: uv sync --python 3.13 --extra build
-      - name: Build pack
-        env:
-          COUNTRIES: ${{ inputs.countries || 'FR DE GB US ES IT NL BE CA MA' }}
-          LIMIT: ${{ inputs.limit || '1500' }}
-          # SEC EDGAR asks every client to declare a contact address in its User-Agent.
-          # The repository variable EDGAR_CONTACT_EMAIL overrides the project's GitHub no-reply address.
-          LEADCOMMONS_CONTACT_EMAIL: ${{ vars.EDGAR_CONTACT_EMAIL || '181950936+aymaneprojects@users.noreply.github.com' }}
+      - name: Free disk space
         run: |
-          args=()
-          for c in $COUNTRIES; do args+=(--country "$c"); done
-          uv run leadcommons pack build "${args[@]}" --limit "$LIMIT" --out packs-out
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL || true
+          df -h /
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: shard-*
+          path: shards
+          merge-multiple: true
+      - name: Merge shards
+        env:
+          RELEASE: ${{ needs.plan.outputs.release }}
+        run: |
+          ls -l shards
+          uv run leadcommons pack merge shards --out packs-out --release "$RELEASE"
           ls -l packs-out
+      - name: Quality report
+        run: uv run leadcommons pack quality packs-out
+      - name: Sample rows
+        if: needs.plan.outputs.publish != 'true'
+        run: |
+          uv run python - <<'PY'
+          import glob
+
+          import duckdb
+
+          cols = "name, city, postal_code, registry, company_number, lei, cik, domain, industry"
+          for path in sorted(glob.glob("packs-out/companies-*.parquet")):
+              con = duckdb.connect()
+              print(f"== {path}")
+              con.sql(f"SELECT {cols} FROM read_parquet('{path}') USING SAMPLE 5 ROWS").show()
+              con.sql(
+                  f"SELECT {cols}, sources_json FROM read_parquet('{path}') "
+                  "WHERE json_array_length(sources_json) > 1 LIMIT 3"
+              ).show()
+          PY
       - name: Publish release
+        if: needs.plan.outputs.publish == 'true' && needs.fetch.result == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE: ${{ needs.plan.outputs.release }}
         run: |
-          tag="packs-$(date -u +%Y-%m)"
-          parquet=$(find packs-out -maxdepth 1 -name 'companies-*.parquet' | sort | tail -n 1)
-          attribution=$(find packs-out -maxdepth 1 -name '*ATTRIBUTION*.md' | head -n 1)
-          if [ -z "$attribution" ]; then
-            attribution=packs-out/ATTRIBUTION.md
-            printf '# Attribution\n\nBuilt from open company registers. See docs/data-sources.md.\n' > "$attribution"
-          fi
-          if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" "$parquet" "$attribution" --clobber
+          files=(packs-out/*)
+          if gh release view "$RELEASE" >/dev/null 2>&1; then
+            gh release upload "$RELEASE" "${files[@]}" --clobber
           else
-            gh release create "$tag" "$parquet" "$attribution" \
+            gh release create "$RELEASE" "${files[@]}" \
               --latest=false \
-              --title "Company pack $tag" \
-              --notes "Monthly company pack built from open data. See ATTRIBUTION.md for sources and licences."
+              --title "Company packs $RELEASE" \
+              --notes "Monthly company packs built from official open registers, one file per country. See manifest.json, QUALITY.md and ATTRIBUTION.md for sources, licences and measured coverage."
           fi
+      - name: Not published
+        if: needs.plan.outputs.publish == 'true' && needs.fetch.result != 'success'
+        run: |
+          echo "::error::at least one source failed; the release was not published"
+          exit 1

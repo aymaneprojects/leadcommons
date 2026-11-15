@@ -48,6 +48,7 @@ from leadcommons.search import PACK_COLUMNS
 log = logging.getLogger(__name__)
 
 MB = 1 << 20
+REUSE_SECONDS = 2 * 86400  # a finished download left by a failed run is reused for 2 days
 RETRY_STATUSES = frozenset({408, 425, 429, 500, 502, 503, 504})
 # Environment knobs for big runs (CI runners: 16 GB RAM, ~14 GB free disk).
 MEMORY_ENV = "LEADCOMMONS_DUCKDB_MEMORY"  # e.g. "10GB"; DuckDB's default is 80% of RAM
@@ -180,7 +181,8 @@ class Columns:
         try:
             return ident(self._by_key[column_key(name)])
         except KeyError:
-            raise KeyError(f"column {name!r} not found in input (have: {self.names[:12]}...)")
+            msg = f"column {name!r} not found in input (have: {self.names[:12]}...)"
+            raise KeyError(msg) from None
 
     def get(self, name: str, default: str = "NULL") -> str:
         """The quoted column, or `default` (a SQL expression) when the input lacks it."""
@@ -212,7 +214,7 @@ def csv_header(path: Path, delimiter: str = ",") -> list[str]:
 
 
 def csv_source(
-    paths: Path | Sequence[Path], rejects: str, *, delimiter: str = ","
+    paths: Path | Sequence[Path], rejects: str, *, delimiter: str = ",", encoding: str = "utf-8"
 ) -> tuple[str, Columns]:
     """`read_csv(...)` over one or more CSV files sharing the header of the first one.
 
@@ -232,6 +234,7 @@ def csv_source(
     sql = (
         f"read_csv({file_list}, header=true, auto_detect=false, columns={columns}, "
         f"delim={sql_str(delimiter)}, quote='\"', escape='\"', max_line_size=16777216, "
+        f"encoding={sql_str(encoding)}, "
         f"store_rejects=true, rejects_table={sql_str(rejects)}, "
         f"rejects_scan={sql_str(rejects + '_scan')})"
     )
@@ -266,7 +269,11 @@ class _Progress:
     def log(self, what: str) -> None:
         secs = max(time.monotonic() - self.t0, 1e-6)
         rate = (self.done - self.start_done) / MB / secs
-        of = f" of {self.total / MB:,.0f} MB ({100 * self.done / self.total:.0f}%)" if self.total else ""
+        of = (
+            f" of {self.total / MB:,.0f} MB ({100 * self.done / self.total:.0f}%)"
+            if self.total
+            else ""
+        )
         log.info("%s: %s %s MB%s, %.1f MB/s, %.0f s", self.label, what, f"{self.done / MB:,.0f}",
                  of, rate, secs)  # fmt: skip
 
@@ -300,7 +307,10 @@ def download(
 
     A local path (or file:// URL) is returned as is, without copying. Transient failures
     (network errors, 429/5xx, a transfer cut short) are retried with backoff, continuing from the
-    bytes already on disk when the server honours Range (206), from zero otherwise.
+    bytes already on disk when the server honours Range (206), from zero otherwise. A resumed
+    request carries If-Range with the first response's ETag / Last-Modified (kept next to the
+    partial file), so a "latest" URL that now points to a newer file restarts from zero instead
+    of mixing two files.
     """
     if (local := local_input(url)) is not None:
         log.info("%s: using local file %s (%.1f MB)", label or dest.name, local,
@@ -310,8 +320,10 @@ def download(
     dest.parent.mkdir(parents=True, exist_ok=True)
     label = label or dest.name
     if dest.exists():
-        log.info("%s: already downloaded (%.1f MB)", label, dest.stat().st_size / MB)
-        return dest
+        if time.time() - dest.stat().st_mtime < REUSE_SECONDS:
+            log.info("%s: already downloaded (%.1f MB)", label, dest.stat().st_size / MB)
+            return dest
+        dest.unlink()  # left by a failed run long ago: the register has a newer file by now
     part = dest.with_name(dest.name + ".part")
     own = client is None
     http = client or httpx.Client(timeout=httpx.Timeout(60.0, read=300.0), follow_redirects=True)
@@ -322,9 +334,12 @@ def download(
             hdrs = {"User-Agent": user_agent, "Accept-Encoding": "identity", **(headers or {})}
             if have:
                 hdrs["Range"] = f"bytes={have}-"
+                if validator := _read_validator(part):
+                    hdrs["If-Range"] = validator
             try:
                 if _transfer(http, url, part, have, hdrs, label):
                     part.replace(dest)
+                    _validator_file(part).unlink(missing_ok=True)
                     return dest
                 problem = "transfer ended early"
             except _RetryableStatus as exc:
@@ -333,7 +348,9 @@ def download(
                 problem = f"{type(exc).__name__}: {exc}"
             attempt += 1
             if attempt > retries:
-                raise RuntimeError(f"{label}: giving up on {url} after {attempt} attempts ({problem})")
+                raise RuntimeError(
+                    f"{label}: giving up on {url} after {attempt} attempts ({problem})"
+                )
             pause = min(120.0, 5.0 * 2 ** (attempt - 1))
             log.warning("%s: %s; retrying in %.0f s (attempt %d of %d)", label, problem, pause,
                         attempt, retries)  # fmt: skip
@@ -345,6 +362,28 @@ def download(
 
 class _RetryableStatus(Exception):
     pass
+
+
+def _validator_file(part: Path) -> Path:
+    return part.with_name(part.name + ".validator")
+
+
+def _read_validator(part: Path) -> str | None:
+    try:
+        return _validator_file(part).read_text(encoding="utf-8").strip() or None
+    except OSError:
+        return None
+
+
+def _save_validator(part: Path, resp: httpx.Response) -> None:
+    """Remember the strong ETag (else Last-Modified) of a fresh download, for If-Range."""
+    etag = resp.headers.get("ETag", "")
+    value = etag if etag and not etag.startswith("W/") else resp.headers.get("Last-Modified", "")
+    target = _validator_file(part)
+    if value:
+        target.write_text(value, encoding="utf-8")
+    else:
+        target.unlink(missing_ok=True)
 
 
 def _transfer(
@@ -368,8 +407,10 @@ def _transfer(
             log.info("%s: resuming at %.1f MB", label, have / MB)
         else:
             if have:
-                log.info("%s: server does not resume, downloading from the start", label)
+                log.info("%s: server did not resume (no Range support or the file changed), "
+                         "downloading from the start", label)  # fmt: skip
             mode, start = "wb", 0
+            _save_validator(part, resp)
             length = resp.headers.get("Content-Length")
             total = int(length) if length and length.isdigit() else None
         log.info("%s: downloading %s%s", label, resp.url,
@@ -422,7 +463,9 @@ def extract(zip_path: Path, dest_dir: Path, pattern: str = r".*") -> list[Path]:
     out: list[Path] = []
     with zipfile.ZipFile(zip_path) as zf:
         members = [
-            m for m in zf.infolist() if not m.is_dir() and re.fullmatch(pattern, Path(m.filename).name)
+            m
+            for m in zf.infolist()
+            if not m.is_dir() and re.fullmatch(pattern, Path(m.filename).name)
         ]
         total = sum(m.file_size for m in members)
         progress = _Progress(f"unzip {zip_path.name}", total)
@@ -472,7 +515,7 @@ def connect(work_dir: Path):
     return con
 
 
-def _lambda(var: str, body: str) -> str:
+def list_lambda(var: str, body: str) -> str:
     """List lambda in the syntax of the installed DuckDB (`lambda x: ...` since 1.3)."""
     import duckdb
 
@@ -488,9 +531,10 @@ def _range_case(expr: str, ranges: Iterable[tuple[int, int, str]]) -> str:
 def macro_sql() -> list[str]:
     """CREATE MACRO statements shared by the bulk sources (generated from the Python tables)."""
     cap = "upper(left(p, 1)) || substr(p, 2)"
-    apos = f"array_to_string(list_transform(string_split(h, ''''), {_lambda('p', cap)}), '''')"
-    hyph = f"array_to_string(list_transform(string_split(w, '-'), {_lambda('h', apos)}), '-')"
-    title = f"array_to_string(list_transform(string_split(lower(s), ' '), {_lambda('w', hyph)}), ' ')"
+    apos = f"array_to_string(list_transform(string_split(h, ''''), {list_lambda('p', cap)}), '''')"
+    hyph = f"array_to_string(list_transform(string_split(w, '-'), {list_lambda('h', apos)}), '-')"
+    words = "string_split(lower(s), ' ')"
+    title = f"array_to_string(list_transform({words}, {list_lambda('w', hyph)}), ' ')"
     division = "TRY_CAST(regexp_extract(CAST(code AS VARCHAR), '^[^0-9]*([0-9]{2})', 1) AS INTEGER)"
     sic = "TRY_CAST(trim(CAST(code AS VARCHAR)) AS INTEGER)"
     labels = " ".join(f"WHEN {sql_str(k)} THEN {sql_str(v)}" for k, v in SECTION_NAMES.items())
@@ -541,7 +585,9 @@ def macro_sql() -> list[str]:
         "WHEN regexp_full_match(upper(replace(trim(CAST(s AS VARCHAR)), ' ', '')), "
         "'[A-Z]{2}[0-9]{1,6}') "
         "THEN left(upper(replace(trim(CAST(s AS VARCHAR)), ' ', '')), 2) || "
-        "lpad(substr(upper(replace(trim(CAST(s AS VARCHAR)), ' ', '')), 3), 6, '0') END",
+        "lpad(substr(upper(replace(trim(CAST(s AS VARCHAR)), ' ', '')), 3), 6, '0') "
+        "WHEN regexp_full_match(upper(replace(trim(CAST(s AS VARCHAR)), ' ', '')), '[A-Z0-9]{8}') "
+        "THEN upper(replace(trim(CAST(s AS VARCHAR)), ' ', '')) END",
         # North American number -> E.164 (+1 and ten digits)
         "CREATE OR REPLACE MACRO lc_phone_nanp(s) AS CASE "
         "WHEN length(lc_digits(s)) = 10 AND left(lc_digits(s), 1) BETWEEN '2' AND '9' "
@@ -578,6 +624,9 @@ def stable_company_id(
 
 # --------------------------------------------------------------------------- writing the shard
 
+# Order of a limited (test) shard: by the hash of the strongest key, the same in every source.
+SAMPLE_ORDER = "hash(coalesce(registry || ':' || company_number, lei, cik, name)), name"
+
 
 def write_source_shard(
     con,
@@ -595,22 +644,27 @@ def write_source_shard(
     """Write `<source>.parquet` from `shard_select(exprs, from_sql)`.
 
     `id` defaults to the stable id (lc_company_id over registry, company_number, lei, cik).
-    Rows outside `options.countries` are dropped. With `options.limit`, rows are ordered by
-    `best_first` (SQL over pack columns, most useful first) before the limit; otherwise by
-    `order` when given. `total` (raw rows read) gives `skipped` = rows dropped by the rules.
+    Rows outside `options.countries` are dropped. With `options.limit` (test runs) the shard is a
+    deterministic sample, SAMPLE_ORDER: rows with the smallest hash of their register key, so the
+    limited shards of two sources hold the same companies wherever they share keys (a GLEIF
+    record with a SIREN and the SIRENE row of that SIREN) and the test merge exercises linking;
+    `best_first` (SQL over pack columns) replaces that order. Without a limit, rows are written
+    in `order` when given. `total` (raw rows read) gives `skipped` = rows dropped by the rules.
     """
     t0 = time.monotonic()
     con.execute("DROP TABLE IF EXISTS lc_shard")
     con.execute(f"CREATE TABLE lc_shard AS {shard_select(exprs, from_sql)}")
     if options.countries:
-        con.execute(f"DELETE FROM lc_shard WHERE country IS NULL OR NOT ({country_clause(options)})")
+        con.execute(
+            f"DELETE FROM lc_shard WHERE country IS NULL OR NOT ({country_clause(options)})"
+        )
     eligible = int(con.execute("SELECT count(*) FROM lc_shard").fetchone()[0])
     log.info("%s: %d rows pass the rules (%.0f s)", source.name, eligible, time.monotonic() - t0)
     select = (
         "SELECT * REPLACE (coalesce(id, lc_company_id(registry, company_number, lei, cik)) AS id) "
         "FROM lc_shard"
     )
-    sort = best_first if options.limit else order
+    sort = (best_first or SAMPLE_ORDER) if options.limit else order
     if sort:
         select += f" ORDER BY {sort}"
     if options.limit:
@@ -639,6 +693,7 @@ __all__ = [
     "get_text",
     "ident",
     "install_macros",
+    "list_lambda",
     "rejected_lines",
     "run_source",
     "sql_in",

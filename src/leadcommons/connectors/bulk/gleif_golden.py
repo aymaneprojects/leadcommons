@@ -65,7 +65,7 @@ RA_REGISTRIES: dict[str, tuple[str, str]] = {
     "RA000473": ("NO-BRREG", "digits9"),  # Norway, Brønnøysund: Enhetsregisteret
     "RA000013": ("AU-ABN", "abn"),  # Australian Business Register (11-digit ABN)
     "RA000014": ("AU-ABN", "acn"),  # ASIC register of companies: ACN, turned into the ABN
-    "RA000072": ("CA-CORP", "ca"),  # Corporations Canada (federal corporation number)
+    "RA000072": ("CA-CORP", "ca"),  # Corporations Canada: "728007-6" -> "7280076"
     "RA000463": ("NL-KVK", "digits8"),  # Netherlands, Kamer van Koophandel
     "RA000170": ("DK-CVR", "digits8"),  # Denmark, Det Centrale Virksomhedsregister
 }
@@ -148,7 +148,7 @@ def number_sql(kind: str, raw: str) -> str:
         f"WHEN 'digits8' THEN CASE WHEN length({d}) = 8 THEN {d} END "
         f"WHEN 'abn' THEN lc_abn({d}) "
         f"WHEN 'acn' THEN coalesce(lc_acn_abn({d}), CASE WHEN length({d}) = 9 THEN {d} END) "
-        f"WHEN 'ca' THEN NULLIF(ltrim({d}, '0'), '') END"
+        f"WHEN 'ca' THEN CASE WHEN NOT regexp_full_match({d}, '0*') THEN {d} END END"
     )
 
 
@@ -290,7 +290,6 @@ def transform(con, csv_path: Path, options: BuildOptions, *, url: str | None = N
         exprs,
         base,
         total=total,
-        best_first="(registry IS NOT NULL) DESC, hash(lei)",
         order="country, name",
         notes=notes,
     )
