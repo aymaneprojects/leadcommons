@@ -47,9 +47,9 @@ SETTINGS_SECTIONS = [
     ("account", "/settings/account", "Account", "user"),
     ("mailboxes", "/settings/mailboxes", "Mailboxes", "mail"),
     ("sending", "/settings/sending", "Sending rules", "timer"),
-    ("email", "/settings/email-health", "Email verification & health", "mail-check"),
+    ("email", "/settings/email-health", "Email setup and health", "mail-check"),
     ("packs", "/settings/data-packs", "Data packs", "database"),
-    ("privacy", "/settings/privacy", "Privacy & opt-out", "shield-check"),
+    ("privacy", "/settings/privacy", "Unsubscribes & opt-out", "shield-check"),
     ("deal-stages", "/settings/deal-stages", "Deal stages", "kanban"),
     ("integrations", "/settings/integrations", "Integrations", "plug"),
     ("api", "/settings/api", "API tokens", "key-round"),
@@ -59,8 +59,8 @@ SETTINGS_SECTIONS = [
 SETTINGS_GROUPS = [
     ("", ["overview"]),
     ("Personal", ["account"]),
-    ("Outbound", ["mailboxes", "sending", "email"]),
-    ("Data management", ["packs", "privacy"]),
+    ("Outbound", ["mailboxes", "sending", "email", "privacy"]),
+    ("Data management", ["packs"]),
     ("Deals", ["deal-stages"]),
     ("Integrations", ["integrations", "api"]),
     ("About", ["about"]),
@@ -120,7 +120,14 @@ def settings_page(request: Request, template: str, section: str, **extra: Any) -
 
 @router.get("/settings", response_class=HTMLResponse)
 def settings_overview(request: Request) -> Response:
-    return settings_page(request, "settings.html", "overview")
+    ctx = email_health_ctx(request)
+    return settings_page(
+        request,
+        "settings.html",
+        "overview",
+        verdict=ctx["verdict"],
+        mailbox_count=len(ctx["mailboxes"]),
+    )
 
 
 @router.get("/settings/data-packs", response_class=HTMLResponse)
@@ -395,10 +402,213 @@ def run_dns_checks(domain: str, selector: str = "") -> list[dict[str, Any]]:
     return rows
 
 
+# DKIM cannot be discovered from the domain alone, so without a selector we try the names the big
+# mail providers use. A miss is reported as "not found", never as a failure.
+COMMON_DKIM_SELECTORS = (
+    "default",
+    "google",
+    "selector1",
+    "selector2",
+    "k1",
+    "s1",
+    "s2",
+    "mail",
+    "dkim",
+    "smtp",
+)
+HEALTH_TABS = ("overview", "domains", "policies")
+SELF_HOST_DOC = f"{REPO_URL}/blob/main/docs/server.md"
+SETUP_PROMPT = "Help me set up a mailbox and authenticate my sending domain"
+LLM_HINT = (
+    "Needs a language model. Start LeadCommons with LEADCOMMONS_LLM_URL and "
+    "LEADCOMMONS_LLM_MODEL set to turn this on."
+)
+DEMO_AI_HINT = "The language model is turned off in the public demo."
+
+
+def llm_available(settings: Any) -> bool:
+    from leadcommons.ai.llm import llm_config
+
+    return settings.mode != "demo" and llm_config() is not None
+
+
+def ai_unavailable_reason(settings: Any) -> str:
+    """Empty when the Assistant can use a language model, else the sentence for the tooltip."""
+    if settings.mode == "demo":
+        return DEMO_AI_HINT
+    return "" if llm_available(settings) else LLM_HINT
+
+
+def run_domain_health(domain: str, selector: str = "") -> list[dict[str, Any]]:
+    """MX, SPF, DMARC and DKIM for one sending domain, with the existing check code.
+
+    With a selector DKIM is checked as is. Without one the common selector names are tried; if
+    none is published the DKIM row says so with state "unknown" (left out of the verdict).
+    """
+    if selector:
+        return run_dns_checks(domain, selector)
+    jobs: dict[str, tuple[str, str]] = {
+        "mx": (domain, "MX"),
+        "spf": (domain, "TXT"),
+        "dmarc": (f"_dmarc.{domain}", "TXT"),
+    }
+    for sel in COMMON_DKIM_SELECTORS:
+        jobs[f"dkim:{sel}"] = (f"{sel}._domainkey.{domain}", "TXT")
+    with ThreadPoolExecutor(max_workers=min(len(jobs), 8)) as pool:
+        futures = {k: pool.submit(_resolve, *v) for k, v in jobs.items()}
+        found = {k: f.result() for k, f in futures.items()}
+    rows = [_check_mx(found["mx"]), _check_spf(found["spf"]), _check_dmarc(found["dmarc"])]
+    dkim_rows = [_check_dkim(found[f"dkim:{sel}"], sel) for sel in COMMON_DKIM_SELECTORS]
+    hit = next((r for r in dkim_rows if r["state"] == "ok"), None)
+    if hit is not None:
+        rows.append(hit)
+    else:
+        broken = all(r["state"] == "error" for r in dkim_rows)
+        rows.append(
+            {
+                "key": "dkim",
+                "label": "DKIM",
+                "what": "A public key receivers use to verify signed mail.",
+                "state": "error" if broken else "unknown",
+                "records": [],
+                "summary": (
+                    dkim_rows[0]["summary"]
+                    if broken
+                    else "No DKIM key found under the usual selector names."
+                ),
+                "hint": "Check the domain with your DKIM selector to be sure.",
+            }
+        )
+    return rows
+
+
+def _sending_domains(store: Any) -> tuple[list[Any], list[str]]:
+    """The mailboxes through the engage store, and the distinct domains they send from."""
+    from leadcommons.store.engage import repo_for as engage_repo
+
+    try:
+        boxes = list(engage_repo(store).mailboxes())
+    except Exception:
+        boxes = []
+    domains: list[str] = []
+    for m in boxes:
+        d = clean_domain(m.from_email or "")
+        if d and d not in domains:
+            domains.append(d)
+    return boxes, domains
+
+
+def health_verdict(domains: list[str], saved: dict[str, Any]) -> dict[str, str]:
+    """Overall deliverability from the saved checks: not set up, not checked, needs work, good."""
+    if not domains:
+        return {
+            "key": "none",
+            "label": "Not set up",
+            "tip": "Connect a mailbox and run a check to see how your domain is set up.",
+        }
+    states: list[str] = []
+    for d in domains:
+        for c in (saved.get(d) or {}).get("checks", []):
+            if c.get("state") != "unknown":
+                states.append(str(c.get("state")))
+    if not states or all(st == "error" for st in states):
+        return {
+            "key": "unchecked",
+            "label": "Not checked yet",
+            "tip": "Press Run a check to look up MX, SPF, DKIM and DMARC for your sending domains.",
+        }
+    if any(st in ("fail", "warn") for st in states):
+        return {
+            "key": "work",
+            "label": "Needs work",
+            "tip": "At least one DNS record is missing or worth reviewing. See the Domains tab.",
+        }
+    return {
+        "key": "good",
+        "label": "Good",
+        "tip": "MX, SPF and DMARC pass for every sending domain.",
+    }
+
+
+def email_health_ctx(request: Request) -> dict[str, Any]:
+    """Boxes, domains, last saved checks and the verdict, shared by the page and the overview card."""
+    store = request.app.state.store
+    boxes, domains = _sending_domains(store)
+    saved = load_state(request.app.state.settings).get("email_health") or {}
+    if not isinstance(saved, dict):
+        saved = {}
+    rows = []
+    for d in domains:
+        info = saved.get(d) or {}
+        rows.append(
+            {
+                "domain": d,
+                "selector": str(info.get("selector") or ""),
+                "checked_at": _parse_when(info.get("at")),
+                "checks": list(info.get("checks") or []),
+                "boxes": [m for m in boxes if clean_domain(m.from_email or "") == d],
+            }
+        )
+    return {
+        "mailboxes": boxes,
+        "domain_rows": rows,
+        "verdict": health_verdict(domains, saved),
+    }
+
+
+def _parse_when(value: Any) -> datetime | None:
+    try:
+        return datetime.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
+@router.post("/settings/email-health/run")
+async def email_health_run(request: Request, _: None = Depends(csrf)) -> Response:
+    """Re-run the DNS checks for every sending domain (or one, with `domain`) and keep the result."""
+    form = await form_values(request)
+    back = "/settings/email-health?tab=domains"
+    _, domains = _sending_domains(request.app.state.store)
+    only = clean_domain(str(form.get("domain") or "")) if form.get("domain") else None
+    targets = [only] if only and only in domains else domains
+    if not targets:
+        return done(
+            request, "Connect a mailbox first. Then there is a domain to check.", back, "error"
+        )
+    settings = request.app.state.settings
+    saved = load_state(settings).get("email_health") or {}
+    if not isinstance(saved, dict):
+        saved = {}
+    selectors = {str(k): str(v) for k, v in (saved.get("_selectors") or {}).items()}
+    for d in targets:
+        sel = str(form.get("selector") or "").strip().lower() if len(targets) == 1 else ""
+        if sel and not _SELECTOR_RE.match(sel):
+            return done(request, "That DKIM selector is not valid.", back, "error")
+        sel = sel or selectors.get(d, "")
+        checks = run_domain_health(d, sel)
+        saved[d] = {
+            "at": utcnow().isoformat(),
+            "selector": sel,
+            "checks": [
+                {"key": c["key"], "label": c["label"], "state": c["state"], "summary": c["summary"]}
+                for c in checks
+            ],
+        }
+        if sel:
+            selectors[d] = sel
+    saved["_selectors"] = selectors
+    set_state(settings, email_health=saved, dns_checked=True)
+    n = len(targets)
+    return done(request, f"Checked {n} domain{'s' if n != 1 else ''}.", back)
+
+
 @router.get("/settings/email-health", response_class=HTMLResponse)
 def settings_email(request: Request) -> Response:
     raw = (request.query_params.get("domain") or "").strip()
     selector = (request.query_params.get("selector") or "").strip().lower()
+    tab = request.query_params.get("tab") or "overview"
+    if tab not in HEALTH_TABS:
+        tab = "overview"
     error: str | None = None
     domain: str | None = None
     checks: list[dict[str, Any]] = []
@@ -406,6 +616,7 @@ def settings_email(request: Request) -> Response:
         error = "The DKIM selector may only contain letters, digits, dots, dashes and underscores."
         selector = ""
     if raw:
+        tab = "overview"
         domain = clean_domain(raw)
         if domain is None:
             error = "That does not look like a domain name. Try something like example.com."
@@ -415,11 +626,20 @@ def settings_email(request: Request) -> Response:
     summary = {
         s: sum(1 for c in checks if c["state"] == s) for s in ("ok", "warn", "fail", "error")
     }
+    cfg: dict[str, Any] = {}
+    if tab == "policies":
+        try:
+            from leadcommons.store.engage import repo_for as engage_repo
+
+            cfg = engage_repo(request.app.state.store).get_settings()
+        except Exception:
+            cfg = {}
+    settings = request.app.state.settings
     return settings_page(
         request,
         "shell_settings_email.html",
         "email",
-        tab="dns",
+        tab=tab,
         raw_domain=raw,
         selector=selector,
         domain=domain,
@@ -427,6 +647,10 @@ def settings_email(request: Request) -> Response:
         summary=summary,
         error=error,
         roadmap_url=ROADMAP_URL,
+        policy=cfg,
+        ai_reason=ai_unavailable_reason(settings),
+        setup_prompt=SETUP_PROMPT,
+        **email_health_ctx(request),
     )
 
 
@@ -698,6 +922,7 @@ def hub_stats(request: Request) -> tuple[int, int]:
 
 
 templates.env.globals["hub_stats"] = hub_stats
+templates.env.globals["self_host_doc"] = SELF_HOST_DOC
 templates.env.globals["settings_sections"] = lambda: SETTINGS_SECTIONS
 templates.env.globals["settings_groups"] = lambda: SETTINGS_GROUPS
 

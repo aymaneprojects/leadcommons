@@ -129,8 +129,8 @@ def test_settings_menu_replaces_sidebar(client: TestClient) -> None:
     for label in (
         "Workspace overview",
         "Data packs",
-        "Email verification &amp; health",
-        "Privacy &amp; opt-out",
+        "Email setup and health",
+        "Unsubscribes &amp; opt-out",
         "Account",
         "About",
     ):

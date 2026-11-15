@@ -330,3 +330,75 @@ html.assist-open .main-col { margin-right: min(520px, 100vw); }
 .set-none { padding: 8px 10px; }
 .settings-side .set-title { display: none; }
 html.assist-open .help-fab { right: calc(min(520px, 100vw) + 16px); }
+
+/* ======================================================================
+   Parity pass: sidebar footer pinned, palette, settings header actions, email health,
+   assistant page, onboarding resources
+   ====================================================================== */
+.sidebar:not(.settings-side) { overflow: hidden; }
+.sidebar:not(.settings-side) > nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.sidebar:not(.settings-side) > .side-top { flex: none; }
+.side-foot { flex: none; display: grid; gap: 2px; padding-top: 6px; border-top: 1px solid var(--line); margin-top: 4px; }
+.side-foot .gs-card { margin: 4px 0; }
+
+/* ---------- email setup and health ---------- */
+.eh-head { gap: 14px; }
+.eh-head .grow { flex: 1; }
+.eh-actions { display: flex; gap: 8px; align-items: center; }
+.eh-actions form { margin: 0; }
+.eh-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; border: 1px solid var(--line); background: var(--raised); color: var(--muted); cursor: default; }
+.eh-pill.eh-good { background: rgba(76, 194, 127, .15); color: var(--ok); border-color: transparent; }
+.eh-pill.eh-work { background: rgba(232, 180, 58, .15); color: var(--amber); border-color: transparent; }
+.eh-menu { right: 0; left: auto; min-width: 230px; }
+.eh-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.eh-tile { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 2px; color: var(--text); }
+.eh-tile:hover { border-color: var(--orange); text-decoration: none; }
+.eh-tile b { font: 600 26px var(--font-head); letter-spacing: -.02em; }
+.eh-doms { display: grid; gap: 12px; margin-bottom: 18px; }
+.eh-dom { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 10px; }
+.eh-dom-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.eh-dom-top .grow { flex: 1; }
+.eh-recheck { display: flex; gap: 6px; align-items: center; margin: 0; }
+.eh-recheck input { min-height: 28px; padding: 3px 8px; font-size: 12px; width: 190px; }
+.eh-checks { display: flex; gap: 6px; flex-wrap: wrap; }
+.eh-fix { margin: 0; font-size: 13px; color: var(--muted); }
+.eh-boxes { list-style: none; margin: 0; padding: 8px 0 0; border-top: 1px solid var(--line); display: grid; gap: 4px; }
+.eh-boxes li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.eh-boxes .grow { flex: 1; }
+.eh-note { display: flex; gap: 10px; align-items: center; padding: 11px 14px; margin-bottom: 16px; border: 1px dashed var(--line); border-radius: var(--radius); color: var(--muted); }
+.eh-empty { padding: 26px; border: 1px solid var(--line); border-radius: 14px; background: linear-gradient(180deg, var(--orange-tint), var(--surface) 75%); display: grid; gap: 22px; }
+.eh-empty-top { display: flex; gap: 26px; align-items: flex-start; }
+.eh-empty h2 { font-size: 18px; margin-bottom: 6px; }
+.eh-empty p { max-width: 54ch; margin: 0 0 14px; }
+.eh-art { position: relative; width: 96px; height: 80px; flex: none; }
+.eh-art span { position: absolute; display: grid; place-items: center; border-radius: 12px; border: 1px solid var(--line); background: var(--raised); color: var(--muted); }
+.eh-art .b1 { width: 54px; height: 54px; left: 0; top: 14px; transform: rotate(-8deg); }
+.eh-art .b2 { width: 44px; height: 44px; left: 46px; top: 0; background: var(--orange); border-color: var(--orange); color: var(--on-orange); transform: rotate(6deg); }
+.eh-art .b3 { width: 38px; height: 38px; left: 52px; top: 42px; }
+.eh-art .icon { width: 22px; height: 22px; }
+.eh-skel { display: grid; gap: 10px; }
+.eh-skel i { display: block; height: 38px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); position: relative; overflow: hidden; }
+.eh-skel i::before { content: ""; position: absolute; left: 14px; top: 8px; width: 20px; height: 20px; border-radius: 50%; background: var(--raised); }
+.eh-skel i::after { content: ""; position: absolute; left: 46px; top: 15px; width: 28%; height: 8px; border-radius: 999px; background: var(--raised); }
+.eh-ai { display: flex; gap: 12px; align-items: center; margin-top: 18px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.eh-ai-ic { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--raised); color: var(--orange-text); flex: none; }
+.eh-ai-t { flex: 1; display: grid; gap: 2px; font-size: 13.5px; }
+.eh-ai-btn { white-space: nowrap; }
+.eh-next { margin: 20px 4px 0; color: var(--muted); text-align: center; }
+.eh-dl { display: grid; gap: 0; margin: 10px 0 18px; }
+.eh-dl > div { display: grid; grid-template-columns: 260px 1fr; gap: 16px; padding: 10px 0; border-top: 1px solid var(--line); }
+.eh-dl dt { color: var(--muted); }
+.eh-dl dd { margin: 0; }
+@media (max-width: 820px) { .eh-tiles { grid-template-columns: 1fr; } .eh-dl > div { grid-template-columns: 1fr; gap: 2px; } .eh-empty-top { flex-direction: column; } }
+
+/* ---------- settings: header actions, pinned invite button ---------- */
+.set-card-head .btn.sm { flex: none; }
+.set-card-act { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.set-invite { flex: none; display: grid; gap: 6px; padding: 10px 2px 2px; border-top: 1px solid var(--line); margin-top: 6px; }
+.set-invite .btn { width: 100%; justify-content: center; }
+.set-invite .btn .nav-label { display: inline !important; }
+.set-invite-why { margin: 0; font-size: 12px; line-height: 1.4; }
+.invite-dlg { width: min(480px, 94vw); }
+.invite-dlg .inv-head { display: flex; justify-content: space-between; align-items: center; }
+.invite-dlg .inv-body { display: grid; gap: 10px; }
+.invite-dlg .steps { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
