@@ -47,7 +47,7 @@ def create_app(
 
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-    from leadcommons.web import api, pages, pages_extra
+    from leadcommons.web import api, pages, pages_engage, pages_extra, pages_pipeline, pages_tools
     from leadcommons.web.auth import install_auth
 
     install_auth(app, settings)
@@ -55,6 +55,9 @@ def create_app(
     # pages_extra first: shell pages (settings, onboarding, notifications, engage) may take over
     # routes still present in pages.py.
     app.include_router(pages_extra.router)
+    app.include_router(pages_engage.router)
+    app.include_router(pages_pipeline.router)
+    app.include_router(pages_tools.router)
     app.include_router(pages.router)
 
     @app.get("/healthz", include_in_schema=False)

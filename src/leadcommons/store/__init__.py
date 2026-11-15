@@ -108,8 +108,17 @@ class Store:
         )
         if is_sqlite:
             event.listen(self._engine, "connect", _sqlite_pragmas)
+        # Feature modules define their own tables on the same Base; import them so
+        # create_all sees every table.
+        from leadcommons.store import engage, insights, pipeline, tools  # noqa: F401
+
         Base.metadata.create_all(self._engine)
         self._sessions = sessionmaker(bind=self._engine, expire_on_commit=False)
+
+    @property
+    def engine(self) -> Engine:
+        """Shared engine for feature repositories (engage, pipeline, tools, insights)."""
+        return self._engine
 
     def close(self) -> None:
         self._engine.dispose()
