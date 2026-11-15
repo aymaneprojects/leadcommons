@@ -1,0 +1,18 @@
+{% from "_pipeline_macros.html" import pi, pick %}
+<dialog class="pl-dlg" data-autoopen aria-labelledby="nn-title">
+  <form method="post" action="/notes" hx-post="/notes" hx-swap="none" hx-push-url="false" data-quiet>
+    <input type="hidden" name="next" value="{{ next }}">
+    <input type="hidden" name="reload" value="{{ reload }}">
+    <input type="hidden" name="deal_id" value="{{ deal_id }}">
+    <header class="pl-dlg-head"><h2 id="nn-title">Add a note</h2><button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">{{ pi("x") }}</button></header>
+    <div class="pl-dlg-body">
+      {% if deal %}<p class="muted">On deal <b>{{ deal.name }}</b></p>{% endif %}
+      {% if not deal_id or ref.person_id or ref.company_id %}
+      {{ pick("person", "nn", ref.person_name, ref.person_id) }}
+      {{ pick("company", "nn", ref.company_name, ref.company_id) }}
+      {% endif %}
+      <div class="field"><label for="nn-body">Note</label><textarea id="nn-body" name="body" rows="5" required maxlength="2000" placeholder="What happened, what was agreed, what to do next" autofocus></textarea></div>
+    </div>
+    <footer class="pl-dlg-foot"><button type="button" class="btn close-dlg">Cancel</button><button type="submit" class="btn primary">Save note</button></footer>
+  </form>
+</dialog>

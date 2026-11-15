@@ -1,0 +1,42 @@
+{# Macros for the Win deals pages. Icons live in pipeline-sprite.svg (Lucide, ISC licence). #}
+{% macro pi(name, cls="") -%}
+<svg class="icon {{ cls }}" aria-hidden="true" focusable="false"><use href="/static/icons/pipeline-sprite.svg#p-{{ name }}"></use></svg>
+{%- endmacro %}
+
+{# Company or person field with typeahead; pipeline.js fills the hidden id when a result is chosen #}
+{% macro pick(kind, id_prefix, name="", ident="", label=None, placeholder=None) -%}
+{%- set nm = "company" if kind == "company" else "person" -%}
+<div class="field pl-pick" data-pick data-kind="{{ kind }}">
+  <label for="{{ id_prefix }}-{{ nm }}">{{ label or ("Company" if kind == "company" else "Person") }}</label>
+  <div class="pl-pick-box">
+    {{ pi("search", "sm") }}
+    <input type="text" id="{{ id_prefix }}-{{ nm }}" name="{{ nm }}_name" value="{{ name or '' }}" maxlength="200" autocomplete="off" data-pick-input
+           placeholder="{{ placeholder or ('Search companies or type a name' if kind == 'company' else 'Search saved people or type a name') }}">
+    <input type="hidden" name="{{ nm }}_id" value="{{ ident or '' }}" data-pick-id>
+    <button type="button" class="btn ghost icon-only sm pl-pick-clear" data-pick-clear aria-label="Clear {{ nm }}"{% if not (name or ident) %} hidden{% endif %}>{{ pi("x", "sm") }}</button>
+  </div>
+  <div class="pl-pick-results" data-pick-results hidden></div>
+</div>
+{%- endmacro %}
+
+{# Page title row: heading on the left, actions (caller block) on the right #}
+{% macro title(text, lead="") -%}
+<div class="pl-title">
+  <div><h1>{{ text }}</h1>{% if lead %}<p class="muted">{{ lead }}</p>{% endif %}</div>
+  <div class="pl-title-actions">{{ caller() if caller else "" }}</div>
+</div>
+{%- endmacro %}
+
+{% macro empty(icon_name, heading, text) -%}
+<div class="pl-empty">
+  <div class="pl-empty-art" aria-hidden="true">{{ pi(icon_name, "lg") }}</div>
+  <h2>{{ heading }}</h2>
+  <p class="muted">{{ text }}</p>
+  <div class="pl-empty-actions">{{ caller() if caller else "" }}</div>
+</div>
+{%- endmacro %}
+
+{# Opens one of our dialog partials with a plain fetch (so it works from anywhere, inside drawers too) #}
+{% macro dlg_btn(url, label, ico="plus", cls="btn", title_attr="") -%}
+<button type="button" class="{{ cls }}" data-pl-dialog="{{ url }}"{% if title_attr %} title="{{ title_attr }}"{% endif %}>{{ pi(ico) }}{% if label %}<span>{{ label }}</span>{% endif %}</button>
+{%- endmacro %}

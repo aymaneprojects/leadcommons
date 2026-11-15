@@ -9,7 +9,7 @@ from typing import Any
 
 import duckdb
 
-from leadcommons.models import Company, Provenance
+from leadcommons.models import SIZE_RANGES, Company, Provenance
 from leadcommons.packs.domains import normalize_domain
 from leadcommons.search import PACK_COLUMNS, CompanyFilters, Page
 
@@ -151,6 +151,34 @@ class DuckDBCompanySearch:
     def get_company(self, company_id: str) -> Company | None:
         rows = self._query(f"SELECT {_COLS} FROM companies WHERE id = ? LIMIT 1", [company_id])
         return self._to_company(rows[0]) if rows else None
+
+    def lookalike_companies(self, company: Company, limit: int = 25) -> list[Company]:
+        """Companies like `company`: same ISIC industry, same or neighbouring size bucket, the
+        same country first, then closer size, then rows with a known domain, then name."""
+        if not company.industry:
+            return []
+        conds = ["industry = ?", "id <> ?"]
+        params: list[Any] = [company.industry.strip().upper(), company.id]
+        order: list[str] = []
+        order_params: list[Any] = []
+        if company.size_range in SIZE_RANGES:
+            idx = SIZE_RANGES.index(company.size_range)
+            near = [s for i, s in enumerate(SIZE_RANGES) if abs(i - idx) <= 1]
+            conds.append(f"size_range IN ({','.join('?' * len(near))})")
+            params += near
+        if company.country:
+            order.append("(country IS DISTINCT FROM ?)")
+            order_params.append(company.country.upper())
+        if company.size_range in SIZE_RANGES:
+            order.append("(size_range <> ?)")
+            order_params.append(company.size_range)
+        order += ["(domain IS NULL)", "lower(name)", "id"]
+        rows = self._query(
+            f"SELECT {_COLS} FROM companies WHERE {' AND '.join(conds)} "
+            f"ORDER BY {', '.join(order)} LIMIT ?",
+            [*params, *order_params, max(0, int(limit))],
+        )
+        return [self._to_company(r) for r in rows]
 
     def facet_counts(self, facet: str, filters: CompanyFilters, limit: int = 10) -> dict[str, int]:
         col = FACETS.get(facet)

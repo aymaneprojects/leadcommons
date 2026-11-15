@@ -25,7 +25,15 @@
         <input id="q" type="search" name="q" value="{{ p.q }}" placeholder="{{ 'Search companies' if s.kind == 'companies' else 'Search people' }}" autocomplete="off">
       </div>
       <span class="tb-gap"></span>
-      {{ ai_menu("Research with AI", kind=s.kind) }}
+      {{ ai_menu("Research with AI", kind=s.kind, llm=s.llm, demo=s.demo) }}
+      <details class="dd wf-dd">
+        <summary class="btn" title="Automate follow-ups for this search">{{ ic("workflow") }}<span>Create workflow</span>{{ ic("chevron-down", "sm") }}</summary>
+        <div class="menu left">
+          <div class="menu-note">Run steps automatically when a {{ "company" if s.kind == "companies" else "person" }} matches.</div>
+          <a class="menu-item" href="{{ s.workflow_url }}">{{ ic("workflow", "sm") }}<span>From the current filters</span></a>
+          <a class="menu-item" href="/workflows">{{ ic("list", "sm") }}<span>Your workflows</span></a>
+        </div>
+      </details>
       <button class="btn" type="button" data-open-dialog="savesearch-dialog">Save as new search</button>
       <details class="dd sort-dd">
         <summary class="btn">{{ ic("arrow-up-down") }}<span>{{ s.sorts | selectattr(0, "equalto", p.sort) | map(attribute=1) | first }}</span>{{ ic("chevron-down", "sm") }}</summary>

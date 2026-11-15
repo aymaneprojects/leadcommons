@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_macros.html" import ic, hxf, pager, avatar %}
+{% from "_search_macros.html" import row_actions %}
 {% block title %}Find companies · LeadCommons{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -30,7 +31,7 @@
           </tr></thead>
           <tbody>
           {% for c in items %}
-            <tr>
+            <tr data-id="{{ c.id }}">
               <td class="cb"><input type="checkbox" class="rowcb" name="ids" value="{{ c.id }}" form="bulk" aria-label="Select {{ c.name }}"></td>
               {% for col in s.columns %}
               <td data-col="{{ col.key }}"{% if not col.default %} hidden{% endif %}>
@@ -51,12 +52,7 @@
                 {%- endif -%}
               </td>
               {% endfor %}
-              <td class="ract">
-                <span class="ract-in">
-                  <button class="btn ghost icon-only sm" type="submit" formmethod="post" formaction="/companies/{{ c.id }}/find-people" hx-post="/companies/{{ c.id }}/find-people" hx-swap="none" hx-push-url="false" title="{% if c.domain %}Find people at {{ c.domain }}{% else %}No known domain{% endif %}" aria-label="Find people at {{ c.name }}"{% if not c.domain %} disabled{% endif %}>{{ ic("user-search", "sm") }}</button>
-                  <button class="btn ghost icon-only sm" type="button" data-row-save title="Save to list" aria-label="Save {{ c.name }} to a list">{{ ic("list-plus", "sm") }}</button>
-                </span>
-              </td>
+              <td class="ract">{{ row_actions("companies", c.id, c.name, none, phones.get(c.id), s.demo, c.domain is not none) }}</td>
             </tr>
           {% endfor %}
           </tbody>

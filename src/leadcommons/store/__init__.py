@@ -405,6 +405,16 @@ class Store:
             row.reason = reason
             row.added_at = utcnow()
 
+    def remove_suppression(self, email_or_domain: str) -> bool:
+        """Take one address or domain off the suppression list. True if it was listed."""
+        value, _kind = _normalise_target(email_or_domain)
+        with self._sessions.begin() as s:
+            row = s.get(SuppressionRow, _digest(value))
+            if row is None:
+                return False
+            s.delete(row)
+            return True
+
     def is_suppressed(self, email: str) -> bool:
         address = email.strip().lower()
         domain = address.rsplit("@", 1)[-1]

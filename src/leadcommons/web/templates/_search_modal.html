@@ -21,11 +21,11 @@
         {% for g in s.groups if g.col == "person" %}
           {% if g.supported %}{{ fgroup(g, s, "modal") }}{% else %}{{ locked_row(g.label, g.icon, "person", "People page", "This filter works on the People page") }}{% endif %}
         {% endfor %}
-        {% for f in s.soon_filters if f.col == "person" %}{{ locked_row(f.label, f.icon, "person") }}{% endfor %}
+        {% for f in s.soon_filters if f.col == "person" %}{{ locked_row(f.label, f.icon, "person", "Soon", f.tip) }}{% endfor %}
       </div></section>
       <section class="allf-col" data-fbox="company"><h3>Company info</h3><div class="allf-list" data-flist="company">
         {% for g in s.groups if g.col == "company" %}{{ fgroup(g, s, "modal") }}{% endfor %}
-        {% for f in s.soon_filters if f.col == "company" %}{{ locked_row(f.label, f.icon, "company") }}{% endfor %}
+        {% for f in s.soon_filters if f.col == "company" %}{{ locked_row(f.label, f.icon, "company", "Soon", f.tip) }}{% endfor %}
       </div></section>
     </div>
   </form>

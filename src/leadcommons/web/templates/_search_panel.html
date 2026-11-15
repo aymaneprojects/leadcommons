@@ -1,5 +1,5 @@
 {% from "_macros.html" import ic, hxf %}
-{% from "_search_macros.html" import fgroup %}
+{% from "_search_macros.html" import fgroup, locked_row %}
 <aside class="fpanel" aria-label="Filters" data-kind="{{ s.kind }}" data-pin-defaults="{{ s.pin_defaults|join(',') }}">
   <input type="hidden" name="tab" value="{{ p.tab }}">
   <nav class="seg tabs3" aria-label="Show">
@@ -9,6 +9,7 @@
   </nav>
   <div class="fgroups">
     {% for g in s.groups if g.panel %}{{ fgroup(g, s, "panel") }}{% endfor %}
+    {% if s.kind == "companies" %}{% for f in s.soon_filters if f.label == "Website visitors" %}{{ locked_row(f.label, f.icon, "company", "Soon", f.tip) }}{% endfor %}{% endif %}
   </div>
   <div class="fpanel-foot">
     <button class="btn sm nojs-only" type="submit">Apply filters</button>

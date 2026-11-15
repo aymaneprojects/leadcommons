@@ -25,6 +25,13 @@
 </div>
 {%- endmacro %}
 
+{# Why a lookalike filter is not narrowing the results. #}
+{% macro xnote(status, what) -%}
+{%- if status == "soon" %}<span class="fnote warn"><span class="badge soon-badge">Soon</span> Lookalikes are not available in this build yet, so this filter is ignored for now.</span>
+{%- elif status == "error" %}<span class="fnote warn">Lookalikes could not be computed right now. This filter is ignored.</span>
+{%- elif status == "notfound" %}<span class="fnote warn">No {{ what }} found for that text, so nothing matches.</span>{% endif -%}
+{%- endmacro %}
+
 {# The controls of one filter group. mode is "panel" (side panel) or "modal" (All filters). #}
 {% macro fbody(key, ui, mode) -%}
 {% set p = ui.p %}
@@ -56,6 +63,22 @@
   <span class="flabel">Custom range</span>
   <div class="range-row"><input type="number" min="1" name="size_min" value="{{ p.size_min or '' }}" placeholder="Min" aria-label="Minimum employees"><span>to</span><input type="number" min="1" name="size_max" value="{{ p.size_max or '' }}" placeholder="Max" aria-label="Maximum employees"></div>
   {% if ui.range_buckets %}<span class="fnote">Matches sizes: <b class="mono">{{ ui.range_buckets|join(", ") }}</b></span>{% else %}<span class="fnote">A range matches every size bucket it overlaps.</span>{% endif %}
+{% elif key == "lookalikes" %}
+  <label class="flabel" for="{{ mode }}-look">Companies similar to</label>
+  <input id="{{ mode }}-look" type="text" name="lookalike" value="{{ p.lookalike }}" placeholder="Company name or domain" autocomplete="off">
+  {{ xnote(ui.xstatus.get("lookalike"), "company") }}
+  <span class="fnote">Similar means the same industry, size band and country. Press Enter to apply.</span>
+{% elif key == "plook" %}
+  <label class="flabel" for="{{ mode }}-plook">People like</label>
+  <input id="{{ mode }}-plook" type="text" name="plook" value="{{ p.plook }}" placeholder="Name of someone you have found" autocomplete="off">
+  {{ xnote(ui.xstatus.get("plook"), "person") }}
+  <span class="fnote">Shows people with the same seniority at companies like theirs.</span>
+{% elif key == "tech" %}
+  {{ tagbox(ui, "tech", "e.g. shopify, react", "Uses any of these technologies") }}
+  <span class="fnote">Works over companies whose insights were refreshed. Open a company and refresh its insights to include it.</span>
+{% elif key == "jobs" %}
+  {{ tagbox(ui, "job", "e.g. sales, engineer", "Hiring for any of these roles") }}
+  <span class="fnote">Works over companies whose insights were refreshed. Open a company and refresh its insights to include it.</span>
 {% elif key == "industry" %}
   <span class="flabel">Include industries</span>
   {{ checklist("industry", ui.industries, p.industry, "Search industries") }}
@@ -95,30 +118,75 @@
 </div>
 {%- endmacro %}
 
-{# AI menu. With `kind`, the top box turns plain words into filters (POST /api/ai/parse; works
-   offline with rules, optionally a local model). The other items are labelled previews. #}
-{% macro ai_menu(label="Research with AI", up=False, kind=None) -%}
+{# Row actions: quick buttons + an overflow menu. Dialog links (data-dlg) fetch the other
+   features' partials; without JavaScript they open the partial on its own page. #}
+{% macro row_actions(kind, rid, name, cid, phone, demo, has_domain=True, has_email=False) -%}
+<span class="ract-in">
+  {% if kind == "people" %}
+  <a class="btn ghost icon-only sm" href="/partials/email-compose?person_id={{ rid }}" data-dlg title="Write an email" aria-label="Write an email to {{ name }}">{{ ic("mail", "sm") }}</a>
+  <a class="btn ghost icon-only sm" href="/partials/sequence-picker?ids={{ rid }}" data-dlg title="Add to a sequence" aria-label="Add {{ name }} to a sequence">{{ ic("send", "sm") }}</a>
+  {% else %}
+  <button class="btn ghost icon-only sm" type="submit" formmethod="post" formaction="/companies/{{ rid }}/find-people" hx-post="/companies/{{ rid }}/find-people" hx-swap="none" hx-push-url="false" title="{% if demo %}{{ demo_reason }}{% elif has_domain %}Find people at this company{% else %}No known domain{% endif %}" aria-label="Find people at {{ name }}"{% if demo or not has_domain %} disabled{% endif %}>{{ ic("user-search", "sm") }}</button>
+  <a class="btn ghost icon-only sm" href="/partials/task-new?company_id={{ rid }}" data-dlg title="Create a task" aria-label="Create a task for {{ name }}">{{ ic("square-check-big", "sm") }}</a>
+  {% endif %}
+  <button class="btn ghost icon-only sm" type="button" data-row-save title="Save to list" aria-label="Save {{ name }} to a list">{{ ic("list-plus", "sm") }}</button>
+  {% if kind == "people" %}<a class="btn ghost icon-only sm" href="/people/{{ rid }}" title="Open full profile" aria-label="Open {{ name }}">{{ ic("maximize-2", "sm") }}</a>{% endif %}
+  <details class="dd ract-dd">
+    <summary class="btn ghost icon-only sm" aria-label="More actions for {{ name }}" title="More actions">{{ ic("ellipsis", "sm") }}</summary>
+    <div class="menu right ract-menu">
+      {% set q = ("person_id=" ~ rid ~ ("&company_id=" ~ cid if cid else "")) if kind == "people" else ("company_id=" ~ rid) %}
+      {% if phone %}<a class="menu-item" href="{{ phone|tel }}">{{ ic("phone", "sm") }}<span>Call {{ phone }}</span></a>
+      {% else %}<span class="menu-item" aria-disabled="true" data-tip="No phone number known. Refresh the company insights to look for a business number.">{{ ic("phone", "sm") }}<span>Call</span></span>{% endif %}
+      {% if kind == "people" %}<a class="menu-item" href="/partials/call-log?person_id={{ rid }}" data-dlg>{{ ic("phone-call", "sm") }}<span>Log a call</span></a>
+      <a class="menu-item" href="/partials/task-new?{{ q }}" data-dlg>{{ ic("square-check-big", "sm") }}<span>Create task</span></a>{% endif %}
+      <a class="menu-item" href="/partials/deal-new?{{ q }}" data-dlg>{{ ic("handshake", "sm") }}<span>Create deal</span></a>
+      <a class="menu-item" href="/partials/note-new?{{ q }}" data-dlg>{{ ic("square-pen", "sm") }}<span>Add note</span></a>
+      <a class="menu-item" href="/partials/meeting-new?{{ q }}" data-dlg>{{ ic("calendar-plus", "sm") }}<span>Schedule meeting</span></a>
+      <div class="menu-sep"></div>
+      {% if kind == "people" %}
+      <button type="submit" class="menu-item" formmethod="post" formaction="/people/{{ rid }}/find-email" hx-post="/people/{{ rid }}/find-email" hx-swap="none" hx-push-url="false"{% if demo %} disabled data-tip="{{ demo_reason }}"{% endif %}>{{ ic("mail", "sm") }}<span>{{ "Re-check email" if has_email else "Find email" }}</span></button>
+      {% else %}
+      <button type="submit" class="menu-item" formmethod="post" formaction="/companies/{{ rid }}/refresh-insights" hx-post="/companies/{{ rid }}/refresh-insights" hx-swap="none" hx-push-url="false"{% if demo or not has_domain %} disabled data-tip="{{ demo_reason if demo else 'No known domain' }}"{% endif %}>{{ ic("refresh-cw", "sm") }}<span>Refresh company insights</span></button>
+      {% endif %}
+    </div>
+  </details>
+</span>
+{%- endmacro %}
+
+{# "Research with AI" menu. The top box turns plain words into filters (POST /api/ai/parse; works
+   offline with rules). The prompt items run a model you configured (LEADCOMMONS_LLM_URL and
+   LEADCOMMONS_LLM_MODEL) on the selected rows and add the answers as a temporary column. #}
+{% macro ai_menu(label="Research with AI", up=False, kind=None, llm=False, demo=False) -%}
+{% set off = "Turned off in the public demo." if demo else ("" if llm else "To turn this on, set LEADCOMMONS_LLM_URL and LEADCOMMONS_LLM_MODEL (any OpenAI-compatible server, for example Ollama) and restart.") %}
 <details class="dd ai-dd">
   <summary class="btn ai-btn" title="{{ label }}">{{ ic("wand-sparkles") }}<span>{{ label }}</span>{{ ic("chevron-down", "sm") }}</summary>
   <div class="menu left aimenu{% if up %} right{% endif %}">
     {% if kind %}
     <div class="ai-box" data-ai-box data-kind="{{ kind }}">
-      <label class="menu-note" for="ai-q-{{ kind }}">Describe who you want, in plain words</label>
+      <label class="menu-note" for="ai-q-{{ kind }}{{ '-sel' if up else '' }}">Describe who you want, in plain words</label>
       {# form= points nowhere so typing here never submits or refreshes the filter form #}
-      <input id="ai-q-{{ kind }}" type="text" form="lc-ai-detached" maxlength="500" autocomplete="off" data-ai-input
+      <input id="ai-q-{{ kind }}{{ '-sel' if up else '' }}" type="text" form="lc-ai-detached" maxlength="500" autocomplete="off" data-ai-input
              placeholder="{{ 'e.g. French fintech startups' if kind == 'companies' else 'e.g. CTOs at German SaaS companies, 50-200' }}">
       <button type="button" class="btn primary sm" data-ai-go>{{ ic("wand-sparkles", "sm") }}<span>Apply as filters</span></button>
       <p class="ai-out muted" data-ai-out aria-live="polite"></p>
     </div>
     <div class="menu-sep"></div>
-    {% else %}
-    <div class="menu-note">More AI research tools are planned for v0.2. These are previews only.</div>
     {% endif %}
-    <button type="button" class="menu-item" disabled aria-disabled="true">{{ ic("wand-sparkles", "sm") }}<span>Run a custom prompt</span><span class="badge soon-badge">v0.2</span></button>
-    <button type="button" class="menu-item" disabled aria-disabled="true">{{ ic("hash", "sm") }}<span>Generate a formula column</span><span class="badge soon-badge">v0.2</span></button>
+    <div class="menu-note">Runs on the rows you selected, with your own model.</div>
+    <button type="button" class="menu-item" data-ai-open="prompt"{% if off %} disabled aria-disabled="true" data-tip="{{ off }}"{% endif %}>{{ ic("wand-sparkles", "sm") }}<span>Run a custom prompt</span></button>
+    <button type="button" class="menu-item" data-ai-open="formula"{% if off %} disabled aria-disabled="true" data-tip="{{ off }}"{% endif %}>{{ ic("square-function", "sm") }}<span>Generate a formula column</span></button>
+    <details class="xsub ai-templates">
+      <summary>{{ ic("list", "sm") }} Start from a template {{ ic("chevron-down", "sm") }}</summary>
+      {% set tpls = [
+        ("Summarise what they do", "In one line, say what this " ~ ("company" if kind == "companies" else "person's company") ~ " does."),
+        ("Draft an opening line", "Write a friendly one-sentence opener for a cold email to this " ~ ("company" if kind == "companies" else "person") ~ "."),
+        ("Rate the fit", "Rate from 1 to 5 how likely this " ~ ("company" if kind == "companies" else "person") ~ " is a good prospect for a B2B software vendor, then give the reason in a few words."),
+        ("Guess the likely pain", "Name one likely business challenge for this " ~ ("company" if kind == "companies" else "person") ~ ".")
+      ] %}
+      {% for t, text in tpls %}<button type="button" class="menu-item" data-ai-open="prompt" data-ai-text="{{ text }}"{% if off %} disabled aria-disabled="true" data-tip="{{ off }}"{% endif %}><span>{{ t }}</span></button>{% endfor %}
+    </details>
     <div class="menu-sep"></div>
-    <button type="button" class="menu-item" disabled aria-disabled="true">{{ ic("sparkles", "sm") }}<span>Ask the Assistant about these rows</span><span class="badge soon-badge">v0.2</span></button>
-    <button type="button" class="menu-item" disabled aria-disabled="true">{{ ic("list", "sm") }}<span>Start from a template</span><span class="badge soon-badge">v0.2</span></button>
+    <a class="menu-item" href="/assistant">{{ ic("sparkles", "sm") }}<span>Open the Assistant</span></a>
   </div>
 </details>
 {%- endmacro %}

@@ -13,14 +13,19 @@ import json
 import math
 import re
 from collections import Counter
-from datetime import datetime
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
-from leadcommons import __version__
+from leadcommons import __version__, engage, insights
+from leadcommons.ai.llm import llm_config
 from leadcommons.models import SIZE_RANGES, Company, EmailStatus, Person, Seniority, utcnow
 from leadcommons.search import CompanyFilters, PeopleFilters
 from leadcommons.web.deps import get_jobs, get_search, get_store, templates
@@ -565,6 +570,9 @@ def parse_common(g: Any) -> dict[str, Any]:
         "keyword": list_param(g, "keyword"),
         "xkeyword": list_param(g, "xkeyword"),
         "domain": g.get("domain", "").strip().lower(),
+        "lookalike": g.get("lookalike", "").strip()[:120],
+        "tech": list_param(g, "tech"),
+        "job": list_param(g, "job"),
         "sort": sort,
         "tab": tab if tab in ("all", "new", "saved") else "all",
         "page": _opt_int(g.get("page")) or 1,
@@ -576,7 +584,7 @@ def url_params(p: dict[str, Any]) -> dict[str, Any]:
     """The state worth keeping in a URL: no page, no defaults, no empties."""
     out: dict[str, Any] = {}
     for k, v in p.items():
-        if k == "page":
+        if k == "page" or k.startswith("_"):
             continue
         if k == "similar":
             if not v:
@@ -672,6 +680,176 @@ def company_matches(
     return True
 
 
+# ---- lookalikes, insight-based filters, phones
+
+
+def is_demo(request: Request) -> bool:
+    return request.app.state.settings.mode == "demo"
+
+
+DEMO_REASON = "Turned off in the public demo. Install LeadCommons to use it on your own data."
+
+
+def safe_insights(store: Any, company_id: str | None) -> Any | None:
+    """Stored insights of a company, or None (never refreshed, or the data module is not ready)."""
+    if not company_id:
+        return None
+    try:
+        return insights.get(store, company_id)
+    except Exception:  # NotImplementedError until the data agent ships; never break a page
+        return None
+
+
+def _field(item: Any, *names: str) -> Any:
+    for n in names:
+        v = item.get(n) if isinstance(item, dict) else getattr(item, n, None)
+        if v:
+            return v
+    return None
+
+
+def _texts(items: Any, *names: str) -> list[str]:
+    out: list[str] = []
+    for it in items or []:
+        v = it if isinstance(it, str) else _field(it, *names)
+        if isinstance(v, str) and v.strip():
+            out.append(v.strip())
+    return out
+
+
+def insight_technologies(ins: Any) -> list[str]:
+    return _texts(_field(ins, "technologies") if ins else [], "name", "technology")
+
+
+def insight_jobs(ins: Any) -> list[str]:
+    return _texts(_field(ins, "job_postings", "jobs") if ins else [], "title", "name")
+
+
+def insight_phone(ins: Any) -> str | None:
+    """First business phone number in a company's insights, if any."""
+    if not ins:
+        return None
+    for it in _field(ins, "phones") or []:
+        v = it if isinstance(it, str) else _field(it, "number", "phone", "value")
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    single = _field(ins, "phone")
+    return single.strip() if isinstance(single, str) and single.strip() else None
+
+
+def tel_href(phone: str | None) -> str | None:
+    digits = re.sub(r"[^0-9+]", "", phone or "")
+    return f"tel:{digits}" if len(digits) >= 5 else None
+
+
+def company_post_filter(store: Any, p: dict[str, Any]) -> Callable[[Company], bool] | None:
+    """Technologies / Job postings filters: they read the insights stored for each company,
+    so only companies whose insights were refreshed can match."""
+    tech = [t.lower() for t in p.get("tech") or []]
+    jobs = [j.lower() for j in p.get("job") or []]
+    if not tech and not jobs:
+        return None
+    memo: dict[str, bool] = {}
+
+    def ok(c: Company) -> bool:
+        if c.id not in memo:
+            ins = safe_insights(store, c.id)
+            names = [n.lower() for n in insight_technologies(ins)]
+            titles = [n.lower() for n in insight_jobs(ins)]
+            memo[c.id] = (not tech or any(k in n for k in tech for n in names)) and (
+                not jobs or any(k in n for k in jobs for n in titles)
+            )
+        return memo[c.id]
+
+    return ok
+
+
+def domain_restriction(p: dict[str, Any]) -> list[str] | None:
+    """Domains the results must be in (lookalikes), or None when nothing restricts them."""
+    found = (p.get("_x") or {}).get("domains")
+    if found is None:
+        return None
+    allowed = sorted(d for d in found if not p["domain"] or d == p["domain"])
+    return allowed or [NO_MATCH]
+
+
+def lookalike_domains(search: Any, company: Company) -> set[str] | str:
+    """Domains of companies similar to `company`, or a status string: "soon" / "error"."""
+    try:
+        found = insights.lookalikes(search, company, 50)
+    except NotImplementedError:
+        return "soon"
+    except Exception:
+        return "error"
+    return {d for c in found if (d := getattr(c, "domain", None))}
+
+
+def find_company_ref(search: Any, store: Any, text: str) -> Company | None:
+    found = CompanyLookup(search, store).get(text)
+    if found is not None:
+        return found
+    for flt in (CompanyFilters(domains=[text.lower()]), CompanyFilters(text=text)):
+        try:
+            res = search.search_companies(flt, page=1, per_page=1)
+        except Exception:
+            return None
+        if res.items:
+            return res.items[0]  # type: ignore[no-any-return]
+    return None
+
+
+def resolve_extras(request: Request, p: dict[str, Any], kind: str) -> dict[str, Any]:
+    """Turn the lookalike filters into a domain restriction (p["_x"]); the status of each is
+    kept for the filter panel: "soon" (module not ready), "error", "notfound"."""
+    search, store = request.app.state.search, request.app.state.store
+    x: dict[str, Any] = {"domains": None, "seniority": None, "status": {}}
+    p["_x"] = x
+
+    def narrow(found: set[str]) -> None:
+        x["domains"] = found if x["domains"] is None else x["domains"] & found
+
+    if p.get("lookalike"):
+        co = find_company_ref(search, store, p["lookalike"])
+        if co is None:
+            x["status"]["lookalike"] = "notfound"
+            narrow(set())
+        else:
+            res = lookalike_domains(search, co)
+            if isinstance(res, str):
+                x["status"]["lookalike"] = res
+            else:
+                narrow(res)
+    if kind == "people" and p.get("plook"):
+        ref = None
+        try:
+            hits = store.search_people(PeopleFilters(text=p["plook"]), page=1, per_page=1)
+            ref = hits.items[0] if hits.items else None
+        except Exception:
+            ref = None
+        co = CompanyLookup(search, store).get(ref.company_id) if ref else None
+        if ref is None or co is None:
+            x["status"]["plook"] = "notfound"
+            narrow(set())
+        else:
+            res = lookalike_domains(search, co)
+            if isinstance(res, str):
+                x["status"]["plook"] = res
+            else:
+                narrow(res | ({co.domain} if co.domain else set()))
+                x["seniority"] = ref.seniority
+    return p
+
+
+def phones_for(store: Any, company_ids: Any) -> dict[str, str]:
+    """company id -> business phone, for the companies whose insights hold one."""
+    out: dict[str, str] = {}
+    for cid in {c for c in company_ids if c}:
+        phone = insight_phone(safe_insights(store, cid))
+        if phone:
+            out[cid] = phone
+    return out
+
+
 # ---- companies
 
 
@@ -700,7 +878,8 @@ def build_company_filters(
         return allowed or [NO_MATCH]
 
     text = p["q"] or None
-    domains = [p["domain"]] if p["domain"] else []
+    restricted = domain_restriction(p)
+    domains = restricted if restricted is not None else ([p["domain"]] if p["domain"] else [])
     sizes = [] if skip == "size" else effective_sizes(p)
     keywords = [] if skip == "industry" else p["keyword"]
     base = CompanyFilters(
@@ -765,13 +944,19 @@ def run_companies(
     """Run the companies search for the page, the count endpoint and the facet panel."""
     flt = build_company_filters(search, p)
     xkw = [k.lower() for k in p["xkeyword"]]
+    post = company_post_filter(store, p)
     saved_ids = store.saved_company_ids() if not count_only else set()
+    restricted = domain_restriction(p)
     lookup = CompanyLookup(search, store)
     pool: list[Company] | None = None
     capped = False
-    if xkw:
+    if xkw or post:
         scanned, _raw, capped = scan_companies(search, flt)
-        pool = [c for c in scanned if not any(k in company_text(c) for k in xkw)]
+        pool = [
+            c
+            for c in scanned
+            if not any(k in company_text(c) for k in xkw) and (post is None or post(c))
+        ]
         total_all = len(pool)
     else:
         total_all = search.search_companies(flt, page=1, per_page=1).total
@@ -788,7 +973,10 @@ def run_companies(
     saved_items = [
         c
         for cid in sorted(saved_ids)[:SCAN_BATCH]
-        if (c := lookup.get(cid)) is not None and company_matches(c, p)
+        if (c := lookup.get(cid)) is not None
+        and company_matches(c, p)
+        and (post is None or post(c))
+        and (restricted is None or (c.domain or "") in restricted)
     ]
     out["saved_count"] = len(saved_items)
     per = p["per"]
@@ -865,6 +1053,7 @@ def parse_people_params(request: Request) -> dict[str, Any]:
             "similar": not ("0" in votes and "1" not in votes),
             "seniority": [s for s in g.getlist("seniority") if s in valid_sen],
             "status": [s for s in g.getlist("status") if s in valid_status],
+            "plook": g.get("plook", "").strip()[:120],
         }
     )
     p["sort"] = p["sort"] if p["sort"] in ("relevance", "name", "company") else "relevance"
@@ -882,7 +1071,11 @@ def people_filters(p: dict[str, Any]) -> PeopleFilters:
         titles=title_terms(p, "title"),
         seniorities=[Seniority(s) for s in p["seniority"]],
         email_statuses=[EmailStatus(s) for s in p["status"]],
-        company=CompanyFilters(domains=[p["domain"]] if p["domain"] else []),
+        company=CompanyFilters(
+            domains=restricted
+            if (restricted := domain_restriction(p)) is not None
+            else ([p["domain"]] if p["domain"] else [])
+        ),
     )
 
 
@@ -912,6 +1105,15 @@ def run_people(
     filtered = cands
     if has_company_conditions(p):
         filtered = [x for x in cands if company_matches(lookup.get(x.company_id), p, text=False)]
+    restricted = domain_restriction(p)
+    if restricted is not None:
+        filtered = [x for x in filtered if (x.company_domain or "") in restricted]
+    seniority = (p.get("_x") or {}).get("seniority")
+    if seniority is not None:
+        filtered = [x for x in filtered if x.seniority == seniority]
+    post = company_post_filter(store, p)
+    if post is not None:
+        filtered = [x for x in filtered if (c := lookup.get(x.company_id)) is not None and post(c)]
     out: dict[str, Any] = {
         "total_all": len(filtered),
         "total": len(filtered),
@@ -1018,12 +1220,28 @@ GROUPS: tuple[dict[str, Any], ...] = (
         "panel": False,
     },
     {
+        "key": "plook",
+        "label": "People lookalikes",
+        "icon": "user-search",
+        "col": "person",
+        "kinds": ("people",),
+        "keys": ("plook",),
+    },
+    {
         "key": "company",
         "label": "Company",
         "icon": "building-2",
         "col": "company",
         "kinds": ("companies", "people"),
         "keys": ("domain", "q"),
+    },
+    {
+        "key": "lookalikes",
+        "label": "Company lookalikes",
+        "icon": "building-2",
+        "col": "company",
+        "kinds": ("companies", "people"),
+        "keys": ("lookalike",),
     },
     {
         "key": "location",
@@ -1049,24 +1267,88 @@ GROUPS: tuple[dict[str, Any], ...] = (
         "kinds": ("companies", "people"),
         "keys": ("industry", "xindustry", "keyword", "xkeyword"),
     },
+    {
+        "key": "tech",
+        "label": "Technologies",
+        "icon": "layers",
+        "col": "company",
+        "kinds": ("companies", "people"),
+        "keys": ("tech",),
+    },
+    {
+        "key": "jobs",
+        "label": "Job postings",
+        "icon": "briefcase",
+        "col": "company",
+        "kinds": ("companies", "people"),
+        "keys": ("job",),
+    },
 )
 PIN_DEFAULTS = {
-    "companies": ["company", "location", "size", "industry"],
-    "people": ["titles", "seniority", "email", "company", "location"],
+    "companies": ["company", "lookalikes", "location", "size", "industry"],
+    "people": ["titles", "plook", "seniority", "email", "company", "location"],
 }
 SOON_FILTERS: tuple[dict[str, str], ...] = (
-    {"label": "Persona", "icon": "user-round", "col": "person"},
-    {"label": "People lookalikes", "icon": "user-search", "col": "person"},
-    {"label": "Education", "icon": "graduation-cap", "col": "person"},
-    {"label": "Time zone", "icon": "clock", "col": "person"},
-    {"label": "Phone", "icon": "phone", "col": "person"},
-    {"label": "Work URLs", "icon": "link", "col": "person"},
-    {"label": "Company lookalikes", "icon": "building-2", "col": "company"},
-    {"label": "Technologies", "icon": "layers", "col": "company"},
-    {"label": "Funding", "icon": "dollar-sign", "col": "company"},
-    {"label": "Headcount growth", "icon": "trending-up", "col": "company"},
-    {"label": "Buying intent", "icon": "zap", "col": "company"},
-    {"label": "Revenue", "icon": "dollar-sign", "col": "company"},
+    {
+        "label": "Persona",
+        "icon": "user-round",
+        "col": "person",
+        "tip": "Personas need a labelled training set that open data does not provide.",
+    },
+    {
+        "label": "Education",
+        "icon": "graduation-cap",
+        "col": "person",
+        "tip": "Education history is not in any open dataset we can use lawfully.",
+    },
+    {
+        "label": "Time zone",
+        "icon": "clock",
+        "col": "person",
+        "tip": "People have no time zone on record. Filter by country instead.",
+    },
+    {
+        "label": "Phone",
+        "icon": "phone",
+        "col": "person",
+        "tip": "LeadCommons does not collect personal phone numbers.",
+    },
+    {
+        "label": "Work URLs",
+        "icon": "link",
+        "col": "person",
+        "tip": "Profile links are not collected.",
+    },
+    {
+        "label": "Funding",
+        "icon": "dollar-sign",
+        "col": "company",
+        "tip": "Needs funding data in company insights; see the Funding tab of a company.",
+    },
+    {
+        "label": "Headcount growth",
+        "icon": "trending-up",
+        "col": "company",
+        "tip": "Needs employee trends from insights, which are not stored in a searchable way yet.",
+    },
+    {
+        "label": "Buying intent",
+        "icon": "zap",
+        "col": "company",
+        "tip": "Buying intent comes from paid third-party signals. LeadCommons has no free source.",
+    },
+    {
+        "label": "Revenue",
+        "icon": "dollar-sign",
+        "col": "company",
+        "tip": "Revenue is not in the open data packs; insights only show what a company publishes.",
+    },
+    {
+        "label": "Website visitors",
+        "icon": "globe",
+        "col": "company",
+        "tip": "Needs a tracking script on your own website. Not built yet.",
+    },
 )
 
 COMPANY_COLUMNS: tuple[dict[str, Any], ...] = (
@@ -1192,6 +1474,14 @@ def group_state(
                     ],
                 }
             )
+    elif key == "lookalikes":
+        single("Similar to", "lookalike")
+    elif key == "plook":
+        single("Like", "plook")
+    elif key == "tech":
+        listed("Uses", "tech")
+    elif key == "jobs":
+        listed("Hiring for", "job")
     elif key == "industry":
         listed("Include industries", "industry", shown=labels)
         listed("Exclude industries", "xindustry", True, shown=labels)
@@ -1209,6 +1499,7 @@ def search_ui(
     store: Any,
     opts: dict[str, list[tuple[str, int]]],
     ind_labels: dict[str, str],
+    demo: bool = False,
 ) -> dict[str, Any]:
     """Everything the shared search templates need beyond the result rows."""
     base = "/companies" if kind == "companies" else "/people"
@@ -1224,6 +1515,8 @@ def search_ui(
     groups = []
     for g in GROUPS:
         st = group_state(kind, g, p, base, params, labels)
+        if g["key"] == "lookalikes" and kind == "companies":
+            g = {**g, "label": "Lookalikes"}
         groups.append(
             {
                 **g,
@@ -1252,6 +1545,10 @@ def search_ui(
     return {
         "kind": kind,
         "base": base,
+        "demo": demo,
+        "llm": llm_config() is not None,
+        "xstatus": (p.get("_x") or {}).get("status", {}),
+        "workflow_url": "/workflows/new?" + urlencode({"source": kind, "query": qs(params)}),
         "p": p,
         "params": params,
         "base_qs": qs(params),
@@ -1290,9 +1587,9 @@ templates.env.globals["remove_url"] = lambda ui, key, value: _remove_url(
 def companies(
     request: Request, search: Any = Depends(get_search), store: Any = Depends(get_store)
 ) -> Response:
-    p = parse_company_params(request)
+    p = resolve_extras(request, parse_company_params(request), "companies")
     res = run_companies(search, store, p)
-    ui = search_ui("companies", p, store, res["facets"], res["ind_labels"])
+    ui = search_ui("companies", p, store, res["facets"], res["ind_labels"], is_demo(request))
     p["page"] = res["page"]
     counts = {
         "all": res["total_all"],
@@ -1308,6 +1605,7 @@ def companies(
         items=res["items"],
         total=res["total"],
         saved_ids=store.saved_company_ids(),
+        phones=phones_for(store, [c.id for c in res["items"]]),
         counts=counts,
         isic=ISIC_SECTIONS,
         has_filters=ui["active_total"] > 0,
@@ -1322,10 +1620,20 @@ def search_count(
 ) -> Response:
     """Live "N records found" for the All filters window (ignores tab, sort and paging)."""
     if request.query_params.get("kind") == "people":
-        res = run_people(search, store, parse_people_params(request), facets=False, count_only=True)
+        res = run_people(
+            search,
+            store,
+            resolve_extras(request, parse_people_params(request), "people"),
+            facets=False,
+            count_only=True,
+        )
     else:
         res = run_companies(
-            search, store, parse_company_params(request), facets=False, count_only=True
+            search,
+            store,
+            resolve_extras(request, parse_company_params(request), "companies"),
+            facets=False,
+            count_only=True,
         )
     return templates.TemplateResponse(
         request,
@@ -1344,6 +1652,8 @@ def company_context(request: Request, company: Company) -> dict[str, Any]:
         )
         people = [x for x in res.items if x.company_domain == company.domain]
         emails = {x.id: store.best_email(x.id) for x in people}
+    ins = safe_insights(store, company.id)
+    phone = insight_phone(ins)
     return {
         "c": company,
         "people": people,
@@ -1351,6 +1661,15 @@ def company_context(request: Request, company: Company) -> dict[str, Any]:
         "is_saved": company.id in store.saved_company_ids(),
         "lists": store.lists("companies"),
         "suppressed": {a.address for a in emails.values() if a and store.is_suppressed(a.address)},
+        "ins": ins,
+        "phone": phone,
+        "tel": tel_href(phone),
+        "demo": is_demo(request),
+        "cscore": company_score(company, people, ins),
+        "dnc": {
+            "domain": company.domain,
+            "suppressed": bool(company.domain and store.is_suppressed(company.domain)),
+        },
     }
 
 
@@ -1401,10 +1720,12 @@ def company_find_people(
     company = search.get_company(company_id)
     if company is None:
         return not_found(request, "Company")
-    ok = _submit_find_people(jobs, company)
+    ok = not is_demo(request) and _submit_find_people(jobs, company)
     msg = (
         f"Finding people at {company.domain}. Track it in the jobs menu."
         if ok
+        else DEMO_REASON
+        if is_demo(request)
         else f"{company.name} has no known domain, so people cannot be searched yet."
     )
     kind = "ok" if ok else "error"
@@ -1438,9 +1759,9 @@ def company_save(
 def people(
     request: Request, search: Any = Depends(get_search), store: Any = Depends(get_store)
 ) -> Response:
-    p = parse_people_params(request)
+    p = resolve_extras(request, parse_people_params(request), "people")
     res = run_people(search, store, p)
-    ui = search_ui("people", p, store, res["facets"], {})
+    ui = search_ui("people", p, store, res["facets"], {}, is_demo(request))
     p["page"] = res["page"]
     items = res["items"]
     emails = {x.id: store.best_email(x.id) for x in items}
@@ -1466,6 +1787,7 @@ def people(
         suppressed=suppressed,
         companies=companies_by_id,
         saved_ids=store.saved_person_ids(),
+        phones=phones_for(store, [x.company_id for x in items]),
         counts=counts,
         isic=ISIC_SECTIONS,
         has_filters=ui["active_total"] > 0,
@@ -1491,6 +1813,52 @@ def score_summary(best: Any) -> dict[str, Any]:
     return {"value": value, "label": label, "tone": tone, "rows": rows}
 
 
+def completeness(checks: list[tuple[str, bool]]) -> dict[str, Any]:
+    """Share of filled-in fields as a score block: number, label, tone and one row per field."""
+    value = round(100 * sum(1 for _, ok in checks if ok) / len(checks)) if checks else 0
+    label, tone = (
+        ("Strong", "ok") if value >= 80 else ("Fair", "amber") if value >= 50 else ("Low", "red")
+    )
+    return {
+        "value": value,
+        "label": label,
+        "tone": tone,
+        "rows": [(name, "Yes" if ok else "Missing") for name, ok in checks],
+    }
+
+
+def profile_score(person: Person, best: Any, company: Company | None) -> dict[str, Any]:
+    return completeness(
+        [
+            ("Name", bool(person.full_name)),
+            ("Job title", bool(person.title)),
+            ("Seniority", bool(person.seniority)),
+            ("Department", bool(person.department)),
+            ("Email found", best is not None),
+            ("Email verified", best is not None and best.status == EmailStatus.VALID),
+            ("Company record", company is not None),
+            ("Company domain", bool(person.company_domain)),
+            ("Source link", bool(person.source_urls)),
+        ]
+    )
+
+
+def company_score(company: Company, people: list[Person], ins: Any) -> dict[str, Any]:
+    return completeness(
+        [
+            ("Domain", bool(company.domain)),
+            ("Country", bool(company.country)),
+            ("City", bool(company.city)),
+            ("Industry", bool(company.industry or company.industry_label)),
+            ("Employees", bool(company.size_range)),
+            ("Founded year", bool(company.founded_year)),
+            ("Registry id (LEI or Wikidata)", bool(company.registry_ids)),
+            ("People found", bool(people)),
+            ("Insights refreshed", ins is not None),
+        ]
+    )
+
+
 def person_context(request: Request, person: Person) -> dict[str, Any]:
     store, search = request.app.state.store, request.app.state.search
     best = store.best_email(person.id)
@@ -1513,9 +1881,10 @@ def person_context(request: Request, person: Person) -> dict[str, Any]:
         ]
         emails = {x.id: store.best_email(x.id) for x in colleagues}
     suppressed = {c.address for c in candidates if c and store.is_suppressed(c.address)}
-    opted_out = bool(suppressed) or bool(
-        person.company_domain and store.is_suppressed(person.company_domain)
-    )
+    domain_sup = bool(person.company_domain and store.is_suppressed(person.company_domain))
+    opted_out = bool(suppressed) or domain_sup
+    ins = safe_insights(store, person.company_id)
+    phone = insight_phone(ins)
     return {
         "person": person,
         "best": best,
@@ -1523,7 +1892,18 @@ def person_context(request: Request, person: Person) -> dict[str, Any]:
         "company": company,
         "suppressed": suppressed,
         "opted_out": opted_out,
-        "score": score_summary(best),
+        "score": {**score_summary(best), "profile": profile_score(person, best, company)},
+        "dnc": {
+            "address": best.address if best else None,
+            "address_suppressed": bool(suppressed) and not domain_sup,
+            "domain": person.company_domain,
+            "domain_suppressed": domain_sup,
+            "suppressed": opted_out,
+        },
+        "ins": ins,
+        "phone": phone,
+        "tel": tel_href(phone),
+        "demo": is_demo(request),
         "colleagues": colleagues,
         "emails": emails,
         "lists": store.lists("people"),
@@ -1555,6 +1935,8 @@ def person_find_email(
     person = store.get_person(person_id)
     if person is None:
         return not_found(request, "Person")
+    if is_demo(request):
+        return done(request, DEMO_REASON, f"/people/{person_id}", "error")
     jobs.submit("find_email", {"person_id": person.id}, f"Find email for {person.full_name}")
     return done(request, f"Finding an email for {person.full_name}.", f"/people/{person_id}")
 
@@ -1571,6 +1953,8 @@ async def bulk_find_people(
 ) -> Response:
     form = await form_values(request)
     back = safe_next(form.get("next"), "/companies")
+    if is_demo(request):
+        return done(request, DEMO_REASON, back, "error")
     n = skipped = 0
     for cid in form_ids(form)[:200]:
         company = search.get_company(cid)
@@ -1595,6 +1979,8 @@ async def bulk_find_emails(
 ) -> Response:
     form = await form_values(request)
     back = safe_next(form.get("next"), "/people")
+    if is_demo(request):
+        return done(request, DEMO_REASON, back, "error")
     n = 0
     for pid in form_ids(form)[:200]:
         person = store.get_person(pid)
@@ -1604,6 +1990,341 @@ async def bulk_find_emails(
     if not n:
         return done(request, "Select at least one person first.", back, "error")
     return done(request, f"Started {n} email search{'es' if n != 1 else ''}.", back)
+
+
+# ---------------------------------------------------------------- do not contact
+
+
+def person_drawer_response(
+    request: Request, person: Person, message: str, kind: str = "ok"
+) -> Response:
+    resp = templates.TemplateResponse(
+        request, "_person_drawer.html", {"request": request, **person_context(request, person)}
+    )
+    resp.headers.update(toast_headers(message, kind))
+    return resp
+
+
+def _unsuppress(store: Any, value: str) -> bool:
+    remover = getattr(store, "remove_suppression", None)
+    return bool(remover(value)) if remover else False
+
+
+def _addresses(store: Any, person_id: str) -> list[str]:
+    getter = getattr(store, "emails_for", None) or getattr(store, "list_emails", None)
+    try:
+        found = list(getter(person_id)) if getter else []
+    except Exception:
+        found = []
+    best = store.best_email(person_id)
+    if best and not any(e.address == best.address for e in found):
+        found.append(best)
+    return [e.address for e in found]
+
+
+def _person_dnc(request: Request, person_id: str, suppress: bool) -> Response:
+    store = request.app.state.store
+    person = store.get_person(person_id)
+    if person is None:
+        return not_found(request, "Person")
+    back = f"/people/{person_id}"
+    addresses = _addresses(store, person_id)
+    if suppress and not addresses:
+        msg, kind = "No email address on file. Suppress the company domain instead.", "error"
+    elif suppress:
+        for a in addresses:
+            store.add_suppression(a, "do not contact (profile)")
+        msg, kind = f"{person.full_name} is now on your do-not-contact list.", "ok"
+    else:
+        n = sum(1 for a in addresses if _unsuppress(store, a))
+        msg, kind = (
+            (f"Removed {n} address{'es' if n != 1 else ''} from the do-not-contact list.", "ok")
+            if n
+            else ("Nothing to remove. The company domain may be suppressed instead.", "error")
+        )
+    if is_htmx(request) and request.headers.get("hx-target") == "drawer":
+        return person_drawer_response(request, person, msg, kind)
+    return done(request, msg, back, kind)
+
+
+@router.post("/people/{person_id}/suppress")
+def person_suppress(person_id: str, request: Request, _: None = Depends(csrf)) -> Response:
+    return _person_dnc(request, person_id, True)
+
+
+@router.post("/people/{person_id}/unsuppress")
+def person_unsuppress(person_id: str, request: Request, _: None = Depends(csrf)) -> Response:
+    return _person_dnc(request, person_id, False)
+
+
+def _company_dnc(request: Request, company_id: str, suppress: bool) -> Response:
+    store, search = request.app.state.store, request.app.state.search
+    company = search.get_company(company_id)
+    if company is None:
+        return not_found(request, "Company")
+    back = f"/companies/{company_id}"
+    if not company.domain:
+        msg, kind = f"{company.name} has no known domain to suppress.", "error"
+    elif suppress:
+        store.add_suppression(company.domain, "do not contact (company profile)")
+        msg, kind = f"Everyone at {company.domain} is now on your do-not-contact list.", "ok"
+    elif _unsuppress(store, company.domain):
+        msg, kind = f"{company.domain} is no longer on the do-not-contact list.", "ok"
+    else:
+        msg, kind = f"{company.domain} was not on the list.", "error"
+    if is_htmx(request) and request.headers.get("hx-target") == "drawer":
+        return drawer_response(request, company, msg, kind)
+    return done(request, msg, back, kind)
+
+
+@router.post("/companies/{company_id}/suppress")
+def company_suppress(company_id: str, request: Request, _: None = Depends(csrf)) -> Response:
+    return _company_dnc(request, company_id, True)
+
+
+@router.post("/companies/{company_id}/unsuppress")
+def company_unsuppress(company_id: str, request: Request, _: None = Depends(csrf)) -> Response:
+    return _company_dnc(request, company_id, False)
+
+
+# ---------------------------------------------------------------- insights refresh + bulk tasks
+
+
+def _submit_insights(jobs: Any, company: Company) -> bool:
+    if not company.domain:
+        return False
+    jobs.submit(
+        "company_insights",
+        {"company_id": company.id, "domain": company.domain},
+        f"Refresh insights for {company.name}",
+    )
+    return True
+
+
+@router.post("/companies/{company_id}/refresh-insights")
+def company_refresh_insights(
+    company_id: str,
+    request: Request,
+    _: None = Depends(csrf),
+    search: Any = Depends(get_search),
+    jobs: Any = Depends(get_jobs),
+) -> Response:
+    company = search.get_company(company_id)
+    if company is None:
+        return not_found(request, "Company")
+    back = f"/companies/{company_id}"
+    if is_demo(request):
+        return done(request, DEMO_REASON, back, "error")
+    if not _submit_insights(jobs, company):
+        return done(request, f"{company.name} has no known domain to look at.", back, "error")
+    return done(
+        request, f"Refreshing insights for {company.name}. Track it in the jobs menu.", back
+    )
+
+
+@router.post("/bulk/refresh-insights")
+async def bulk_refresh_insights(
+    request: Request,
+    _: None = Depends(csrf),
+    search: Any = Depends(get_search),
+    jobs: Any = Depends(get_jobs),
+) -> Response:
+    form = await form_values(request)
+    back = safe_next(form.get("next"), "/companies")
+    if is_demo(request):
+        return done(request, DEMO_REASON, back, "error")
+    n = 0
+    for cid in form_ids(form)[:100]:
+        company = search.get_company(cid)
+        if company and _submit_insights(jobs, company):
+            n += 1
+    if not n:
+        return done(request, "Select companies that have a known domain first.", back, "error")
+    return done(request, f"Refreshing insights for {n} compan{'ies' if n != 1 else 'y'}.", back)
+
+
+@router.post("/bulk/create-tasks")
+async def bulk_create_tasks(
+    request: Request, _: None = Depends(csrf), store: Any = Depends(get_store)
+) -> Response:
+    form = await form_values(request)
+    kind = valid_kind(form.get("kind"))
+    back = safe_next(form.get("next"), "/companies" if kind == "companies" else "/people")
+    ids = form_ids(form)[:200]
+    title = str(form.get("title") or "").strip()[:200]
+    if not ids:
+        return done(request, "Select at least one record first.", back, "error")
+    if not title:
+        return done(request, "Give the task a title.", back, "error")
+    task_kind = str(form.get("task_kind") or "action")
+    if task_kind not in ("call", "email", "action", "linkedin"):
+        task_kind = "action"
+    days = _opt_int(form.get("due_days"))
+    due = utcnow() + timedelta(days=days) if days is not None and 0 <= days <= 365 else None
+    n = 0
+    try:
+        for rid in ids:
+            if kind == "people":
+                person = store.get_person(rid)
+                if person is None:
+                    continue
+                engage.create_task(
+                    store,
+                    title,
+                    person_id=person.id,
+                    company_id=person.company_id,
+                    due=due,
+                    kind=task_kind,
+                )
+            else:
+                engage.create_task(store, title, company_id=rid, due=due, kind=task_kind)
+            n += 1
+    except NotImplementedError:
+        return done(request, "Tasks are not available in this build yet.", back, "error")
+    if not n:
+        return done(request, "Nothing to create tasks for.", back, "error")
+    return done(request, f"Created {n} task{'s' if n != 1 else ''}.", back)
+
+
+@router.post("/bulk/suppress")
+async def bulk_suppress(
+    request: Request,
+    _: None = Depends(csrf),
+    search: Any = Depends(get_search),
+    store: Any = Depends(get_store),
+) -> Response:
+    """Do not contact: people (every known address) or companies (the whole domain)."""
+    form = await form_values(request)
+    kind = valid_kind(form.get("kind"))
+    back = safe_next(form.get("next"), "/companies" if kind == "companies" else "/people")
+    n = 0
+    for rid in form_ids(form)[:200]:
+        if kind == "people":
+            for address in _addresses(store, rid):
+                store.add_suppression(address, "do not contact (bulk)")
+                n += 1
+        else:
+            company = search.get_company(rid)
+            if company and company.domain:
+                store.add_suppression(company.domain, "do not contact (bulk)")
+                n += 1
+    if not n:
+        return done(request, "Nothing to suppress: no address or domain is known.", back, "error")
+    return done(
+        request, f"Added {n} entr{'ies' if n != 1 else 'y'} to the do-not-contact list.", back
+    )
+
+
+# ---------------------------------------------------------------- AI research on selected rows
+
+AI_MAX_ROWS = 25
+AI_SYSTEM = (
+    "You help a salesperson research prospects. You get one record and one instruction. "
+    "Answer the instruction for that record only, in one short plain-text line under 200 "
+    "characters, no markdown. If the record does not contain enough to tell, answer 'Unknown'."
+)
+AI_FORMULA_SYSTEM = (
+    "You compute one value per record. You get a record and a description of the value. "
+    "Reply with only that value (a number, a word or a short phrase), nothing else. "
+    "If it cannot be worked out from the record, reply 'Unknown'."
+)
+
+
+def ask_model(instruction: str, record: str, mode: str) -> str:
+    """One OpenAI-compatible chat call for one row. Never raises: returns an error text."""
+    cfg = llm_config()
+    if cfg is None:
+        return "No model configured"
+    base, model, key = cfg
+    body = {
+        "model": model,
+        "temperature": 0,
+        "messages": [
+            {"role": "system", "content": AI_FORMULA_SYSTEM if mode == "formula" else AI_SYSTEM},
+            {"role": "user", "content": f"Record:\n{record}\n\nInstruction: {instruction}"},
+        ],
+    }
+    headers = {"Authorization": f"Bearer {key}"} if key else {}
+    try:
+        resp = httpx.post(f"{base}/chat/completions", json=body, headers=headers, timeout=30.0)
+        resp.raise_for_status()
+        return str(resp.json()["choices"][0]["message"]["content"]).strip()[:400] or "Unknown"
+    except Exception as exc:
+        return f"Model error ({type(exc).__name__})"
+
+
+def ai_record_text(kind: str, rid: str, search: Any, store: Any) -> tuple[str, str] | None:
+    """(label, text sent to the model) for one row: only the fields shown in the table."""
+    if kind == "people":
+        x = store.get_person(rid)
+        if x is None:
+            return None
+        co = CompanyLookup(search, store).get(x.company_id)
+        parts = [
+            f"Name: {x.full_name}",
+            f"Job title: {x.title or 'unknown'}",
+            f"Company: {co.name if co else x.company_domain or 'unknown'}",
+            f"Company domain: {x.company_domain or 'unknown'}",
+        ]
+        if co:
+            parts += [
+                f"Industry: {co.industry_label or co.industry or 'unknown'}",
+                f"Country: {co.country or 'unknown'}",
+                f"Employees: {co.size_range or 'unknown'}",
+            ]
+        return x.full_name, "\n".join(parts)
+    c = search.get_company(rid)
+    if c is None:
+        return None
+    return c.name, "\n".join(
+        [
+            f"Company: {c.name}",
+            f"Domain: {c.domain or 'unknown'}",
+            f"Industry: {c.industry_label or c.industry or 'unknown'}",
+            f"Country: {c.country or 'unknown'}, city: {c.city or 'unknown'}",
+            f"Employees: {c.size_range or 'unknown'}",
+            f"Founded: {c.founded_year or 'unknown'}",
+        ]
+    )
+
+
+def run_ai_rows(
+    kind: str, ids: list[str], instruction: str, mode: str, search: Any, store: Any
+) -> dict[str, str]:
+    records = {}
+    for rid in ids:
+        rec = ai_record_text(kind, rid, search, store)
+        if rec:
+            records[rid] = rec[1]
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        answers = list(pool.map(lambda r: ask_model(instruction, r, mode), records.values()))
+    return dict(zip(records, answers, strict=True))
+
+
+@router.post("/bulk/ai-prompt")
+async def bulk_ai_prompt(
+    request: Request,
+    _: None = Depends(csrf),
+    search: Any = Depends(get_search),
+    store: Any = Depends(get_store),
+) -> Response:
+    """Run a prompt on the selected rows; the page shows the answers as a temporary column."""
+    if is_demo(request):
+        return JSONResponse({"error": DEMO_REASON}, status_code=403)
+    if llm_config() is None:
+        return JSONResponse(
+            {"error": "No model configured. Set LEADCOMMONS_LLM_URL and LEADCOMMONS_LLM_MODEL."},
+            status_code=400,
+        )
+    form = await form_values(request)
+    kind = valid_kind(form.get("kind"))
+    instruction = str(form.get("prompt") or "").strip()[:500]
+    ids = form_ids(form)[:AI_MAX_ROWS]
+    if not instruction or not ids:
+        return JSONResponse({"error": "Select rows and write a prompt first."}, status_code=400)
+    mode = "formula" if form.get("mode") == "formula" else "prompt"
+    answers = await run_in_threadpool(run_ai_rows, kind, ids, instruction, mode, search, store)
+    return JSONResponse({"answers": answers, "title": instruction[:40]})
 
 
 # ---------------------------------------------------------------- lists + CSV

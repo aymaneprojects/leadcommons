@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_macros.html" import ic, hxf, pager, avatar, status_dot %}
+{% from "_search_macros.html" import row_actions %}
 {% block title %}Find people · LeadCommons{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -26,7 +27,7 @@
           {% for x in items %}
             {% set e = emails.get(x.id) %}
             {% set co = companies.get(x.company_id) if x.company_id else none %}
-            <tr>
+            <tr data-id="{{ x.id }}">
               <td class="cb"><input type="checkbox" class="rowcb" name="ids" value="{{ x.id }}" form="bulk" aria-label="Select {{ x.full_name }}"></td>
               {% for col in s.columns %}
               <td data-col="{{ col.key }}"{% if not col.default %} hidden{% endif %}>
@@ -40,7 +41,7 @@
                   {% if e %}
                     <span class="email">{% if e.address in suppressed %}{{ status_dot("suppressed") }}<span class="optout">Opted out</span>{% else %}{{ status_dot(e.status) }}<span class="addr">{{ e.address }}</span>{% endif %}</span>
                   {% else %}
-                    <button class="btn sm" type="submit" formmethod="post" formaction="/people/{{ x.id }}/find-email" hx-post="/people/{{ x.id }}/find-email" hx-swap="none" hx-push-url="false">{{ ic("mail", "sm") }}<span>Find email</span></button>
+                    <button class="btn sm" type="submit" formmethod="post" formaction="/people/{{ x.id }}/find-email" hx-post="/people/{{ x.id }}/find-email" hx-swap="none" hx-push-url="false"{% if s.demo %} disabled data-tip="{{ demo_reason }}"{% endif %}>{{ ic("mail", "sm") }}<span>Find email</span></button>
                   {% endif %}
                 {%- elif col.key == "source" -%}<span class="chips">{% for u in x.source_urls[:2] %}<span class="chip src">{{ u.split('/')[2] if u.startswith('http') and u.split('/')|length > 2 else u }}</span>{% endfor %}</span>
                 {%- elif col.key == "seniority" -%}{{ seniority_label(x.seniority) if x.seniority else "" }}
@@ -54,12 +55,7 @@
                 {%- endif -%}
               </td>
               {% endfor %}
-              <td class="ract">
-                <span class="ract-in">
-                  <button class="btn ghost icon-only sm" type="button" data-row-save title="Save to list" aria-label="Save {{ x.full_name }} to a list">{{ ic("list-plus", "sm") }}</button>
-                  <a class="btn ghost icon-only sm" href="/people/{{ x.id }}" title="Open full profile" aria-label="Open {{ x.full_name }}">{{ ic("maximize-2", "sm") }}</a>
-                </span>
-              </td>
+              <td class="ract">{{ row_actions("people", x.id, x.full_name, x.company_id, phones.get(x.company_id), s.demo, True, e is not none) }}</td>
             </tr>
           {% endfor %}
           </tbody>
