@@ -52,6 +52,17 @@ jobs:
           python -m pip install . "pyinstaller>=6.10,<7"
           # Native window on Windows (WebView2) and macOS (WebKit); Linux uses the browser.
           if [ "$RUNNER_OS" != "Linux" ]; then python -m pip install "pywebview>=5.3,<7"; fi
+      - name: Check the window API the launcher uses (Windows, macOS)
+        if: runner.os != 'Linux'
+        shell: python
+        run: |
+          import inspect, webview
+          start = inspect.signature(webview.start).parameters
+          window = inspect.signature(webview.create_window).parameters
+          missing = [p for p in ("private_mode", "storage_path") if p not in start]
+          missing += [p for p in ("min_size", "text_select") if p not in window]
+          missing += [k for k in ("ALLOW_DOWNLOADS", "OPEN_EXTERNAL_LINKS_IN_BROWSER") if k not in webview.settings]
+          assert not missing, f"pywebview changed; update leadcommons/desktop.py: {missing}"
       - name: Version
         id: v
         run: echo "version=$(python -c 'import leadcommons; print(leadcommons.__version__)')" >> "$GITHUB_OUTPUT"
