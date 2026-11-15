@@ -68,10 +68,10 @@
           <span class="eg-tick on" title="{{ 'Completed' if t.status == 'done' else 'Skipped' }}">{{ eic("check" if t.status == "done" else "skip-forward", "sm") }}</span>
           {% endif %}
         </td>
-        <td class="eg-task-t">
+        <td><div class="eg-task-t">
           <span class="eg-task-kind k-{{ t.kind }}" title="{{ eg_task_labels[t.kind] }}">{{ task_icon(t.kind, "sm") }}</span>
           <span><b>{{ t.title }}</b>{% if t.body %}<span class="eg-sub">{{ t.body|truncate(110) }}</span>{% endif %}{% if t.note %}<span class="eg-sub">{{ eic("message-square", "sm") }} {{ t.note }}</span>{% endif %}</span>
-        </td>
+        </div></td>
         <td>{% if it.p %}{{ person_cell(it.p) }}{% elif it.c %}<span class="eg-inline-ic">{{ eic("building-2", "sm") }} <a href="/companies/{{ it.c.id }}">{{ it.c.name }}</a></span>{% else %}<span class="eg-dim">—</span>{% endif %}</td>
         <td class="{% if it.overdue %}eg-overdue{% endif %}">{% if t.status != "open" %}<span class="eg-dim">{{ "Done" if t.status == "done" else "Skipped" }} {{ when(t.completed_at, true) }}</span>{% elif t.due_at %}{{ when(t.due_at, true) }}{% else %}<span class="eg-dim">No date</span>{% endif %}</td>
         <td>{{ prio_chip(t.priority) }}</td>

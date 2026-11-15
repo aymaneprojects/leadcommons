@@ -301,10 +301,12 @@ class Store:
                 )
                 or 0
             )
+            added: list[str] = []
             for record_id in record_ids:
                 if record_id in present:
                     continue
                 present.add(record_id)
+                added.append(record_id)
                 position += 1
                 s.add(
                     ListItemRow(
@@ -314,6 +316,11 @@ class Store:
                         position=position,
                     )
                 )
+            kind = s.scalar(select(ListRow.kind).where(ListRow.id == list_id))
+        if added:
+            from leadcommons import workflows  # local import: workflows reads the store
+
+            workflows.emit("added_to_list", list_id=list_id, record_ids=added, kind=kind)
 
     def remove_from_list(self, list_id: str, record_ids: list[str]) -> None:
         if not record_ids:

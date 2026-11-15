@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
-from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+from itsdangerous import BadData, SignatureExpired, URLSafeTimedSerializer
 
 KEY_FILE = "secret.key"
 UNSUBSCRIBE_SALT = "leadcommons.unsubscribe.v1"
@@ -98,7 +98,7 @@ def read_unsubscribe_token(
         data = _serializer(settings).loads(token, max_age=max_age)
     except SignatureExpired:
         raise TokenError("This unsubscribe link has expired.", expired=True) from None
-    except BadSignature:
+    except (BadData, ValueError, TypeError):
         raise TokenError("This unsubscribe link is not valid.") from None
     if not isinstance(data, dict) or "@" not in str(data.get("e") or ""):
         raise TokenError("This unsubscribe link is not valid.")

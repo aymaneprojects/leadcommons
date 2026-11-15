@@ -33,10 +33,10 @@
 {%- if dt -%}<time datetime="{{ eg_iso(dt) }}" data-eg-time{% if rel %} data-eg-rel{% endif %} title="{{ eg_when(dt) }}">{{ eg_rel(dt) if rel else eg_when(dt) }}</time>{%- endif -%}
 {%- endmacro %}
 
-{% macro person_cell(p, fallback="") -%}
+{% macro person_cell(p, fallback="", sub="") -%}
 {%- if p -%}
 <span class="eg-person"><span class="av pe tone-{{ tone(p.name) }}" aria-hidden="true">{{ initials(p.name) }}</span>
-  <span class="eg-person-t"><a class="co-name" href="/people/{{ p.id }}">{{ p.name }}</a>{% if p.title or p.company %}<span class="eg-sub">{{ p.title }}{% if p.title and p.company %} · {% endif %}{{ p.company }}</span>{% endif %}</span></span>
+  <span class="eg-person-t"><a class="co-name" href="/people/{{ p.id }}">{{ p.name }}</a>{% if sub %}<span class="eg-sub mono">{{ sub }}</span>{% elif p.title or p.company %}<span class="eg-sub">{{ p.title }}{% if p.title and p.company %} · {% endif %}{{ p.company }}</span>{% endif %}</span></span>
 {%- else -%}<span class="mono eg-dim">{{ fallback }}</span>{%- endif -%}
 {%- endmacro %}
 

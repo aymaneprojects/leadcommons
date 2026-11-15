@@ -71,7 +71,7 @@ details.dd > summary.btn { list-style: none; }
 .eg-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; }
 .eg-search { position: relative; display: inline-flex; align-items: center; min-width: 240px; }
 .eg-search .icon { position: absolute; left: 10px; color: var(--muted); pointer-events: none; }
-.eg-search input { padding-left: 32px; width: 100%; background: var(--surface); }
+.eg-search input[type=search] { padding-left: 32px; width: 100%; background: var(--surface); }
 .eg-search-full { display: flex; width: 100%; }
 .eg-seg { display: inline-flex; gap: 2px; padding: 3px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); flex-wrap: wrap; }
 .eg-seg a { padding: 4px 10px; border-radius: 4px; color: var(--muted); font-weight: 500; font-size: 13px; white-space: nowrap; }
@@ -243,8 +243,8 @@ fieldset > legend { font-weight: 500; font-size: 13px; margin-bottom: 6px; paddi
 .eg-compose .eg-dlg-body > .eg-note, .eg-compose .eg-dlg-body > .eg-warn-line { margin: 12px 0 6px; }
 .eg-mailrow { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); padding: 6px 0; }
 .eg-mailrow label { color: var(--muted); font-size: 13px; }
-.eg-mailrow input, .eg-mailrow select { border-color: transparent; background: transparent; width: 100%; }
-.eg-mailrow input:hover, .eg-mailrow select:hover { border-color: var(--line); }
+.eg-mailrow input[type=email], .eg-mailrow input[type=text], .eg-mailrow select { border-color: transparent; background: transparent; width: 100%; }
+.eg-mailrow input[type=email]:hover, .eg-mailrow input[type=text]:hover, .eg-mailrow select:hover { border-color: var(--line); }
 .eg-to { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; }
 .eg-compose .field { margin-top: 10px; }
 .eg-compose textarea { min-height: 200px; }
@@ -266,9 +266,9 @@ fieldset > legend { font-weight: 500; font-size: 13px; margin-bottom: 6px; paddi
 /* ---------- sequence editor ---------- */
 .eg-title { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
 .eg-rename { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 0 1 auto; }
-.eg-title-input { font: 600 22px var(--font-head); background: transparent; border-color: transparent; padding: 2px 6px; margin-left: -6px; min-width: 120px; width: min(560px, 50vw); }
-.eg-title-input:hover { border-color: var(--line); }
-.eg-title-input:focus { background: var(--raised); border-color: var(--orange); outline: none; }
+input[type=text].eg-title-input { font: 600 22px var(--font-head); background: transparent; border-color: transparent; padding: 2px 6px; margin-left: -6px; min-width: 120px; width: min(560px, 50vw); }
+input[type=text].eg-title-input:hover { border-color: var(--line); }
+input[type=text].eg-title-input:focus { background: var(--raised); border-color: var(--orange); outline: none; }
 html.js .eg-rename [data-eg-rename-save] { display: none; }
 html.js .eg-rename.dirty [data-eg-rename-save] { display: inline-flex; }
 .eg-stats { display: flex; gap: 18px; flex-wrap: wrap; margin: -2px 0 14px; color: var(--muted); font-size: 13px; }
@@ -368,7 +368,7 @@ html.js .eg-rename.dirty [data-eg-rename-save] { display: inline-flex; }
 .eg-tick .icon { width: 12px; height: 12px; }
 .eg-tick:hover { border-color: var(--ok); color: var(--ok); }
 .eg-tick.on { border-color: var(--ok); background: var(--ok); color: #121110; cursor: default; }
-.eg-task-t { display: flex; gap: 10px; align-items: flex-start; min-width: 240px; }
+.eg-task-t { display: flex; gap: 10px; align-items: flex-start; min-width: 240px; max-width: 420px; }
 .eg-task-t > span:last-child { min-width: 0; }
 .eg-task-kind { width: 26px; height: 26px; border-radius: 7px; display: inline-grid; place-items: center; flex: none; background: var(--raised); color: var(--muted); }
 .eg-task-kind.k-call { background: rgba(76, 194, 127, .14); color: var(--ok); }

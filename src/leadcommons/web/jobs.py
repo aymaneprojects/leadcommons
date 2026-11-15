@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal
 
+from leadcommons import workflows
 from leadcommons.models import utcnow
 
 log = logging.getLogger(__name__)
@@ -158,6 +159,7 @@ class JobRunner:
             if company_id:
                 p.company_id = company_id
             self.store.save_person(p)
+            workflows.emit("person_found", person_id=p.id, company_id=company_id, domain=domain)
         return {"people": len(people)}
 
     def _do_find_email(self, job: Job) -> dict[str, Any]:
@@ -176,6 +178,7 @@ class JobRunner:
             return {"suppressed": True}
         self.store.save_email(person.id, cand)
         status = getattr(cand.status, "value", cand.status)
+        workflows.emit("email_found", person_id=person.id, address=cand.address, status=str(status))
         return {"email": cand.address, "status": str(status), "confidence": cand.confidence}
 
     def _do_enrich_csv(self, job: Job) -> dict[str, Any]:

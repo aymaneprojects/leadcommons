@@ -266,7 +266,6 @@ def parse_days(value: str | None) -> list[int]:
     return sorted(set(out))
 
 
-
 _FALLBACK: weakref.WeakKeyDictionary[Any, Engine] = weakref.WeakKeyDictionary()
 
 
@@ -662,7 +661,7 @@ class EngageRepo:
     # -------------------------------------------------------- messages
     def add_message(self, **fields: Any) -> int:
         with self._sessions.begin() as s:
-            row = MessageRow(created_at=utcnow(), **fields)
+            row = MessageRow(**{"created_at": utcnow(), **fields})
             s.add(row)
             s.flush()
             return row.id
@@ -787,7 +786,7 @@ class EngageRepo:
     def add_task(self, **fields: Any) -> str:
         task_id = new_id()
         with self._sessions.begin() as s:
-            s.add(TaskRow(id=task_id, created_at=utcnow(), **fields))
+            s.add(TaskRow(**{"id": task_id, "created_at": utcnow(), **fields}))
         return task_id
 
     def task(self, task_id: str | None) -> TaskRow | None:

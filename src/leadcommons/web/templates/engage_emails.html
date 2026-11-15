@@ -63,7 +63,7 @@
     <tbody>
     {% for r in rows %}
       <tr>
-        <td>{{ person_cell(r.p, r.to) }}{% if r.p %}<span class="eg-sub mono">{{ r.to }}</span>{% endif %}</td>
+        <td>{{ person_cell(r.p, r.to, r.to) }}</td>
         <td class="eg-subj">
           {% if r.kind == "message" or r.kind == "one-off" %}
           <a href="/partials/email/{{ r.id }}" data-eg-dialog="/partials/email/{{ r.id }}">{{ r.subject or "(no subject)" }}</a>

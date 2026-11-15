@@ -1939,7 +1939,9 @@ def unsubscribe_page(
     try:
         data = crypto.read_unsubscribe_token(settings, token)
     except crypto.TokenError as exc:
-        return _unsubscribe_page(request, "expired" if exc.expired else "invalid", status=400)
+        return _unsubscribe_page(
+            request, "expired" if exc.expired else "invalid", status=410 if exc.expired else 404
+        )
     return _unsubscribe_page(request, "confirm", data["e"])
 
 
@@ -1955,6 +1957,8 @@ def unsubscribe_submit(
     try:
         data = crypto.read_unsubscribe_token(settings, token)
     except crypto.TokenError as exc:
-        return _unsubscribe_page(request, "expired" if exc.expired else "invalid", status=400)
+        return _unsubscribe_page(
+            request, "expired" if exc.expired else "invalid", status=410 if exc.expired else 404
+        )
     core.unsubscribe(store, data["e"])
     return _unsubscribe_page(request, "done", data["e"])
