@@ -400,6 +400,17 @@ def _transfer(
             raise _RetryableStatus("server refused to resume (416), restarting")
         if resp.status_code in RETRY_STATUSES:
             raise _RetryableStatus(f"HTTP {resp.status_code}")
+        if resp.status_code >= 400:
+            # Say why the server refused (SEC explains missing contacts or blocks in the body).
+            snippet = resp.read()[:400].decode("utf-8", "replace").strip()
+            log.error(
+                "%s: HTTP %s from %s (User-Agent: %s): %s",
+                label,
+                resp.status_code,
+                url,
+                http.headers.get("User-Agent", "?"),
+                " ".join(snippet.split())[:300],
+            )
         resp.raise_for_status()
         if have and resp.status_code == 206:
             mode, start = "ab", have

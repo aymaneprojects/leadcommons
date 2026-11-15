@@ -129,7 +129,7 @@ jobs:
             args+=(--limit "$LIMIT")
           fi
           uv run leadcommons pack fetch-source "$SOURCE" "${args[@]}"
-          rm -rf "$work"
+          sudo rm -rf "$work" # /mnt belongs to root on hosted runners
           ls -l shards
       - name: Shard summary
         run: |
