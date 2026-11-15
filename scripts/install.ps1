@@ -20,7 +20,10 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
 if (-not $Version) {
     Write-Host "Looking for the latest release of $Repo ..."
     try {
-        $Version = (Invoke-RestMethod "https://api.github.com/repos/$Repo/releases/latest").tag_name
+        # Only app releases (tags v1.2.3); the monthly data packs are releases too (packs-YYYY-MM).
+        $Version = (Invoke-RestMethod "https://api.github.com/repos/$Repo/releases?per_page=30" |
+            Where-Object { $_.tag_name -match '^v[0-9]' -and -not $_.draft -and -not $_.prerelease } |
+            Select-Object -First 1).tag_name
     } catch {
         $Version = $null
     }

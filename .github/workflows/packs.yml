@@ -36,6 +36,9 @@ jobs:
         env:
           COUNTRIES: ${{ inputs.countries || 'FR DE GB US ES IT NL BE CA MA' }}
           LIMIT: ${{ inputs.limit || '1500' }}
+          # SEC EDGAR asks every client to declare a contact address in its User-Agent.
+          # Set it as the repository variable EDGAR_CONTACT_EMAIL; without it EDGAR is skipped.
+          LEADCOMMONS_CONTACT_EMAIL: ${{ vars.EDGAR_CONTACT_EMAIL }}
         run: |
           args=()
           for c in $COUNTRIES; do args+=(--country "$c"); done
@@ -50,12 +53,13 @@ jobs:
           attribution=$(find packs-out -maxdepth 1 -name '*ATTRIBUTION*.md' | head -n 1)
           if [ -z "$attribution" ]; then
             attribution=packs-out/ATTRIBUTION.md
-            printf '# Attribution\n\nBuilt from Wikidata (CC0-1.0) and GLEIF (CC0-1.0).\n' > "$attribution"
+            printf '# Attribution\n\nBuilt from open company registers. See docs/data-sources.md.\n' > "$attribution"
           fi
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "$parquet" "$attribution" --clobber
           else
             gh release create "$tag" "$parquet" "$attribution" \
+              --latest=false \
               --title "Company pack $tag" \
               --notes "Monthly company pack built from open data. See ATTRIBUTION.md for sources and licences."
           fi

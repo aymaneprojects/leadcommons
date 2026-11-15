@@ -24,8 +24,9 @@ fi
 # 2. Which version?
 if [ -z "$VERSION" ]; then
   say "Looking for the latest release of $REPO ..."
-  VERSION=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null \
-    | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1 || true)
+  # Only app releases (tags v1.2.3); the monthly data packs are releases too (packs-YYYY-MM).
+  VERSION=$(curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=30" 2>/dev/null \
+    | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\(v[0-9][^"]*\)".*/\1/p' | head -n 1 || true)
   if [ -z "$VERSION" ]; then
     warn "no release found, using the main branch."
     VERSION=main

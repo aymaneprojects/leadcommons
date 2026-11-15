@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "leadcommons"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "Free, open-source, local-first prospecting: find companies, people and verified emails from public data."
 readme = "README.md"
 requires-python = ">=3.12"
