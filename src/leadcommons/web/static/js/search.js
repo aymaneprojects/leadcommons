@@ -630,6 +630,8 @@
 
   function init() {
     applyPrefs(); applyCols(); applyPins(); restoreOpenGroups(); initTabs(); updateSelCount(); syncFiltersLabel(); lazy();
+    filterViews();
+    if (ssView) { var keep = ssView; openPanel("col-chooser", keep); }
   }
   doc.addEventListener("htmx:afterSettle", init);
   restorePerPage();
@@ -820,7 +822,7 @@
       openDialog(el.getAttribute("data-dlg-one").replace("{id}", encodeURIComponent(one[0]))); return;
     }
     if ((el = t.closest("[data-ai-open]"))) {
-      if (el.disabled) return;
+      if (el.disabled || el.getAttribute("aria-disabled") === "true") { e.preventDefault(); return; }
       closeMenus(); openAi(el.getAttribute("data-ai-open"), el.getAttribute("data-ai-text")); return;
     }
     if (t.closest("[data-ai-run]")) { runAi(); return; }
