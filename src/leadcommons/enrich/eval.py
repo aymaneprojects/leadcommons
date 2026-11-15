@@ -13,7 +13,8 @@ Site evidence and network come from one of two places:
 - a world file (`<gold>.world.json` next to the CSV, or `--world`): per domain the names and
   addresses the public pages show (`site_names`, `site_emails`), replayed instead of crawling.
   When an entry also has `mx` the DNS answers are simulated, and with `smtp`
-  (`reject_unknown`, `accept_all`, `block`, `greylist`) plus `mailboxes` the mail server is
+  (`reject_unknown`, `accept_all`, `block`, `greylist`: 4xx on the first try of each address,
+  `throttle`: one recipient per connection) plus `mailboxes` the mail server is
   simulated too, so `--smtp` runs the real verification code against a fake server. `provider`
   and `segment` label the report; `aliases` lists other addresses of the same person.
 - otherwise the live web: each domain is crawled politely (robots.txt, rate limit), DNS is
@@ -35,6 +36,7 @@ import contextlib
 import csv
 import json
 import math
+import random
 import re
 import smtplib
 from collections import defaultdict
@@ -106,7 +108,9 @@ def load_world(path: str | Path) -> dict[str, DomainWorld]:
             mx=list(e["mx"]) if "mx" in e else None,
             smtp=e.get("smtp"),
             mailboxes={x.lower() for x in e.get("mailboxes") or []},
-            aliases={k.lower(): [a.lower() for a in v] for k, v in (e.get("aliases") or {}).items()},
+            aliases={
+                k.lower(): [a.lower() for a in v] for k, v in (e.get("aliases") or {}).items()
+            },
             provider=e.get("provider"),
             segment=e.get("segment"),
         )
@@ -133,14 +137,19 @@ class _SimServer:
         self.sessions = 0
         self.rcpts = 0
 
-    def rcpt(self, address: str) -> tuple[int, bytes]:
+    def rcpt(self, address: str, nth: int = 1) -> tuple[int, bytes]:
+        """Answer the `nth` RCPT of a session for `address`."""
         self.rcpts += 1
         local, _, domain = address.lower().rpartition("@")
         w = self.world.get(domain)
         if w is None or w.smtp is None:
             return 550, b"5.7.1 Relaying denied"
+        if w.smtp == "throttle" and nth > 1:  # one recipient per connection, then "busy"
+            return 451, b"4.7.500 Server busy. Please try again later."
         if w.smtp == "block":
-            return 554, self.BLOCK.get(w.provider or "", b"5.7.1 Client host blocked using Spamhaus")
+            return 554, self.BLOCK.get(
+                w.provider or "", b"5.7.1 Client host blocked using Spamhaus"
+            )
         if w.smtp == "accept_all":
             return 250, b"2.1.5 Recipient OK"
         if w.smtp == "greylist" and address.lower() not in self.greylisted:
@@ -148,7 +157,9 @@ class _SimServer:
             return 451, b"4.7.1 Greylisted, please try again later"
         if local in w.mailboxes:
             return 250, b"2.1.5 Recipient OK"
-        return 550, self.REJECT.get(w.provider or "", b"5.1.1 User unknown in virtual mailbox table")
+        return 550, self.REJECT.get(
+            w.provider or "", b"5.1.1 User unknown in virtual mailbox table"
+        )
 
     def smtp_class(self) -> type:
         server = self
@@ -157,6 +168,7 @@ class _SimServer:
             def __init__(self, host: str = "", port: int = 0, timeout: float | None = None, **_):
                 server.sessions += 1
                 self.host = host
+                self.n = 0
 
             def ehlo(self, name: str = "") -> tuple[int, bytes]:
                 return 250, b"sim.example"
@@ -167,7 +179,8 @@ class _SimServer:
                 return 250, b"2.1.0 Sender OK"
 
             def rcpt(self, recip: str, options: Sequence[str] = ()) -> tuple[int, bytes]:
-                return server.rcpt(recip)
+                self.n += 1
+                return server.rcpt(recip, self.n)
 
             def rset(self) -> tuple[int, bytes]:
                 return 250, b"2.0.0 OK"
@@ -370,6 +383,29 @@ def calibration(results: Sequence[RowResult]) -> tuple[list[Bucket], float | Non
     return buckets, ece, brier
 
 
+def valid_interval(
+    results: Sequence[RowResult], rounds: int = 2000, seed: int = 7
+) -> tuple[float, float] | None:
+    """5th and 95th percentile of "valid" precision when whole companies are resampled.
+
+    Errors cluster by company (one company with odd addresses gives several), so resampling
+    rows would overstate how sure the estimate is."""
+    by_domain: dict[str, list[bool]] = defaultdict(list)
+    for r in results:
+        if r.valid:
+            by_domain[r.domain].append(r.shown_correct)
+    domains = list(by_domain)
+    if len(domains) < 5:
+        return None
+    rng = random.Random(seed)
+    stats = []
+    for _ in range(rounds):
+        sample = [x for d in (rng.choice(domains) for _ in domains) for x in by_domain[d]]
+        stats.append(sum(sample) / len(sample))
+    stats.sort()
+    return stats[int(0.05 * rounds)], stats[int(0.95 * rounds) - 1]
+
+
 def _evidence_band(n: int) -> str:
     return "0" if n == 0 else "1" if n == 1 else "2-3" if n <= 3 else "4+"
 
@@ -394,6 +430,7 @@ class Report:
     by_segment: dict[str, Summary]
     by_evidence: dict[str, Summary]
     rows: list[RowResult]
+    valid_interval: tuple[float, float] | None = None  # 90% interval, companies resampled
 
     def to_dict(self) -> dict[str, Any]:
         out = asdict(self)
@@ -458,6 +495,7 @@ def evaluate(
         by_segment=breakdown(results, lambda r: r.segment),
         by_evidence=breakdown(results, lambda r: _evidence_band(r.evidence)),
         rows=results,
+        valid_interval=valid_interval(results),
     )
 
 
@@ -466,6 +504,12 @@ def evaluate(
 
 def _f(x: float | None) -> str:
     return "   -  " if x is None else f"{100 * x:5.1f}%"
+
+
+def _interval(iv: tuple[float, float] | None) -> str:
+    if iv is None:
+        return ""
+    return f"; 90% interval {100 * iv[0]:.1f}-{100 * iv[1]:.1f}% resampling companies"
 
 
 def _table(title: str, groups: dict[str, Summary]) -> list[str]:
@@ -494,7 +538,7 @@ def format_report(report: Report) -> str:
         f"  {'Top-ranked guess':<22}{_f(o.top_precision):>10}{_f(o.top_coverage):>10}",
         f"  {'Shown address':<22}{_f(o.shown_precision):>10}{_f(o.shown_coverage):>10}",
         f"  {'Shown as valid':<22}{_f(o.valid_precision):>10}{_f(o.valid_coverage):>10}"
-        f"   ({o.valid_n} addresses)",
+        f"   ({o.valid_n} addresses{_interval(report.valid_interval)})",
         f"  Shown address reaches the person (true address or a known alias): "
         f"{_f(o.deliverable_precision).strip()}",
         f"  True address among our first 3 guesses: {_f(o.recall_at_3).strip()}",
@@ -526,41 +570,37 @@ def write_details(report: Report, path: str | Path) -> None:
         writer.writerows(asdict(r) for r in report.rows)
 
 
-def fit_calibration(results: Sequence[RowResult]) -> tuple[float, float] | None:
-    """Platt scaling: (a, b) so that sigmoid(a * logit(raw) + b) matches the observed accuracy.
+def fit_calibration(
+    results: Sequence[RowResult], bins: int = 15
+) -> tuple[tuple[float, float], ...] | None:
+    """Isotonic calibration knots (raw posterior, observed accuracy) for score.CALIBRATION.
 
-    Use it to refit `score.CALIBRATION` on a real gold set (needs raw probabilities, i.e. the
-    current finder)."""
-    pts = [
-        (min(max(r.raw_probability, 1e-4), 1 - 1e-4), 1.0 if r.shown_correct else 0.0)
+    Shown rows are sorted by raw posterior and cut into `bins` equal groups; adjacent groups
+    are pooled while accuracy would decrease (pool-adjacent-violators), so the map is monotone.
+    Needs raw probabilities (the current finder) and at least 50 shown rows."""
+    pts = sorted(
+        (r.raw_probability, 1.0 if r.shown_correct else 0.0)
         for r in results
         if r.shown and r.raw_probability is not None
-    ]
-    if len(pts) < 20:
+    )
+    if len(pts) < 50:
         return None
-    a, b = 1.0, 0.0
-    xs = [math.log(p / (1 - p)) for p, _ in pts]
-    ys = [y for _, y in pts]
-    for _ in range(200):  # Newton steps on the log-loss
-        ga = gb = haa = hab = hbb = 0.0
-        for x, y in zip(xs, ys, strict=True):
-            q = 1 / (1 + math.exp(-(a * x + b)))
-            d = q - y
-            w = q * (1 - q)
-            ga += d * x
-            gb += d
-            haa += w * x * x
-            hab += w * x
-            hbb += w
-        det = haa * hbb - hab * hab
-        if abs(det) < 1e-12:
-            break
-        da = (hbb * ga - hab * gb) / det
-        db = (haa * gb - hab * ga) / det
-        a, b = a - da, b - db
-        if abs(da) + abs(db) < 1e-9:
-            break
-    return a, b
+    size = math.ceil(len(pts) / bins)
+    blocks: list[list[float]] = []  # [mean raw, accuracy, n]
+    for i in range(0, len(pts), size):
+        chunk = pts[i : i + size]
+        n = float(len(chunk))
+        blocks.append([sum(x for x, _ in chunk) / n, sum(y for _, y in chunk) / n, n])
+    pooled: list[list[float]] = []
+    for b in blocks:
+        pooled.append(b)
+        while len(pooled) > 1 and pooled[-2][1] >= pooled[-1][1]:
+            b2, b1 = pooled.pop(), pooled.pop()
+            n = b1[2] + b2[2]
+            pooled.append(
+                [(b1[0] * b1[2] + b2[0] * b2[2]) / n, (b1[1] * b1[2] + b2[1] * b2[2]) / n, n]
+            )
+    return tuple((round(x, 4), round(y, 4)) for x, y, _ in pooled)
 
 
 # ----------------------------------------------------------------------------- gold builder
@@ -592,7 +632,9 @@ def _plausible_owner(local: str, name: str) -> bool:
     return bool(tokens) and any(t[:3] in letters or letters.startswith(t[0]) for t in tokens)
 
 
-def pair_names_and_addresses(pages: Sequence[Any], domain: str, names: Sequence[str]) -> list[GoldPair]:
+def pair_names_and_addresses(
+    pages: Sequence[Any], domain: str, names: Sequence[str]
+) -> list[GoldPair]:
     """Names and personal addresses published side by side (same block, or within two lines)."""
     from leadcommons.enrich.emails import addresses_in_text
     from leadcommons.enrich.patterns import is_role_mailbox

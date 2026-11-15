@@ -12,7 +12,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Any
-from urllib.parse import parse_qsl
+from urllib.parse import parse_qsl, urlencode
 
 import dns.exception
 import dns.resolver
@@ -131,6 +131,7 @@ def settings_overview(request: Request) -> Response:
 
 
 PACK_JOB_LABEL = "Download the latest company data"
+PACK_DEMO_NOTICE = "/settings/data-packs?notice=Downloads+are+turned+off+in+the+public+demo."
 
 
 def _pack_job(jobs: Any) -> Any:
@@ -142,30 +143,137 @@ def _pack_job(jobs: Any) -> Any:
     return None
 
 
+def fmt_bytes(n: Any) -> str:
+    """1234567 -> "1.2 MB" (decimal units, like download sizes elsewhere)."""
+    size = float(n or 0)
+    for unit in ("B", "KB", "MB", "GB"):
+        if size < 1000 or unit == "GB":
+            return f"{size:,.0f} {unit}" if unit in ("B", "KB") else f"{size:,.1f} {unit}"
+        size /= 1000
+    return f"{size:,.1f} GB"
+
+
+templates.env.globals.setdefault("fmt_bytes", fmt_bytes)
+
+
+def _country_names() -> dict[str, str]:
+    from leadcommons.web.search_filters import COUNTRIES
+
+    return dict(COUNTRIES)
+
+
+def _catalog(settings: Any, *, refresh: bool = False, offline: bool = False) -> Any:
+    from leadcommons.packs import DEFAULT_PACKS_REPO, pack_catalog
+
+    repo = getattr(settings, "packs_repo", None) or DEFAULT_PACKS_REPO
+    try:
+        return pack_catalog(settings.data_dir, repo, refresh=refresh, offline=offline)
+    except Exception as exc:  # never break the settings page on this
+        from leadcommons.packs import PackCatalog
+
+        return PackCatalog(repo=repo, error=f"Could not read the list of countries: {exc}"[:200])
+
+
+def _packs_ctx(request: Request, catalog: Any) -> dict[str, Any]:
+    from leadcommons.packs import default_country
+
+    settings = request.app.state.settings
+    return {
+        "catalog": catalog,
+        "pack_job": _pack_job(request.app.state.jobs),
+        "downloads_on": bool(getattr(settings, "enrichment_enabled", True)),
+        "country_names": _country_names(),
+        "own_country": default_country(),
+    }
+
+
 @router.get("/settings/data-packs", response_class=HTMLResponse)
 def settings_packs(request: Request) -> Response:
     from leadcommons.packs import has_own_pack
 
     settings = request.app.state.settings
+    # The page never waits for GitHub: a recent saved list is shown at once, otherwise the
+    # country table loads itself (htmx) from /settings/data-packs/countries.
+    check = request.query_params.get("check") == "1"
+    catalog = _catalog(settings, refresh=check, offline=not check)
+    if catalog.error and not catalog.countries and not catalog.legacy and not check:
+        catalog = None
+    first = None
+    job = _pack_job(request.app.state.jobs)
+    if job is not None and job.status == "done" and (job.payload or {}).get("first_run"):
+        names = _country_names()
+        done = [names.get(cc, cc) for cc in (job.result or {}).get("countries") or []]
+        first = ", ".join(done) or None
+    needs = getattr(request.app.state.search, "needs_index", None)
     return settings_page(
         request,
         "shell_settings_packs.html",
         "packs",
         own_pack=has_own_pack(settings.data_dir),
-        pack_job=_pack_job(request.app.state.jobs),
-        downloads_on=bool(getattr(settings, "enrichment_enabled", True)),
+        needs_index=list(needs) if isinstance(needs, list) else [],
+        first_run_country=first,
+        **_packs_ctx(request, catalog),
+    )
+
+
+@router.get("/settings/data-packs/countries", response_class=HTMLResponse)
+def settings_packs_countries(request: Request) -> Response:
+    """The country picker alone (htmx), read from GitHub when the saved list is old."""
+    settings = request.app.state.settings
+    refresh = request.query_params.get("refresh") == "1"
+    catalog = _catalog(settings, refresh=refresh)
+    return templates.TemplateResponse(
+        request, "_pack_countries.html", {"request": request, **_packs_ctx(request, catalog)}
+    )
+
+
+@router.post("/settings/data-packs/countries")
+async def settings_packs_countries_post(
+    request: Request, _: None = Depends(csrf), jobs: Any = Depends(get_jobs)
+) -> Response:
+    """Download, update or remove countries (a background job; search switches when done)."""
+    if not getattr(request.app.state.settings, "enrichment_enabled", True):
+        return RedirectResponse(PACK_DEMO_NOTICE, status_code=303)
+    form = await request.form()
+    action = str(form.get("action") or "")
+    names = _country_names()
+    countries = [
+        cc
+        for cc in dict.fromkeys(str(v).strip().upper() for v in form.getlist("country"))
+        if re.fullmatch(r"[A-Z]{2}", cc)
+    ]
+    if action in ("install", "remove") and not countries:
+        return done(request, "Pick a country first.", "/settings/data-packs", "error")
+    shown = ", ".join(names.get(cc, cc) for cc in countries)
+    if action == "install":
+        payload: dict[str, Any] = {"action": "install", "countries": countries}
+        label, msg = f"Download company data: {shown}", f"Downloading {shown}."
+    elif action == "remove":
+        payload = {"action": "remove", "countries": countries}
+        label, msg = f"Remove company data: {shown}", f"Removing {shown}."
+    elif action == "update":
+        payload = {"action": "update"}
+        label, msg = "Update company data", "Updating the countries that have newer data."
+    elif action == "index":
+        payload = {"action": "index"}
+        label, msg = "Prepare company data for fast search", "Preparing the data for fast search."
+    else:
+        return done(request, "Unknown action.", "/settings/data-packs", "error")
+    jobs.submit("download_pack", payload, label)
+    return RedirectResponse(
+        "/settings/data-packs?"
+        + urlencode({"notice": f"{msg} Search switches to it when the job is done."}),
+        status_code=303,
     )
 
 
 @router.post("/settings/data-packs/download")
 def settings_packs_download(request: Request, jobs: Any = Depends(get_jobs)) -> Response:
-    """Start a background download of the newest published pack; search switches when done."""
+    """Start a background download of the newest published data (the installed countries,
+    or the user's own country on a first download); search switches when done."""
     if not getattr(request.app.state.settings, "enrichment_enabled", True):
-        return RedirectResponse(
-            "/settings/data-packs?notice=Downloads+are+turned+off+in+the+public+demo.",
-            status_code=303,
-        )
-    jobs.submit("download_pack", {}, PACK_JOB_LABEL)
+        return RedirectResponse(PACK_DEMO_NOTICE, status_code=303)
+    jobs.submit("download_pack", {"action": "latest"}, PACK_JOB_LABEL)
     return RedirectResponse(
         "/settings/data-packs?notice=Downloading+the+latest+company+data.+"
         "Search+switches+to+it+when+the+download+is+done.",

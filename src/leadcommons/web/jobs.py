@@ -49,7 +49,8 @@ class JobRunner:
     find_email:  {"person_id": str}
     enrich_csv:  {"input": str (path), "output": str (path)}
     company_insights: {"company_id": str, "domain": str | None}
-    download_pack: {} (newest published pack; search switches to it when done)
+    download_pack: {} or {"action": "install" | "update" | "remove" | "index" | "latest",
+                   "countries": [...]} (packs.run_pack_job; search switches when done)
     """
 
     def __init__(self, store: Any, search: Any, settings: Any) -> None:
@@ -244,12 +245,16 @@ class JobRunner:
         }
 
     def _do_download_pack(self, job: Job) -> dict[str, Any]:
-        from leadcommons.packs import DuckDBCompanySearch, install_latest_pack
+        from leadcommons.packs import DuckDBCompanySearch, run_pack_job
 
-        path = install_latest_pack(self.settings.data_dir)
+        def progress(phase: str, done: int, total: int) -> None:
+            with self._lock:
+                job.result = {"phase": phase, "progress": done, "total": total}
+
+        result = run_pack_job(self.settings.data_dir, job.payload, progress)
         fresh = DuckDBCompanySearch(self.settings.data_dir)
         self.search = fresh
         if self._state is not None:
             self._state.search = fresh
-        rows = sum(int(p.get("rows") or 0) for p in fresh.pack_info())
-        return {"pack": path.name, "companies": rows}
+        result["companies"] = sum(int(p.get("rows") or 0) for p in fresh.pack_info())
+        return result

@@ -108,14 +108,17 @@ SUF = (
     "en-provence vic heim berg lund"
 ).split()
 BIG_CITIES = {
-    "FR": "Paris Marseille Lyon Toulouse Nice Nantes Montpellier Strasbourg Bordeaux Lille Rennes "
-    "Reims Toulon Grenoble Dijon Angers Nimes Villeurbanne Clermont-Ferrand Le Mans Aix-en-Provence "
-    "Brest Tours Amiens Limoges Annecy Perpignan Metz Besancon Orleans Rouen Caen Nancy Argenteuil",
-    "GB": "London Birmingham Manchester Leeds Glasgow Liverpool Bristol Sheffield Edinburgh Cardiff "
-    "Leicester Coventry Bradford Belfast Nottingham Hull Newcastle Southampton Reading Derby",
+    "FR": "Paris Marseille Lyon Toulouse Nice Nantes Montpellier Strasbourg Bordeaux Lille "
+    "Rennes Reims Toulon Grenoble Dijon Angers Nimes Villeurbanne Clermont-Ferrand Le Mans "
+    "Aix-en-Provence Brest Tours Amiens Limoges Annecy Perpignan Metz Besancon Orleans Rouen "
+    "Caen Nancy Argenteuil",
+    "GB": "London Birmingham Manchester Leeds Glasgow Liverpool Bristol Sheffield Edinburgh "
+    "Cardiff Leicester Coventry Bradford Belfast Nottingham Hull Newcastle Southampton Reading "
+    "Derby",
     "US": "New York|Los Angeles|Chicago|Houston|Phoenix|Philadelphia|San Antonio|San Diego|Dallas|"
     "Austin|San Jose|Seattle|Denver|Boston|Miami|Atlanta",
-    "DE": "Berlin Hamburg Munchen Koln Frankfurt Stuttgart Dusseldorf Leipzig Dortmund Essen Bremen",
+    "DE": "Berlin Hamburg Munchen Koln Frankfurt Stuttgart Dusseldorf Leipzig Dortmund Essen "
+    "Bremen",
     "NO": "Oslo Bergen Trondheim Stavanger Drammen Fredrikstad Kristiansand Tromso",
 }
 REGIONS = {
@@ -360,8 +363,7 @@ def sample_values(data: Path) -> dict[str, list[str]]:
     files = sorted(str(p) for p in data.glob("companies-*.parquet"))
     lst = "[" + ", ".join(_q(f) for f in files) + "]"
     rows = con.execute(
-        f"SELECT id, domain, company_number, name FROM read_parquet({lst}) "
-        "USING SAMPLE 400 ROWS"
+        f"SELECT id, domain, company_number, name FROM read_parquet({lst}) USING SAMPLE 400 ROWS"
     ).fetchall()
     return {
         "ids": [r[0] for r in rows][:60],
@@ -489,6 +491,7 @@ def run(
                       flush=True)  # fmt: skip
     # sort by name / size (pages.scan_companies reads up to 5,000 rows in batches of 500)
     for flt in (CompanyFilters(countries=["FR"], industries=["F"]), CompanyFilters(text="martin")):
+
         def scan(flt: CompanyFilters = flt) -> int:
             got, page = 0, 1
             while True:

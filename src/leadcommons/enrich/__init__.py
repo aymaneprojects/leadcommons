@@ -11,13 +11,13 @@ from dataclasses import replace
 
 from leadcommons.enrich.crawl import Site, get_site, normalise_domain
 from leadcommons.enrich.emails import extract_emails
+from leadcommons.enrich.finder import MAX_PROBES as MAX_PROBES  # re-export
+from leadcommons.enrich.finder import find_email_detail
 from leadcommons.enrich.patterns import rank_guesses
 from leadcommons.enrich.people import extract_people, gather_people
-from leadcommons.enrich.score import confidence
+from leadcommons.enrich.score import confidence_of
 from leadcommons.enrich.verify import verify_addresses
-from leadcommons.models import Company, EmailCandidate, EmailStatus, Person
-
-MAX_PROBES = 3  # candidates tried over SMTP by find_email
+from leadcommons.models import Company, EmailCandidate, Person
 
 
 def _site_people(site: Site) -> list[Person]:
@@ -79,7 +79,8 @@ def guess_emails(
     known_emails when possible ({first}.{last}, {f}{last}, {first}, ...)."""
     guesses = rank_guesses(person.full_name, normalise_domain(domain), known_emails)
     return [
-        EmailCandidate(g.address, confidence=round(g.points), pattern=g.pattern) for g in guesses
+        EmailCandidate(g.address, confidence=confidence_of(g.probability), pattern=g.pattern)
+        for g in guesses
     ]
 
 
@@ -89,20 +90,14 @@ def verify_email(address: str, *, smtp_probe: bool = False) -> EmailCandidate:
 
 
 def find_email(person: Person, domain: str, *, smtp_probe: bool = False) -> EmailCandidate | None:
-    """Convenience: public emails -> pattern -> candidates -> verify; best candidate or None."""
+    """Public emails -> learned format -> candidates -> verify -> calibrated best, or None.
+
+    Status "valid" means at least 90% of such addresses were right on the gold set
+    (docs/email-quality.md); checks["basis"] says why. SMTP only with smtp_probe and never in
+    demo mode."""
     site = get_site(domain)
     names = [p.full_name for p in _site_people(site)]
-    guesses = rank_guesses(person.full_name, site.domain, _site_emails(site), names)
-    # Without a probe every candidate on the domain verifies the same, so check only the best.
-    batch = guesses[:MAX_PROBES] if smtp_probe else guesses[:1]
-    best: EmailCandidate | None = None
-    for guess, cand in zip(
-        batch, verify_addresses([g.address for g in batch], smtp_probe=smtp_probe), strict=True
-    ):
-        if cand.status is EmailStatus.INVALID:
-            continue
-        cand.pattern = guess.pattern
-        cand.confidence = confidence(guess.points, cand.status, cand.checks)
-        if best is None or cand.confidence > best.confidence:
-            best = cand
-    return best
+    found = find_email_detail(
+        person.full_name, site.domain, _site_emails(site), names, smtp_probe=smtp_probe
+    )
+    return found.candidate

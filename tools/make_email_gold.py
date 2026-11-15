@@ -10,8 +10,8 @@ imports the finder's name or pattern code, so the evaluation does not grade the 
 own logic. Its parameters are assumptions written down below, not measurements; build a real
 gold set with `leadcommons eval build-gold` to measure on real companies.
 
-    python tools/make_email_gold.py --seed 11 --domains 90 --out tests/fixtures/email_gold/dev
-    python tools/make_email_gold.py --seed 23 --domains 90 --out tests/fixtures/email_gold/test
+    python tools/make_email_gold.py --seed 11 --domains 300 --out tests/fixtures/email_gold/dev
+    python tools/make_email_gold.py --seed 97 --domains 150 --out tests/fixtures/email_gold/test
 
 Each run writes `<out>.csv` (full_name, domain, true_address) and `<out>.world.json` (per
 domain: public site names and addresses, MX hosts, simulated mail-server behaviour, existing
@@ -234,8 +234,19 @@ CULTURES: dict[str, Culture] = {
         ["com", "io", "co"],
         EN_GIVEN,
         EN_FAMILY,
-        {"fl": 34, "fL": 24, "F": 14, "FL": 7, "f.l": 5, "Fl": 5, "L": 3, "F_L": 3, "Lf": 2,
-         "l.f": 1, "F-L": 2},
+        {
+            "fl": 34,
+            "fL": 24,
+            "F": 14,
+            "FL": 7,
+            "f.l": 5,
+            "Fl": 5,
+            "L": 3,
+            "F_L": 3,
+            "Lf": 2,
+            "l.f": 1,
+            "F-L": 2,
+        },
         {"google": 40, "microsoft": 40, "gateway": 11, "other": 9},
         mix=0.3,
     ),
@@ -243,8 +254,18 @@ CULTURES: dict[str, Culture] = {
         ["co.uk", "uk"],
         EN_GIVEN,
         EN_FAMILY,
-        {"fl": 50, "fL": 12, "F": 10, "f.l": 10, "FL": 6, "Fl": 3, "L": 3, "F_L": 3, "l.f": 1,
-         "F-L": 2},
+        {
+            "fl": 50,
+            "fL": 12,
+            "F": 10,
+            "f.l": 10,
+            "FL": 6,
+            "Fl": 3,
+            "L": 3,
+            "F_L": 3,
+            "l.f": 1,
+            "F-L": 2,
+        },
         {"microsoft": 45, "google": 30, "gateway": 15, "other": 10},
         mix=0.25,
     ),
@@ -339,6 +360,7 @@ MIX_POOLS = [
     (DE_GIVEN, DE_FAMILY, "de"),
 ]
 
+
 # Mail servers: MX hosts and how they answer RCPT TO (assumed shares, see docs/email-quality.md).
 def mx_hosts(provider: str, d: str, rng: random.Random) -> list[str]:
     n = rng.randint(1000, 9999)
@@ -360,9 +382,11 @@ def mx_hosts(provider: str, d: str, rng: random.Random) -> list[str]:
         "gandi": ["spool.mail.gandi.net", "fb.mail.gandi.net"],
         "other": [f"mail.{d}"],
     }[provider]
+
+
 SMTP_MODES = {
-    "google": {"reject_unknown": 86, "accept_all": 14},
-    "microsoft": {"reject_unknown": 68, "accept_all": 24, "block": 8},
+    "google": {"reject_unknown": 80, "accept_all": 14, "throttle": 6},
+    "microsoft": {"reject_unknown": 60, "accept_all": 24, "block": 8, "throttle": 8},
     "gateway": {"accept_all": 60, "reject_unknown": 30, "block": 10},
     "zoho": {"reject_unknown": 85, "accept_all": 15},
     "proton": {"reject_unknown": 85, "accept_all": 15},
@@ -622,7 +646,24 @@ def make_domain(rng: random.Random, culture: str, used: set[str]) -> dict:
         if first and last and loc not in taken:
             taken[loc] = 1
 
-    mailboxes = sorted(set(taken) | set(roles) | {"postmaster", "info"})
+    # Keep only mailboxes a guess for a gold person could hit: any guess contains part of the
+    # person's name, so an address sharing no name token with them can never collide.
+    tokens: set[str] = set()
+    for h, _ in published:
+        for variant in (
+            rules,
+            Rules(
+                **{
+                    **rules.__dict__,
+                    "expand_umlauts": not rules.expand_umlauts,
+                    "cyrillic": "icao" if rules.cyrillic == "common" else "common",
+                }
+            ),
+        ):
+            for part in [*h.given, *h.family, *h.middle]:
+                tokens.update(t for t in re.split(r"[-' ]", translit(part, variant)) if len(t) >= 2)
+    relevant = {loc for loc in taken if any(t in loc for t in tokens)}
+    mailboxes = sorted(relevant | set(roles) | {"postmaster", "info"})
     gold = [
         {"full_name": names_by_local[loc], "true_address": f"{loc}@{domain}"}
         for _, loc in published
@@ -635,7 +676,11 @@ def make_domain(rng: random.Random, culture: str, used: set[str]) -> dict:
         "site_names": site_names,
         "site_emails": [f"{x}@{domain}" for x in [loc for _, loc in published] + nameless + roles],
         "mailboxes": mailboxes,
-        "aliases": {f"{k}@{domain}": [f"{a}@{domain}" for a in v] for k, v in aliases.items()},
+        "aliases": {
+            f"{loc}@{domain}": [f"{a}@{domain}" for a in aliases[loc]]
+            for _, loc in published
+            if loc in aliases
+        },
         "rules": {
             "pattern": rules.pattern,
             "second": rules.second,
@@ -664,6 +709,18 @@ def generate(seed: int, n_domains: int) -> tuple[list[dict], dict]:
     return rows, world
 
 
+def dump_world(world: dict) -> str:
+    """JSON with one domain per line: small, diff-friendly fixtures."""
+    head = {k: v for k, v in world.items() if k != "domains"}
+    lines = [json.dumps(head, ensure_ascii=False)[:-1] + ', "domains": {']
+    items = list(world["domains"].items())
+    for i, (domain, entry) in enumerate(items):
+        comma = "," if i < len(items) - 1 else ""
+        lines.append(f"{json.dumps(domain)}: {json.dumps(entry, ensure_ascii=False)}{comma}")
+    lines.append("}}")
+    return "\n".join(lines) + "\n"
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--seed", type=int, default=11)
@@ -680,7 +737,7 @@ def main() -> None:
             for r in rows
         )
     path = args.out.with_suffix(".world.json")
-    path.write_text(json.dumps(world, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    path.write_text(dump_world(world), encoding="utf-8")
     print(f"{len(rows)} gold rows over {len(world['domains'])} domains -> {args.out}.csv")
 
 
