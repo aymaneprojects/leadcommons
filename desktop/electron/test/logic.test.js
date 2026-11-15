@@ -2,17 +2,18 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const http = require("node:http");
+const path = require("node:path");
 const L = require("../lib/logic");
 const { stringsFor } = require("../lib/strings");
 
 test("backend path inside the installed app", () => {
-  assert.equal(L.backendExecutable({ resourcesPath: "/r", platform: "linux", env: {} }), "/r/backend/leadcommons-backend");
+  assert.equal(L.backendExecutable({ resourcesPath: "/r", platform: "linux", env: {} }), path.join("/r", "backend", "leadcommons-backend"));
   assert.match(L.backendExecutable({ resourcesPath: "C:\\r", platform: "win32", env: {} }), /leadcommons-backend\.exe$/);
   assert.equal(L.backendExecutable({ resourcesPath: "/r", platform: "linux", env: { LEADCOMMONS_BACKEND: "/x" } }), "/x");
 });
 
 test("data folder is shared with the command line", () => {
-  assert.equal(L.dataHome({ env: {}, homedir: "/home/a" }), "/home/a/.leadcommons");
+  assert.equal(L.dataHome({ env: {}, homedir: "/home/a" }), path.join("/home/a", ".leadcommons"));
   assert.equal(L.dataHome({ env: { LEADCOMMONS_HOME: "/data" }, homedir: "/home/a" }), "/data");
 });
 
