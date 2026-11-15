@@ -1,0 +1,72 @@
+{
+  "rollegrupper": [
+    {
+      "type": {"kode": "DAGL", "beskrivelse": "Daglig leder/administrerende direktør"},
+      "sistEndret": "2022-05-10",
+      "roller": [
+        {
+          "type": {"kode": "DAGL", "beskrivelse": "Daglig leder/administrerende direktør"},
+          "person": {
+            "fodselsdato": "1980-02-03",
+            "navn": {"fornavn": "OLA", "mellomnavn": null, "etternavn": "NORDMANN"},
+            "erDoed": false
+          },
+          "fratraadt": false,
+          "rekkefolge": 0
+        }
+      ]
+    },
+    {
+      "type": {"kode": "STYR", "beskrivelse": "Styre"},
+      "sistEndret": "2023-06-01",
+      "roller": [
+        {
+          "type": {"kode": "LEDE", "beskrivelse": "Styrets leder"},
+          "person": {
+            "fodselsdato": "1965-11-20",
+            "navn": {"fornavn": "KARI", "mellomnavn": "MARIE", "etternavn": "HANSEN"},
+            "erDoed": false
+          },
+          "fratraadt": false,
+          "rekkefolge": 0
+        },
+        {
+          "type": {"kode": "MEDL", "beskrivelse": "Styremedlem"},
+          "person": {
+            "fodselsdato": "1972-04-04",
+            "navn": {"fornavn": "PER", "mellomnavn": null, "etternavn": "OLSEN"},
+            "erDoed": false
+          },
+          "fratraadt": false,
+          "rekkefolge": 1
+        },
+        {
+          "type": {"kode": "MEDL", "beskrivelse": "Styremedlem"},
+          "person": {
+            "fodselsdato": "1960-01-01",
+            "navn": {"fornavn": "GAMMEL", "mellomnavn": null, "etternavn": "STYREMEDLEM"},
+            "erDoed": false
+          },
+          "fratraadt": true,
+          "rekkefolge": 2
+        }
+      ]
+    },
+    {
+      "type": {"kode": "REVI", "beskrivelse": "Revisor"},
+      "sistEndret": "2021-01-01",
+      "roller": [
+        {
+          "type": {"kode": "REVI", "beskrivelse": "Revisor"},
+          "enhet": {
+            "organisasjonsnummer": "987654321",
+            "navn": ["REVISJON EKSEMPEL AS"],
+            "erSlettet": false
+          },
+          "fratraadt": false,
+          "rekkefolge": 0
+        }
+      ]
+    }
+  ]
+}

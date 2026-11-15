@@ -9,16 +9,26 @@ from __future__ import annotations
 
 import html
 import json
+import logging
 import re
-from collections.abc import Iterator, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Iterable, Iterator, Sequence
+from dataclasses import dataclass, field
 
 from selectolax.lexbor import LexborHTMLParser, LexborNode
 
+from leadcommons.connectors.people import (
+    CompanyRefs,
+    OfficialPerson,
+    PeopleSource,
+    SourceReport,
+    official_people,
+)
 from leadcommons.enrich.crawl import Page
 from leadcommons.enrich.names import PARTICLES, clean_name, fold, name_key, squeeze
 from leadcommons.enrich.titles import ROLE_WORDS, guess_department, has_role_keyword, map_seniority
-from leadcommons.models import Person, make_id
+from leadcommons.models import Company, Person, Seniority, make_id
+
+log = logging.getLogger(__name__)
 
 # Tokens that show a capitalised phrase is navigation, a heading or a company, not a person.
 _STOPWORDS = frozenset(
@@ -409,4 +419,169 @@ def extract_people(pages: Sequence[Page], domain: str) -> list[Person]:
     for person in people:
         person.seniority = map_seniority(person.title)
         person.department = guess_department(person.title)
+    return people
+
+
+# ---------------------------------------------------------------- official sources + website
+
+# Official sources in the order their title wins when they disagree: the most specific first
+# (SEC officerTitle), then the company registers, then Wikidata.
+OFFICIAL_ORDER = ("edgar", "companies-house", "brreg", "wikidata")
+WEBSITE = "website"
+MAX_TITLE_ROLES = 3
+_SENIORITY_RANK = {level: i for i, level in enumerate(Seniority)}
+
+
+@dataclass
+class _Merged:
+    names: dict[str, str] = field(default_factory=dict)  # source -> name as that source writes it
+    titles: dict[str, list[str]] = field(default_factory=dict)  # source -> distinct titles
+    urls: list[str] = field(default_factory=list)  # official first, then website pages
+
+    def add(self, source: str, name: str, title: str | None, urls: Iterable[str]) -> None:
+        self.names.setdefault(source, name)
+        if title and title not in (titles := self.titles.setdefault(source, [])):
+            titles.append(title)
+        for url in urls:
+            if url not in self.urls:
+                self.urls.append(url)
+
+
+def _name_parts(name: str) -> tuple[str, str]:
+    tokens = name_key(name).split()
+    return (tokens[0], tokens[-1]) if tokens else ("", "")
+
+
+def _same_person(a: str, b: str) -> bool:
+    """Same surname and compatible first names: "Tim Cook" = "Timothy D. Cook" = "T. Cook"."""
+    (fa, la), (fb, lb) = _name_parts(a), _name_parts(b)
+    if not fa or not fb or la != lb or len(a.split()) < 2 or len(b.split()) < 2:
+        return False
+    return fa.startswith(fb) or fb.startswith(fa)
+
+
+def _official_name(raw: str) -> str | None:
+    name = clean_name(raw)
+    if not name or any(c.isdigit() for c in name) or len(name.split()) < 2:
+        return None
+    return name
+
+
+def _join_titles(titles: list[str]) -> str:
+    ranked = sorted(
+        titles, key=lambda t: _SENIORITY_RANK.get(map_seniority(t), len(_SENIORITY_RANK))
+    )
+    return ", ".join(ranked[:MAX_TITLE_ROLES])[:100].strip(" ,")
+
+
+def merge_people(
+    official: Sequence[OfficialPerson],
+    website: Sequence[Person],
+    domain: str | None,
+    *,
+    company_id: str | None = None,
+) -> list[Person]:
+    """One Person per human: duplicates merged by name, official title preferred, every source
+    URL kept (official pages first). Name shown: the website's, else Wikidata's, else the
+    shortest official spelling (it matches how the person is addressed and how emails are built).
+    """
+    entries: list[_Merged] = []
+
+    def entry_for(name: str) -> _Merged:
+        key = name_key(name)
+        for e in entries:
+            if any(name_key(n) == key for n in e.names.values()):
+                return e
+        for e in entries:
+            if any(_same_person(n, name) for n in e.names.values()):
+                return e
+        entries.append(_Merged())
+        return entries[-1]
+
+    ordered = sorted(
+        official, key=lambda p: OFFICIAL_ORDER.index(p.source) if p.source in OFFICIAL_ORDER else 99
+    )
+    for op in ordered:
+        if name := _official_name(op.name):
+            entry_for(name).add(op.source, name, _clean_title(op.title), [op.source_url])
+    for wp in website:
+        entry_for(wp.full_name).add(WEBSITE, wp.full_name, wp.title, wp.source_urls)
+
+    preference = (WEBSITE, "wikidata")
+    people = []
+    for e in entries:
+        name = min(
+            e.names.items(),
+            key=lambda kv: (
+                preference.index(kv[0]) if kv[0] in preference else 9,
+                len(kv[1].split()),
+            ),
+        )[1]
+        title = next(
+            (_join_titles(e.titles[s]) for s in (*OFFICIAL_ORDER, WEBSITE) if e.titles.get(s)),
+            None,
+        )
+        people.append(
+            Person(
+                id=make_id("pe", domain or company_id or "", name),
+                full_name=name,
+                company_domain=domain or None,
+                company_id=company_id,
+                title=title,
+                seniority=map_seniority(title),
+                department=guess_department(title),
+                source_urls=list(e.urls),
+            )
+        )
+    return people
+
+
+def gather_people(
+    domain: str | None,
+    website: Callable[[], list[Person]] | None,
+    *,
+    company: Company | None = None,
+    sources: Iterable[PeopleSource] | None = None,
+    is_suppressed: Callable[[str], bool] | None = None,
+    known_addresses: Callable[[str], Iterable[str]] | None = None,
+    report: list[SourceReport] | None = None,
+) -> list[Person]:
+    """Official sources that apply to `company` plus the website, merged.
+
+    Nothing is fetched when the domain is on the suppression list; people with a suppressed
+    address on file are dropped. `report` (if given) receives one SourceReport per source.
+    """
+    reports = report if report is not None else []
+    if domain and is_suppressed and is_suppressed(domain):
+        reports.append(
+            SourceReport(WEBSITE, "Company website", "n/a", "skipped", 0, f"{domain} opted out.")
+        )
+        return []
+    official: list[OfficialPerson] = []
+    if company is not None:  # registers are asked about a known company only
+        official, official_reports = official_people(
+            CompanyRefs.from_company(company, domain), sources
+        )
+        reports.extend(official_reports)
+
+    site_people: list[Person] = []
+    site_error: Exception | None = None
+    if website is not None:
+        try:
+            site_people = website()
+        except Exception as exc:  # the registers may still have answered
+            log.warning("website crawl of %s failed: %s", domain, exc)
+            site_error = exc
+            reason = f"The website could not be read ({type(exc).__name__})."
+            reports.append(SourceReport(WEBSITE, "Company website", "n/a", "error", 0, reason))
+        else:
+            reports.append(SourceReport(WEBSITE, "Company website", "n/a", "ok", len(site_people)))
+
+    people = merge_people(official, site_people, domain, company_id=company.id if company else None)
+    if site_error is not None and not people:
+        raise site_error
+    if is_suppressed and known_addresses:
+        people = [
+            p for p in people if not any(is_suppressed(a) for a in known_addresses(p.id) if a)
+        ]
     return people

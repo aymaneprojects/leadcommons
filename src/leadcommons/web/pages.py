@@ -26,6 +26,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 
 from leadcommons import __version__, engage, insights
 from leadcommons.ai.llm import llm_config
+from leadcommons.connectors.people import source_label
 from leadcommons.models import SIZE_RANGES, Company, EmailStatus, Person, Seniority, utcnow
 from leadcommons.search import CompanyFilters, PeopleFilters
 from leadcommons.store.personas import clean_filters, personas_for
@@ -409,6 +410,7 @@ templates.env.globals["desktop_app"] = os.environ.get("LEADCOMMONS_DESKTOP") == 
 templates.env.globals["rx"] = results  # view menu rows, field icons, save-window labels
 templates.env.globals["ui_state"] = lambda settings: load_state(settings)  # enrichment mode
 templates.env.filters["tel"] = lambda phone: tel_href(phone) or "#"
+templates.env.filters["source_label"] = source_label  # "wikidata.org/..." -> "Wikidata"
 
 
 def safe_insights(store: Any, company_id: str | None) -> Any | None:

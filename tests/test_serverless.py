@@ -78,7 +78,7 @@ def test_sync_jobs_finish_before_submit_returns(
     from leadcommons import enrich
 
     company = sample_companies()[0]
-    monkeypatch.setattr(enrich, "find_people", lambda domain: [sample_person(company)])
+    monkeypatch.setattr(enrich, "find_people", lambda domain, **kw: [sample_person(company)])
     runner, store = _runner(tmp_path, sync_jobs=True)
     job = runner.get(runner.submit("find_people", {"domain": company.domain}, "Find people"))
     assert job is not None and job.status == "done" and job.result == {"people": 1}

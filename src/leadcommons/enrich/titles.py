@@ -40,7 +40,7 @@ _INTERN = (
 )
 _OWNER = (
     "owner, co-owner, proprietor, proprietaire, inhaber, inhaberin, eigenaar, propietario, "
-    "propietaria, titolare"
+    "propietaria, titolare, innehaver, eier"
 )
 _FOUNDER = (
     "founder, cofounder, fondateur, fondatrice, cofondateur, cofondatrice, fundador, "
@@ -56,19 +56,31 @@ _C_SUITE = (
     "directora general, managing director, general manager, gerant, gerante, chairman, "
     "chairwoman, chairperson, vorstand, consejero delegado, consejera delegada, "
     "amministratore delegato, amministratore unico, administrador unico, gerente general, "
-    "algemeen directeur, gesetzlicher vertreter, representant legal, legale rappresentante"
+    "algemeen directeur, gesetzlicher vertreter, representant legal, legale rappresentante, "
+    "chair of the board, board chair, daglig leder, styreleder, administrerende direktor, "
+    "adm direktor, directeur general delegue, directrice generale deleguee, cogerant, cogerante, "
+    "administrateur unique, administratrice unique"
+)
+# Register roles of the board: not executives, so below C-suite (Companies House, Brreg, EDGAR).
+_DEPUTY_CHAIR = (
+    "vice chair, vice chairman, vice chairwoman, vice chairperson, deputy chair, deputy chairman, "
+    "deputy chairwoman, deputy chairperson, nestleder"
 )
 _PARTNER = (
     "partner, partners, associe, associee, socio, socia, teilhaber, teilhaberin, gesellschafter, "
-    "gesellschafterin, vennoot"
+    "gesellschafterin, vennoot, llp member, llp designated member, designated member, komplementar"
 )
 _TEAM_LEAD = "team lead, team leader, teamleiter, teamleiterin, teamleitung"
 _HEAD = "head, leiter, leiterin, leitung, jefe, jefa, hoofd, responsabile"
 _DIRECTOR = (
     "director, directors, directeur, directrice, direktor, direktorin, directora, direttore, "
-    "direttrice, prokurist, prokuristin"
+    "direttrice, prokurist, prokuristin, board member, board observer, styremedlem, varamedlem, "
+    "administrateur, administratrice, membre du conseil"
 )
-_MANAGER = "manager, responsable, gerente, chef, cheffe, supervisor, superviseur, encargado"
+_MANAGER = (
+    "manager, responsable, gerente, chef, cheffe, supervisor, superviseur, encargado, "
+    "company secretary, corporate secretary"
+)
 _SENIOR = "senior, sr, principal, staff, lead, confirme, confirmee, expert, experte, experto"
 _ENTRY = (
     "junior, jr, assistant, assistante, assistenz, asistente, assistente, trainee, apprentice, "
@@ -98,6 +110,7 @@ _SENIORITY_RULES: tuple[tuple[Seniority, re.Pattern[str]], ...] = (
     (Seniority.OWNER, _matcher(_OWNER)),
     (Seniority.FOUNDER, _matcher(_FOUNDER, _GRUND)),
     (Seniority.VP, _matcher(_VP)),  # before C-suite: "Vice President" contains "president"
+    (Seniority.DIRECTOR, _matcher(_DEPUTY_CHAIR)),  # before C-suite: contains "chairman"
     (Seniority.C_SUITE, _matcher(_C_SUITE, _GF)),
     (Seniority.PARTNER, _matcher(_PARTNER)),
     (Seniority.MANAGER, _matcher(_TEAM_LEAD)),  # before head: "Teamleiter" contains "leiter"
@@ -149,7 +162,7 @@ _DEPARTMENT_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
         _matcher(
             "legal, counsel, lawyer, attorney, compliance, juridique, juriste, avocat, avocate, "
             "rechtsanwalt, rechtsanwaltin, justitiar, justiziar, abogado, abogada, "
-            "data protection, dpo, protection des donnees",
+            "data protection, dpo, protection des donnees, company secretary, corporate secretary",
             "datenschutz",
         ),
     ),
@@ -191,7 +204,9 @@ _DEPARTMENT_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
             "managing director, general manager, chairman, chairwoman, board, pdg, dg, "
             "directeur general, directrice generale, director general, gerant, gerante, "
             "fondateur, fondatrice, cofondateur, inhaber, inhaberin, fundador, fundadora, "
-            "gesetzlicher vertreter, representant legal",
+            "gesetzlicher vertreter, representant legal, chairperson, chair of the board, "
+            "board chair, daglig leder, styreleder, nestleder, styremedlem, varamedlem, "
+            "innehaver, administrateur, administratrice, board member",
             f"{_GF}, {_GRUND}",
         ),
     ),

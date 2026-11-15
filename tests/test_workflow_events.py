@@ -34,7 +34,7 @@ def test_find_people_and_email_emit(tmp_path: Path, events, monkeypatch) -> None
 
     company = sample_companies()[0]
     person = sample_person(company)
-    monkeypatch.setattr(enrich, "find_people", lambda domain: [person])
+    monkeypatch.setattr(enrich, "find_people", lambda domain, **kw: [person])
     monkeypatch.setattr(
         enrich, "find_email", lambda p, d, smtp_probe=False: sample_email(f"claire@{d}")
     )

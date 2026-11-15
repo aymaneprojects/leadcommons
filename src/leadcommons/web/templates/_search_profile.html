@@ -305,7 +305,7 @@
   <div class="crow">
     <span class="ci">{{ ic("link") }}</span>
     <div class="cv"><span class="muted">Found on</span>
-      <ul class="plain-list tight">{% for u in person.source_urls %}<li><a class="mono" href="{{ u }}" target="_blank" rel="noopener noreferrer">{{ u.split('/')[2] if u.startswith('http') and u.split('/')|length > 2 else u }}{{ ic("external-link", "sm") }}</a></li>{% endfor %}</ul>
+      <ul class="plain-list tight">{% for u in person.source_urls %}<li><a class="mono" href="{{ u }}" target="_blank" rel="noopener noreferrer" title="{{ u }}">{{ u|source_label }}{{ ic("external-link", "sm") }}</a></li>{% endfor %}</ul>
     </div>
   </div>
   {% endif %}

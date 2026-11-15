@@ -14,6 +14,7 @@
     {% if j.status == 'done' and j.result %}
       {% if j.result.people is defined %} · {{ j.result.people }} people found{% endif %}
       {% if j.result.emails is defined %} · {{ j.result.emails }} emails{% endif %}
+      {% for src in j.result.sources or [] if src.status != 'ok' %} · {{ src.label }}: {{ src.reason }}{% endfor %}
       {% if j.kind == 'enrich_csv' %} · <a href="/api/enrich/{{ j.id }}/result.csv">Download CSV</a>{% endif %}
     {% endif %}
   </div>
