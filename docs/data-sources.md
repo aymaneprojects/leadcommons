@@ -68,7 +68,7 @@ Options: `--source wikidata --source gleif --source sirene --source edgar`, `--l
 
 ## Published packs
 
-A monthly workflow publishes a GitHub Release tagged `packs-YYYY-MM` containing `companies-*.parquet` and `ATTRIBUTION.md`. `leadcommons pack download latest` fetches the newest one.
+A monthly workflow publishes a GitHub Release tagged `packs-YYYY-MM` containing one `companies-<CC>-<date>.parquet` per country, `manifest.json` (rows, size and sha256 per country) and `ATTRIBUTION.md`. The app downloads only the countries you pick (Settings > Data packs, or `leadcommons pack download --country FR`), checks each file's sha256 and prepares it for fast search (docs/dev/search-performance.md). Older releases with a single `companies-*.parquet` still work with `leadcommons pack download latest`.
 
 ## Adding a source
 

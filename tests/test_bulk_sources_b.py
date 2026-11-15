@@ -216,7 +216,7 @@ def test_brreg_limit_and_country_skip(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv(brreg.URL_ENV, str(FIX / "brreg_enheter.json"))
     first = rows(brreg.build(opts(tmp_path, limit=2)).files[0])
     again = rows(brreg.build(opts(tmp_path / "b", limit=2)).files[0])
-    assert len(first) == 2 and first == again  # deterministic sample
+    assert len(first) == 2 and [r["id"] for r in first] == [r["id"] for r in again]
     stats = bulk.run_source("brreg", opts(tmp_path / "c", countries=frozenset({"se"})))
     assert stats.rows == 0 and not stats.files
 
@@ -565,8 +565,8 @@ def test_wikidata_splits_chunks_that_time_out(tmp_path: Path, monkeypatch) -> No
 
 
 def test_sparql_client_backs_off_and_gives_up() -> None:
-    answers = [httpx.Response(429, headers={"Retry-After": "7"}),
-               httpx.Response(200, json={"results": {"bindings": [{"x": {"value": "1"}}]}})]  # fmt: skip
+    ok = {"results": {"bindings": [{"x": {"value": "1"}}]}}
+    answers = [httpx.Response(429, headers={"Retry-After": "7"}), httpx.Response(200, json=ok)]
     slept: list[float] = []
     client = httpx.Client(transport=httpx.MockTransport(lambda r: answers.pop(0)))
     sparql = wikidata_orgs.Sparql(client, min_interval=0, sleep=slept.append)

@@ -56,7 +56,20 @@ TYPES = {**{c: "INTEGER" for c in PACK_INT_COLUMNS}, **{c: "DOUBLE" for c in PAC
 # (region filters then scan the table), so the cube stays small whatever the data looks like.
 MAX_CUBE_REGIONS = 5000
 
+# 64 KB storage blocks instead of DuckDB's 256 KB: a lookup reads one block per column, so a
+# cold get_company reads ~2 MB instead of ~7 MB (3x faster), scans are as fast, files smaller.
+BLOCK_SIZE = 65536
+
 Progress = Callable[[str], None]
+
+
+def _connect_new(path: Path) -> duckdb.DuckDBPyConnection:
+    """A new database file with BLOCK_SIZE blocks (DuckDB's default where unsupported)."""
+    try:
+        return duckdb.connect(str(path), config={"default_block_size": str(BLOCK_SIZE)})
+    except (duckdb.Error, TypeError, ValueError):
+        Path(path).unlink(missing_ok=True)
+        return duckdb.connect(str(path))
 
 
 def _q(text: str) -> str:
@@ -225,6 +238,20 @@ def kv_metadata(con: duckdb.DuckDBPyConnection, parquet: Path) -> dict[str, str]
         return {}
 
 
+def _rk_in_order(con: duckdb.DuckDBPyConnection, schema: str, sample: int = 4000) -> bool:
+    """rk follows the result order (checked on a sample of rows)."""
+    rows = con.execute(
+        f"SELECT rk, domain IS NULL, size_range IS NULL, lower(name), id "
+        f"FROM {schema}.companies USING SAMPLE {int(sample)} ROWS"
+    ).fetchall()
+
+    def key(r: tuple) -> tuple:  # DuckDB order: NULLs last, strings by code point
+        return (r[1], r[2], r[3] is None, r[3] or "", r[4] is None, r[4] or "")
+
+    ranks = [r[0] for r in sorted(rows, key=key)]
+    return ranks == sorted(ranks)
+
+
 def build_tables(
     con: duckdb.DuckDBPyConnection,
     schema: str,
@@ -246,13 +273,21 @@ def build_tables(
     t0 = time.perf_counter()
     say("sorting companies")
     # preserve_insertion_order keeps the ORDER BY: rows are stored in rk order, so the min/max
-    # zone maps of rk (and the first page of results) need only a few row groups.
+    # zone maps of rk (and the first page of results) need only a few row groups. One sort:
+    # row_number() OVER () numbers the sorted stream as it goes (a streaming window).
     con.execute("SET preserve_insertion_order = true")
     con.execute(
-        f"INSERT INTO {schema}.companies "
-        f"SELECT row_number() OVER (ORDER BY {ORDER_SQL}) - 1 AS rk, {names}, {TXT_SQL} AS txt "
-        f"FROM ({source_sql}) src ORDER BY {ORDER_SQL}"
+        f"INSERT INTO {schema}.companies SELECT row_number() OVER () - 1 AS rk, * FROM ("
+        f"SELECT {names}, {TXT_SQL} AS txt FROM ({source_sql}) src ORDER BY {ORDER_SQL})"
     )
+    if not _rk_in_order(con, schema):  # never seen; costs a second sort if it happens
+        log.warning("index %s: rows numbered out of order; sorting again", schema)
+        con.execute(f"DELETE FROM {schema}.companies")
+        con.execute(
+            f"INSERT INTO {schema}.companies "
+            f"SELECT row_number() OVER (ORDER BY {ORDER_SQL}) - 1 AS rk, {names}, "
+            f"{TXT_SQL} AS txt FROM ({source_sql}) src ORDER BY {ORDER_SQL}"
+        )
     rows = int(con.execute(f"SELECT count(*) FROM {schema}.companies").fetchone()[0])
     log.info("index %s: %s rows sorted in %.1f s", schema, rows, time.perf_counter() - t0)
     say("building lookups")
@@ -311,7 +346,7 @@ def build_index(
     for leftover in (tmp, Path(f"{tmp}.wal")):
         leftover.unlink(missing_ok=True)
     t0 = time.perf_counter()
-    con = duckdb.connect(str(tmp))
+    con = _connect_new(tmp)
     try:
         configure(con, data_dir, memory_limit or build_memory_limit(), threads)
         have = parquet_columns(con, parquet)
@@ -432,7 +467,7 @@ def build_global_keys(
     for leftover in (tmp, Path(f"{tmp}.wal")):
         leftover.unlink(missing_ok=True)
     t0 = time.perf_counter()
-    con = duckdb.connect(str(tmp))
+    con = _connect_new(tmp)
     try:
         configure(con, data_dir, memory_limit or build_memory_limit(), threads)
         parts = []

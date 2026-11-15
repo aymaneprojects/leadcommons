@@ -196,7 +196,7 @@ def install_macros(con) -> None:
         # The number as stored: padded registers as compared, others as written (alphanumeric).
         f"lk_number_disp(reg, num) AS CASE WHEN reg IN ({padded}) THEN lk_number(reg, num) "
         "WHEN lk_number(reg, num) IS NOT NULL THEN lk_alnum(num) END",
-        "lk_lei(x) AS CASE WHEN regexp_full_match(lk_alnum(x), '[A-Z0-9]{18}[0-9]{2}') "
+        "lk_lei(x) AS CASE WHEN regexp_full_match(lk_alnum(x), '[A-Z0-9]{20}') "
         "THEN lk_alnum(x) END",
         "lk_wd(x) AS 'Q' || nullif(regexp_extract(upper(CAST(x AS VARCHAR)), 'Q([0-9]+)', 1), '')",
         "lk_domain(x) AS "

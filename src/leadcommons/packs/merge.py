@@ -60,9 +60,17 @@ Register numbers in the id are in their compared form: FR-SIREN 9 digits, GB-CH 
 US-SEC 10 digits; other purely numeric numbers without leading zeros (CA-CORP "0123456" ->
 `CA-CORP:123456`), while `company_number` keeps the register's own spelling.
 
-Scale (measured on this sandbox, 4 cores / 15 GB, DuckDB 2.0, synthetic shards that follow the
-contract; tests/test_pack_merge.py::test_merge_at_scale reproduces it):
-see SCALE_NOTE below.
+Scale (tests/test_pack_merge.py::test_merge_at_scale; 4 cores / 15 GB like a GitHub runner,
+DuckDB 2.0, Python 3.13, synthetic shards that follow the contract: 30.0M input rows, France
+15M, UK 5.4M, Australia 3M, GLEIF 2.5M, Wikidata 0.84M; 26.4M companies written in 14 files):
+
+- default memory limit (70% of RAM): 393 s wall, peak RSS 9.8 GiB (DuckDB fills its limit as
+  cache); load 44 s, link 46 s, rows placed by country 72 s, France (15M rows) about 2 min,
+  quality 49 s. The sandbox was shared with other jobs (load average ~7 on 4 cores) during the
+  run; on an idle machine the steps took about half as long.
+- LEADCOMMONS_MERGE_MEMORY=4GB: 403 s wall, peak RSS 4.2 GiB (spills to the work directory).
+- Disk: the work directory peaks at about 2-3x the shards' size; it is removed at the end.
+- 3M rows: 28 s, peak RSS 2.6 GiB.
 """
 
 from __future__ import annotations
@@ -100,7 +108,6 @@ from leadcommons.search import PACK_COLUMNS
 log = logging.getLogger(__name__)
 
 SCHEMA = 3
-SCALE_NOTE = "(filled in after the scale run)"
 
 REG, FIL, LEI, WIKI = "register", "filings", "lei", "wiki"
 FIELD_PRIORITY: dict[str, tuple[str, ...]] = {
@@ -821,6 +828,7 @@ def merge_shards(
         from leadcommons.packs.quality import write_quality as _write_quality
 
         result.quality = _write_quality(out_dir)
+        result.seconds = round(time.monotonic() - started, 2)
     log.info("merge: %d rows in %d countries, %.1f s", result.rows, len(results), result.seconds)
     return result
 

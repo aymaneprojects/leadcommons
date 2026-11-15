@@ -321,6 +321,10 @@ def test_large_pack_without_index_is_reported(tmp_path: Path, monkeypatch) -> No
     pack_index.ensure_index(tmp_path)
     s2 = DuckDBCompanySearch(tmp_path)
     assert s2.needs_index == [] and s2.pack_info()[0]["indexed"] is True
+    block = s2._query(
+        "SELECT block_size FROM pragma_database_size() WHERE database_name = 'p0'", []
+    )
+    assert block[0][0] == pack_index.BLOCK_SIZE  # small blocks: cheap cold lookups
     assert s2.pack_info()[0]["sources"] == ["t"]
 
 
@@ -354,3 +358,20 @@ def test_memory_and_threads_limits(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.delenv("LEADCOMMONS_DUCKDB_MEMORY")
     mb = int(pack_index.default_memory_limit().removesuffix("MB"))
     assert 256 <= mb <= 1024
+
+
+def test_build_checks_the_row_order(tmp_path: Path) -> None:
+    import duckdb
+
+    f = tmp_path / "companies-FR-1.parquet"
+    write_parquet(f, FILES["companies-FR-1.parquet"], {"built_at": "x", "sources": "t"})
+    con = duckdb.connect()
+    con.execute("ATTACH ':memory:' AS m")
+    have = pack_index.parquet_columns(con, f)
+    src = f"SELECT {pack_index.projection(have)} FROM read_parquet('{f}')"
+    pack_index.build_tables(con, "m", src, zstd=False)
+    assert pack_index._rk_in_order(con, "m")
+    ranks = [r[0] for r in con.execute("SELECT rk FROM m.companies").fetchall()]
+    assert ranks == sorted(ranks) == list(range(len(ranks)))  # stored in rk order
+    con.execute("UPDATE m.companies SET rk = -rk")
+    assert not pack_index._rk_in_order(con, "m")

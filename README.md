@@ -82,7 +82,8 @@ Details in [docs/vercel.md](docs/vercel.md).
 ## Quick start
 
 ```sh
-leadcommons pack download latest        # real company data (a small sample is bundled)
+leadcommons pack download --country FR  # real company data for a country (a sample is bundled)
+leadcommons pack countries              # the countries you can download
 leadcommons serve                       # web app on http://127.0.0.1:8000
 leadcommons find-people example.com     # people on a company's public pages
 leadcommons find-email "Ada Lovelace" example.com

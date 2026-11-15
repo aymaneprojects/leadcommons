@@ -644,7 +644,9 @@ def test_merge_at_scale(tmp_path: Path) -> None:
 
         LEADCOMMONS_SCALE_ROWS=30000000 .venv/bin/pytest -q -s tests/test_pack_merge.py -k scale
 
-    Measured numbers are recorded in packs/merge.py (SCALE_NOTE).
+    Measured on a 4-core / 15 GB sandbox with LEADCOMMONS_SCALE_ROWS=30000000 (30.0M input rows,
+    France 15M): 393 s wall and 9.8 GiB peak RSS with the default memory limit, 403 s and
+    4.2 GiB with LEADCOMMONS_MERGE_MEMORY=4GB (details in the packs/merge.py docstring).
     """
     import resource
     import subprocess

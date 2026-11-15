@@ -410,3 +410,27 @@ def test_default_country_prefers_the_desktop_locale(monkeypatch) -> None:
     monkeypatch.delenv("LC_ALL", raising=False)
     monkeypatch.delenv("LC_MESSAGES", raising=False)
     assert default_country() == "US"
+
+
+@respx.mock
+def test_cli_downloads_lists_and_removes_countries(tmp_path: Path, dec, monkeypatch) -> None:
+    from typer.testing import CliRunner
+
+    from leadcommons.cli import app
+
+    monkeypatch.setenv("LEADCOMMONS_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("LEADCOMMONS_DATA_DIR", str(tmp_path / "home" / "packs"))
+    monkeypatch.setenv("LEADCOMMONS_PACKS_REPO", REPO)
+    monkeypatch.setattr("leadcommons.cli.DEFAULT_PACKS_REPO", REPO)
+    _github(dec)
+    runner = CliRunner()
+    res = runner.invoke(app, ["pack", "download", "--country", "gb"])
+    assert res.exit_code == 0, res.output
+    data = tmp_path / "home" / "packs"
+    assert (data / "companies-GB-20261201.parquet").exists()
+    res = runner.invoke(app, ["pack", "countries"])
+    assert "GB" in res.output and "installed" in res.output and "available" in res.output
+    res = runner.invoke(app, ["pack", "index"])
+    assert res.exit_code == 0 and "ready for search" in res.output
+    res = runner.invoke(app, ["pack", "download", "--remove", "GB"])
+    assert res.exit_code == 0 and not (data / "companies-GB-20261201.parquet").exists()
