@@ -38,7 +38,7 @@ check() {
 
 check /healthz '"ok"'
 check "/companies?all=1" 'co-name'
-check "/people" 'Pepite'
+check "/people" 'Pépite'
 check "/settings/data-packs" 'Data packs'
 check "/api/docs" 'API reference'
 check "/static/css/app.css" '--orange'
