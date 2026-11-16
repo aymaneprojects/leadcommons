@@ -1,4 +1,4 @@
-"""Site scan crawler: robots, redirects, page budget, checkpoints, one request at a time per site."""
+"""Site scan crawler: robots, redirects, page budget, checkpoints, one request per site at once."""
 
 from __future__ import annotations
 
@@ -41,16 +41,20 @@ def mount(router: respx.MockRouter, host: str, pages: dict[str, httpx.Response],
 @pytest.fixture
 def router():
     with respx.mock(assert_all_called=False, assert_all_mocked=False) as r:
-        # Anything not mounted is "no such host".
-        r.route().mock(side_effect=httpx.ConnectError("no route"))
         yield r
+
+
+def seal(router: respx.MockRouter) -> None:
+    """Anything not mounted is "no such host" (added last: respx uses the first match)."""
+    router.route().mock(side_effect=httpx.ConnectError("no route"))
 
 
 def called(router: respx.MockRouter, url: str) -> int:
     return sum(1 for c in router.calls if str(c.request.url) == url)
 
 
-async def scan(domain: str, country: str | None = "FR", **kw):
+async def scan(router, domain: str, country: str | None = "FR", **kw):
+    seal(router)
     async with httpx.AsyncClient() as client:
         return await scan_domain(client, domain, country, pacer=HostPacer(0), **kw)
 
@@ -63,7 +67,7 @@ async def test_finds_register_number_on_legal_page_and_stops(router):
         {"/": html(HOME), "/mentions-legales": html(LEGAL), "/contact": html(CONTACT)},
         robots="User-agent: *\nDisallow: /private\n",
     )
-    finding = await scan("acme.fr")
+    finding = await scan(router, "acme.fr")
     assert finding.status == "ok"
     assert [(i.registry, i.number) for i in finding.ids] == [("FR-SIREN", "552081317")]
     assert finding.evidence_url == "https://acme.fr/mentions-legales"
@@ -76,7 +80,7 @@ async def test_finds_register_number_on_legal_page_and_stops(router):
 @pytest.mark.asyncio
 async def test_user_agent_names_the_bot(router):
     mount(router, "acme.fr", {"/": html(HOME), "/mentions-legales": html(LEGAL)})
-    await scan("acme.fr")
+    await scan(router, "acme.fr")
     agents = {c.request.headers["user-agent"] for c in router.calls}
     assert len(agents) == 1
     (agent,) = agents
@@ -88,7 +92,7 @@ async def test_user_agent_names_the_bot(router):
 async def test_page_budget_is_respected(router):
     pages = {"/": html(HOME), "/contact": html(CONTACT), "/mentions-legales": html(CONTACT)}
     mount(router, "acme.fr", pages)
-    await scan("acme.fr", max_pages=2)
+    await scan(router, "acme.fr", max_pages=2)
     fetched = [c.request.url.path for c in router.calls if c.request.url.path != "/robots.txt"]
     assert len(fetched) == 2  # home + one more
 
@@ -101,7 +105,7 @@ async def test_robots_disallow_for_our_agent(router):
         {"/": html(HOME)},
         robots="User-agent: LeadCommonsBot\nDisallow: /\n\nUser-agent: *\nAllow: /\n",
     )
-    finding = await scan("acme.fr")
+    finding = await scan(router, "acme.fr")
     assert finding.status == "robots"
     assert called(router, "https://acme.fr/") == 0
 
@@ -114,7 +118,7 @@ async def test_robots_disallow_everyone_but_other_bot_allowed(router):
         {"/": html(HOME), "/mentions-legales": html(LEGAL)},
         robots="User-agent: Googlebot\nDisallow: /\n",
     )
-    assert (await scan("acme.fr")).status == "ok"
+    assert (await scan(router, "acme.fr")).status == "ok"
 
 
 @pytest.mark.asyncio
@@ -125,7 +129,7 @@ async def test_robots_disallow_one_page_keeps_the_rest(router):
         {"/": html(HOME), "/mentions-legales": html(LEGAL), "/contact": html(LEGAL)},
         robots="User-agent: *\nDisallow: /mentions-legales\n",
     )
-    finding = await scan("acme.fr")
+    finding = await scan(router, "acme.fr")
     assert finding.status == "ok"
     assert called(router, "https://acme.fr/mentions-legales") == 0
     assert finding.evidence_url == "https://acme.fr/contact"
@@ -135,20 +139,20 @@ async def test_robots_disallow_one_page_keeps_the_rest(router):
 @pytest.mark.asyncio
 async def test_robots_4xx_means_allowed(router, status):
     mount(router, "acme.fr", {"/": html(HOME)}, robots=httpx.Response(status))
-    assert (await scan("acme.fr")).status == "ok"
+    assert (await scan(router, "acme.fr")).status == "ok"
 
 
 @pytest.mark.asyncio
 async def test_robots_fetch_failure_means_allowed(router):
     router.get("https://acme.fr/robots.txt").mock(side_effect=httpx.ReadError("reset"))
     mount(router, "acme.fr", {"/": html(HOME)})
-    assert (await scan("acme.fr")).status == "ok"
+    assert (await scan(router, "acme.fr")).status == "ok"
 
 
 @pytest.mark.asyncio
 async def test_robots_5xx_skips_the_site(router):
     mount(router, "acme.fr", {"/": html(HOME)}, robots=httpx.Response(503))
-    finding = await scan("acme.fr")
+    finding = await scan(router, "acme.fr")
     assert finding.status == "robots"
     assert "503" in (finding.error or "")
     assert called(router, "https://acme.fr/") == 0
@@ -165,11 +169,12 @@ async def test_crawl_delay_is_honoured_up_to_a_cap(router):
 
 @pytest.mark.asyncio
 async def test_off_domain_redirect_is_refused(router):
+    router.get("https://acme.fr/robots.txt").mock(return_value=httpx.Response(404))
     router.get("https://acme.fr/").mock(
         return_value=httpx.Response(301, headers={"location": "https://other.com/"})
     )
     mount(router, "other.com", {"/": html(LEGAL)})
-    finding = await scan("acme.fr")
+    finding = await scan(router, "acme.fr")
     assert finding.status == "error"
     assert "off-domain" in (finding.error or "")
     assert called(router, "https://other.com/") == 0
@@ -178,11 +183,12 @@ async def test_off_domain_redirect_is_refused(router):
 
 @pytest.mark.asyncio
 async def test_same_domain_redirect_to_www_is_followed(router):
+    router.get("https://acme.fr/robots.txt").mock(return_value=httpx.Response(404))
     router.get("https://acme.fr/").mock(
         return_value=httpx.Response(301, headers={"location": "https://www.acme.fr/"})
     )
     mount(router, "www.acme.fr", {"/": html(HOME), "/mentions-legales": html(LEGAL)})
-    finding = await scan("acme.fr")
+    finding = await scan(router, "acme.fr")
     assert finding.status == "ok"
     assert finding.ids and finding.evidence_url == "https://www.acme.fr/mentions-legales"
 
@@ -191,17 +197,17 @@ async def test_same_domain_redirect_to_www_is_followed(router):
 async def test_falls_back_to_www_then_http(router):
     router.get("https://acme.fr/").mock(side_effect=httpx.ConnectError("refused"))
     mount(router, "www.acme.fr", {"/": html(HOME), "/mentions-legales": html(LEGAL)})
-    assert (await scan("acme.fr")).status == "ok"
+    assert (await scan(router, "acme.fr")).status == "ok"
     router.reset()
+    router.calls.reset()
     router.get("http://acme.fr/").mock(return_value=html(LEGAL))
-    router.route().mock(side_effect=httpx.ConnectError("refused"))
-    finding = await scan("acme.fr")
+    finding = await scan(router, "acme.fr")
     assert finding.status == "ok" and finding.ids
 
 
 @pytest.mark.asyncio
 async def test_no_site_when_nothing_answers(router):
-    finding = await scan("ghost.fr")
+    finding = await scan(router, "ghost.fr")
     assert finding.status == "no-site"
     assert finding.ids == []
 
@@ -209,13 +215,13 @@ async def test_no_site_when_nothing_answers(router):
 @pytest.mark.asyncio
 async def test_http_error_on_home_is_an_error_not_no_site(router):
     mount(router, "acme.fr", {"/": httpx.Response(500)})
-    assert (await scan("acme.fr")).status == "error"
+    assert (await scan(router, "acme.fr")).status == "error"
 
 
 @pytest.mark.asyncio
 async def test_only_html_is_read(router):
     mount(router, "acme.fr", {"/": html("%PDF-1.4 " + SIREN_TEXT, ctype="application/pdf")})
-    finding = await scan("acme.fr")
+    finding = await scan(router, "acme.fr")
     assert finding.status == "error" and finding.ids == []
 
 
@@ -223,7 +229,7 @@ async def test_only_html_is_read(router):
 async def test_page_size_cap(router):
     big = "<html><body><p>" + "x " * 600_000 + f"</p><p>{SIREN_TEXT}</p></body></html>"
     mount(router, "acme.fr", {"/": html(big)})
-    finding = await scan("acme.fr")
+    finding = await scan(router, "acme.fr")
     assert finding.status == "ok"
     assert finding.ids == []  # the number sits beyond the first megabyte
 
@@ -244,6 +250,7 @@ async def test_requests_to_one_site_never_overlap(router):
         return httpx.Response(404)
 
     router.route(host="acme.fr").mock(side_effect=slow)
+    seal(router)
     pacer = HostPacer(0.01)
     async with httpx.AsyncClient() as client:
         await asyncio.gather(*(scan_domain(client, "acme.fr", "FR", pacer=pacer) for _ in range(3)))
@@ -281,6 +288,7 @@ def _rows(out: Path):
 @pytest.mark.asyncio
 async def test_scan_many_writes_parquet_and_stats(router, tmp_path):
     _mount_many(router, ["a.fr", "b.fr"])
+    seal(router)
     stats = await scan_many(
         [("a.fr", "FR"), ("b.fr", None), ("ghost.fr", "FR")],
         tmp_path,
@@ -303,30 +311,32 @@ async def test_scan_many_writes_parquet_and_stats(router, tmp_path):
 @pytest.mark.asyncio
 async def test_scan_many_resumes_from_checkpoints(router, tmp_path):
     _mount_many(router, ["a.fr", "b.fr", "c.fr"])
+    seal(router)
     first = await scan_many(
         [("a.fr", "FR"), ("b.fr", "FR")], tmp_path, per_host_delay=0, checkpoint_every=1
     )
     assert first["domains"] == 2
-    router.calls.reset()
+    before = len(router.calls)
     second = await scan_many(
         [("a.fr", "FR"), ("b.fr", "FR"), ("c.fr", "FR"), ("c.fr", "FR")],
         tmp_path,
         per_host_delay=0,
     )
     assert second["domains"] == 1 and second["skipped"] == 3  # a, b done; c listed twice
-    assert {c.request.url.host for c in router.calls} == {"c.fr"}
+    assert {c.request.url.host for c in list(router.calls)[before:]} == {"c.fr"}
     assert [r[0] for r in _rows(tmp_path)] == ["a.fr", "b.fr", "c.fr"]
 
 
 @pytest.mark.asyncio
 async def test_scan_many_keeps_partial_output_when_interrupted(router, tmp_path):
     _mount_many(router, ["a.fr"])
+    seal(router)
 
     def feed():
         yield "a.fr", "FR"
-        raise KeyboardInterrupt
+        raise RuntimeError("killed")
 
-    with pytest.raises(KeyboardInterrupt):
+    with pytest.raises(RuntimeError):
         await scan_many(feed(), tmp_path, concurrency=1, per_host_delay=0, checkpoint_every=100)
     assert [r[0] for r in _rows(tmp_path)] == ["a.fr"]
 
@@ -334,6 +344,7 @@ async def test_scan_many_keeps_partial_output_when_interrupted(router, tmp_path)
 @pytest.mark.asyncio
 async def test_scan_many_survives_a_crashing_scan(router, tmp_path, monkeypatch):
     _mount_many(router, ["b.fr"])
+    seal(router)
     real = fetch.scan_with_stats
 
     async def boom(client, domain, *a, **kw):

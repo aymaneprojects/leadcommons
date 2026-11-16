@@ -1,0 +1,40 @@
+# Monthly site scan on a small server (docs/sitescan.md).
+#
+#   docker compose -f deploy/sitescan/docker-compose.yml build
+#   docker compose -f deploy/sitescan/docker-compose.yml run --rm sitescan      # one monthly run
+#
+# Findings go to the volume `sitescan-data` (/data/findings/YYYY-MM/...), the shard for the packs
+# workflow to /data/shards/YYYY-MM/sitescan.parquet. Run it again after an interruption: finished
+# domains are skipped. Keep PROCS the same for the whole month.
+name: leadcommons-sitescan
+
+services:
+  sitescan:
+    build:
+      context: ../..
+      dockerfile: deploy/sitescan/Dockerfile
+    restart: "no"
+    environment:
+      TLDS: ${TLDS:-fr}  # space separated; must exist in the sitescan-hosts release
+      PROCS: ${PROCS:-2}  # processes: one Python process uses one core (about 6 domains/s each)
+      CONCURRENCY: ${CONCURRENCY:-60}  # sites in flight per process
+      DELAY: ${DELAY:-1.0}  # seconds between two requests to one site
+      MAX_PAGES: ${MAX_PAGES:-4}
+      HOSTS_REPO: ${HOSTS_REPO:-aymaneprojects/leadcommons}
+      HOSTS_TAG: ${HOSTS_TAG:-}  # empty: the newest sitescan-hosts-* release
+      LIMIT: ${LIMIT:-}  # per process, for a trial run
+    volumes:
+      - sitescan-data:/data
+    # Many sites at once means many sockets; public resolvers avoid a small provider resolver
+    # throttling us (a local unbound is better still).
+    dns:
+      - 1.1.1.1
+      - 9.9.9.9
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    mem_limit: ${MEM_LIMIT:-6g}
+
+volumes:
+  sitescan-data:

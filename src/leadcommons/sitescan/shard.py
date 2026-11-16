@@ -40,13 +40,16 @@ REGISTRY_COUNTRY: dict[str, str] = {
 
 
 def build_shard(findings: Path, out: Path) -> dict:
-    """Write `sitescan.parquet` into the directory `out` from `findings` (a directory of
-    `findings-*.parquet` files, or one Parquet file). Returns the stats."""
+    """Write `sitescan.parquet` into the directory `out`; returns the stats.
+
+    `findings` is a directory of `findings-*.parquet` (also in part-K/ subdirectories) or one file.
+    """
     import duckdb
 
     findings = Path(findings)
-    pattern = findings / "findings-*.parquet" if findings.is_dir() else findings
-    if findings.is_dir() and not any(findings.glob("findings-*.parquet")):
+    # A directory holds findings-*.parquet, directly or in part-K/ subdirectories (`run --part`).
+    pattern = findings / "**" / "findings-*.parquet" if findings.is_dir() else findings
+    if findings.is_dir() and not any(findings.glob("**/findings-*.parquet")):
         raise FileNotFoundError(f"no findings-*.parquet in {findings}")
     con = duckdb.connect()
     try:

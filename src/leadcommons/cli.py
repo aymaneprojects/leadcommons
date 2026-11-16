@@ -484,16 +484,33 @@ def sitescan_run(
     delay: Annotated[float, typer.Option(help="Seconds between two requests to one site.")] = 1.0,
     max_pages: Annotated[int, typer.Option(help="Pages read per site (at most).")] = 4,
     limit: Annotated[int | None, typer.Option(help="Scan only the first N domains.")] = None,
+    part: Annotated[
+        str | None,
+        typer.Option(
+            help="K/N: scan slice K of N (0-based) into <out>/part-K. One Python process uses "
+            "one core, so run N processes on N cores."
+        ),
+    ] = None,
 ) -> None:
     """Read the home and legal pages of each domain and keep the register numbers found."""
     import itertools
     import json
+    import zlib
 
     from leadcommons.sitescan import fetch, hosts
 
     _log_progress_to_stderr()
     code = country.strip().upper() if country else None
     feed = hosts.read_domains_file(domains, code)
+    if part:
+        try:
+            k, n = (int(x) for x in part.split("/"))
+            if not 0 <= k < n:
+                raise ValueError
+        except ValueError:
+            raise _fail("--part must look like 0/4 (slice K of N, K < N)") from None
+        feed = (d for d in feed if zlib.crc32(d[0].encode()) % n == k)
+        out = out / f"part-{k}"
     if limit:
         feed = itertools.islice(feed, limit)
     stats = _guard(
