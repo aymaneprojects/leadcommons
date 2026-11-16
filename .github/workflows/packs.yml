@@ -27,6 +27,7 @@ on:
   push:
     branches:
       - "data/**"
+      - "!data/hosts*" # sitescan-hosts.yml test branches
 
 permissions:
   contents: read
