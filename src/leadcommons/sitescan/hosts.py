@@ -244,7 +244,7 @@ def build_domains(
     crawl: str | None = None,
     max_files: int | None = None,
     workers: int = 4,
-    attempts: int = 4,
+    attempts: int = 8,
     connect: Callable[[], object] = _connect,
     files: list[str] | None = None,
     sleep: Callable[[float], None] = time.sleep,

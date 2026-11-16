@@ -92,6 +92,7 @@ jobs:
     timeout-minutes: 350
     strategy:
       fail-fast: false
+      max-parallel: 4 # data.commoncrawl.org throttles (503) above that
       matrix:
         tld: ${{ fromJSON(needs.plan.outputs.tlds) }}
     steps:
