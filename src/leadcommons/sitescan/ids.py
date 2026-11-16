@@ -79,10 +79,21 @@ class _Spec:
     after: re.Pattern[str] | None = None  # a label written right after the number
 
 
+def _label_window(text: str, start: int, window: int) -> str:
+    """The text up to `window` characters before `start`, cut after any earlier digit.
+
+    A label only counts for the number nearest to it: "KvK 33012286 ... CVR 13580006" gives
+    "CVR" for the second number and nothing for the first.
+    """
+    before = text[max(0, start - window) : start]
+    last_digit = max((i for i, ch in enumerate(before) if ch.isdigit()), default=-1)
+    return before[last_digit + 1 :]
+
+
 def _from_spec(text: str, spec: _Spec) -> list[_Hit]:
     hits: list[_Hit] = []
     for m in re.finditer(_digits(spec.n), text):
-        before = text[max(0, m.start() - spec.window) : m.start()]
+        before = _label_window(text, m.start(), spec.window)
         after_hit = spec.after is not None and spec.after.match(text, m.end()) is not None
         if not (after_hit or spec.labels.search(before)):
             continue
@@ -163,9 +174,7 @@ _FR_LABELS = re.compile(
 )
 _NO_LABELS = re.compile(r"org\.?\s?nr|organisasjonsnummer|foretaksregisteret|\bMVA\b", re.I)
 _NO_AFTER = re.compile(r"\s{0,3}MVA\b", re.I)
-_NL_LABELS = re.compile(
-    r"KvK|KVK-nummer|Kamer van Koophandel|Chamber of Commerce", re.I
-)
+_NL_LABELS = re.compile(r"KvK|KVK-nummer|Kamer van Koophandel|Chamber of Commerce", re.I)
 _BE_STRONG = re.compile(
     r"\bBCE\b|\bKBO\b|num[ée]ro\s+d['’]entreprise|ondernemingsnummer"
     r"|(?-i:(?<![A-Za-z])BE[  ]?$)",
@@ -198,7 +207,12 @@ def _find_fr(text: str) -> list[_Hit]:
     hits: list[_Hit] = []
     for m in re.finditer(_digits(14), text):  # SIRET: Luhn on all 14 digits
         digits = _clean(m.group(0))
-        if _luhn_ok(digits):
+        if not _luhn_ok(digits):
+            continue
+        # A bare 14-digit run passes Luhn one time in ten (order or tracking numbers): without a
+        # label nearby, the SIREN inside must pass its own Luhn check too.
+        labelled = bool(_FR_LABELS.search(text[max(0, m.start() - 40) : m.start()]))
+        if labelled or _luhn_ok(digits[:9]):
             hits.append(_Hit(m.start(), m.end(), "FR-SIREN", digits[:9], m.group(0), "siret"))
     for m in _FR_RCS_RE.finditer(text):
         digits = _clean(m.group("num"))
@@ -214,15 +228,16 @@ def _find_fr(text: str) -> list[_Hit]:
 
 
 _GB_NUMBER_RE = re.compile(
-    r"(?<![A-Za-z0-9])(?:(?:SC|NI|OC|SO|NC|LP|SL|FC|SE|GE|IP|SP|RS|NO|NP|NL|IC|CE|CS|AC|ZC|SZ"
-    r"|SR|SA)[0-9]{6}|[0-9]{1,8})(?![0-9])"
+    r"(?<![A-Za-z0-9])(?<![0-9]" + _SEP + r")"
+    r"(?:(?:SC|NI|OC|SO|NC|LP|SL|FC|SE|GE|IP|SP|RS|NO|NP|NL|IC|CE|CS|AC|ZC|SZ|SR|SA)[0-9]{6}"
+    r"|[0-9]{1,8})(?![0-9])(?!" + _SEP + r"[0-9])"
 )
 
 
 def _find_gb(text: str) -> list[_Hit]:
     hits: list[_Hit] = []
     for m in _GB_NUMBER_RE.finditer(text):
-        before = text[max(0, m.start() - 60) : m.start()]
+        before = _label_window(text, m.start(), 60)
         if not _GB_LABELS.search(before):
             continue
         raw = m.group(0)
@@ -237,9 +252,7 @@ _AU_ABN = _Spec(11, "AU-ABN", "abn", _abn_ok, re.compile(r"\bABN\b", re.I), wind
 _AU_ACN = _Spec(9, "AU-ACN", "acn", _acn_ok, re.compile(r"\bACN\b", re.I), window=20)
 _NL_KVK = _Spec(8, "NL-KVK", "kvk", _always, _NL_LABELS, window=40)
 _DK_CVR = _Spec(8, "DK-CVR", "cvr", _dk_ok, re.compile(r"\bCVR\b", re.I), window=20)
-_BE_KBO = _Spec(
-    10, "BE-KBO", "enterprise-number", _be_ok, _BE_LABELS, window=40, strong=_BE_STRONG
-)
+_BE_KBO = _Spec(10, "BE-KBO", "enterprise-number", _be_ok, _BE_LABELS, window=40, strong=_BE_STRONG)
 _IT_VAT = _Spec(11, "IT-VAT", "vat", _luhn_ok, _IT_LABELS, window=30, strong=_IT_STRONG)
 
 _CH_RE = re.compile(
@@ -270,9 +283,9 @@ def _nearest_court(text: str, start: int, end: int) -> str | None:
     """The court named within 80 characters before or 40 after the register number."""
     lo = max(0, start - 80)
     best: tuple[int, str] | None = None
-    for c in _DE_COURT_RE.finditer(text, lo, end + 40):
+    for c in _DE_COURT_RE.finditer(text, lo):
         distance = max(0, start - c.end(), c.start() - end)
-        if best is None or distance < best[0]:
+        if distance <= 40 and (best is None or distance < best[0]):
             best = (distance, c.group(0))
     return best[1] if best else None
 
@@ -310,17 +323,23 @@ def find_ids(text: str, country: str | None = None) -> list[RegistryId]:
     numbers from other countries are kept only when their label makes the country certain.
     """
     hint = country.upper() if country else None
-    rules = sorted(_RULES, key=lambda rule: rule[0] != hint)  # stable: hint country first
-    taken: list[tuple[int, int]] = []
-    accepted: list[_Hit] = []
-    for code, finder in rules:
+    candidates: list[tuple[int, _Hit]] = []  # (rule position, hit)
+    for position, (code, finder) in enumerate(_RULES):
         for hit in finder(text):
             if hint and code != hint and not hit.certain:
                 continue
-            if any(hit.start < end and start < hit.end for start, end in taken):
-                continue
-            taken.append((hit.start, hit.end))
-            accepted.append(hit)
+            # the hint country sorts first among equally certain hits
+            candidates.append((0 if code == hint else position + 1, hit))
+    # certain hits claim their text before uncertain ones, so "KvK 33012286" stays Dutch even
+    # where a generic "company number" label also reaches it
+    candidates.sort(key=lambda item: (not item[1].certain, item[0]))
+    taken: list[tuple[int, int]] = []
+    accepted: list[_Hit] = []
+    for _, hit in candidates:
+        if any(hit.start < end and start < hit.end for start, end in taken):
+            continue
+        taken.append((hit.start, hit.end))
+        accepted.append(hit)
 
     accepted.sort(key=lambda hit: hit.start)
     seen: set[tuple[str, str]] = set()
