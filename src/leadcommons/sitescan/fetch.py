@@ -28,7 +28,7 @@ import re
 import socket
 import time
 from collections import Counter
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -178,11 +178,12 @@ class _Response:
     body: bytes
     content_type: str
     charset: str | None
+    location: str | None = None
 
 
 @dataclass
 class _Site:
-    """State of one domain scan."""
+    """State of one domain scan: client, robots cache, counters."""
 
     client: httpx.AsyncClient
     domain: str
@@ -190,70 +191,65 @@ class _Site:
     robots: dict[str, RobotFileParser | str | None] = field(default_factory=dict)
     crawl_delay: float = 0.0
     requests: int = 0
-    pages: int = 0
 
     def in_scope(self, url: str) -> bool:
         parts = urlsplit(url)
         return parts.scheme in {"http", "https"} and registrable(parts.hostname) == self.domain
 
-    async def _request(self, url: str, cap: int) -> _Response:
-        """One GET, no redirect following, body cut at `cap` bytes. Raises _NetworkError."""
+    async def _request(self, url: str, cap: int, *, html_only: bool) -> _Response:
+        """One GET, redirects not followed, body cut at `cap` bytes. Raises _NetworkError."""
         self.requests += 1
         try:
-            async with asyncio.timeout(REQUEST_DEADLINE):
-                async with self.client.stream(
+            async with (
+                asyncio.timeout(REQUEST_DEADLINE),
+                self.client.stream(
                     "GET",
                     url,
                     headers={"User-Agent": USER_AGENT, "Accept": "text/html,*/*;q=0.5"},
                     timeout=TIMEOUT,
                     follow_redirects=False,
-                ) as resp:
-                    ctype = resp.headers.get("content-type", "")
-                    mime = ctype.split(";")[0].strip().lower()
-                    status = resp.status_code
-                    body = b""
-                    wants_body = status == 200 and (not mime or mime in _HTML_TYPES or cap != MAX_BYTES)
-                    if wants_body:
-                        chunks: list[bytes] = []
-                        size = 0
-                        async for chunk in resp.aiter_bytes():
-                            chunks.append(chunk)
-                            size += len(chunk)
-                            if size >= cap:
-                                break
-                        body = b"".join(chunks)[:cap]
-                    return _Response(
-                        str(resp.url),
-                        status,
-                        body,
-                        mime,
-                        resp.charset_encoding,
-                    ) if False else _Response(
-                        url,
-                        status,
-                        body,
-                        mime,
-                        resp.charset_encoding,
-                    ) | _Location(resp.headers.get("location"))
+                ) as resp,
+            ):
+                mime = resp.headers.get("content-type", "").split(";")[0].strip().lower()
+                body = b""
+                if resp.status_code == 200 and (not html_only or not mime or mime in _HTML_TYPES):
+                    chunks: list[bytes] = []
+                    size = 0
+                    async for chunk in resp.aiter_bytes():
+                        chunks.append(chunk)
+                        size += len(chunk)
+                        if size >= cap:
+                            break
+                    body = b"".join(chunks)[:cap]
+                return _Response(
+                    url,
+                    resp.status_code,
+                    body,
+                    mime,
+                    resp.charset_encoding,
+                    resp.headers.get("location"),
+                )
         except (httpx.HTTPError, OSError, TimeoutError) as exc:
             raise _classify(exc) from exc
-        except httpx.InvalidURL as exc:  # pragma: no cover - defensive
-            raise _NetworkError("other", str(exc)) from exc
 
-    async def get(self, url: str, *, cap: int = MAX_BYTES) -> _Response:
-        """GET with same-domain redirects, robots checks and per-site pacing."""
+    async def get(self, url: str, *, robots: bool = False) -> _Response:
+        """GET with same-domain redirects, robots checks and per-site pacing.
+
+        `robots=True` fetches a robots.txt itself (no robots check, up to 500 KB, any type).
+        """
         for _ in range(MAX_REDIRECTS + 1):
             if not self.in_scope(url):
                 raise _Skip(f"off-domain: {urlsplit(url).hostname}")
-            if cap == MAX_BYTES:  # a page, not robots.txt itself
+            if not robots:
                 await self._check_robots(url)
             async with self.pacer.slot(self.domain, self.crawl_delay):
-                resp = await self._request(url, cap)
+                resp = await self._request(
+                    url, ROBOTS_MAX_BYTES if robots else MAX_BYTES, html_only=not robots
+                )
             if resp.status in (301, 302, 303, 307, 308):
-                target = getattr(resp, "location", None)
-                if not target:
+                if not resp.location:
                     raise _Skip(f"redirect without location ({resp.status})")
-                url = urljoin(url, target)
+                url = urljoin(url, resp.location)
                 continue
             return resp
         raise _Skip("too many redirects")
@@ -270,10 +266,14 @@ class _Site:
             raise _RobotsStop(f"robots.txt disallows {parts.path or '/'}")
 
     async def _load_robots(self, origin: str) -> RobotFileParser | str | None:
-        """Parser, None (allowed: missing, 4xx, unreachable) or a reason string (skip the site)."""
+        """Parser, None (allowed: missing, 4xx, odd failure) or a reason (skip the site)."""
         try:
-            resp = await self.get(origin + "/robots.txt", cap=ROBOTS_MAX_BYTES)
-        except (_NetworkError, _Skip):
+            resp = await self.get(origin + "/robots.txt", robots=True)
+        except _NetworkError as exc:
+            if exc.kind in {"dns", "timeout", "connect", "tls"}:
+                raise  # the host is unreachable: the page request would fail the same way
+            return None
+        except _Skip:
             return None  # robots fetch failure = allowed
         if resp.status >= 500:
             return f"robots.txt answered {resp.status}"
@@ -288,11 +288,361 @@ class _Site:
         return parser
 
     async def get_html(self, url: str) -> tuple[str, str]:
-        """(final url, html) of an HTML page, else raises _Skip / _NetworkError / _RobotsStop."""
+        """(final url, html) of an HTML page; raises _Skip, _NetworkError or _RobotsStop."""
         resp = await self.get(url)
         if resp.status != 200:
             raise _Skip(f"HTTP {resp.status}")
         if resp.content_type and resp.content_type not in _HTML_TYPES:
             raise _Skip(f"not HTML ({resp.content_type})")
-        self.pages += 1
-        return resp.final_url, _decode(resp.body, resp.charset)
+        return resp.url, _decode(resp.body, resp.charset)
+
+
+async def _open_home(site: _Site) -> tuple[str, str]:
+    """Home page: https, www. then http. Raises _NetworkError only if nothing answered at all."""
+    dead: set[str] = set()
+    errors: list[_NetworkError] = []
+    skips: list[str] = []
+    for scheme, host in (
+        ("https", site.domain),
+        ("https", "www." + site.domain),
+        ("http", site.domain),
+        ("http", "www." + site.domain),
+    ):
+        if host in dead:
+            continue
+        try:
+            return await site.get_html(f"{scheme}://{host}/")
+        except _RobotsStop:
+            raise
+        except _NetworkError as exc:
+            errors.append(exc)
+            if exc.kind in {"dns", "timeout"}:
+                dead.add(host)  # the other scheme will not do better
+        except _Skip as exc:
+            skips.append(str(exc))
+    if skips:
+        raise _Skip(skips[0])
+    # No answer anywhere: "no-site" if it is DNS / refused / connect timeout, else an error.
+    raise (
+        errors[0]
+        if all(e.kind in {"dns", "connect", "timeout"} for e in errors)
+        else _Skip(errors[-1].args[0])
+    )
+
+
+@dataclass
+class ScanResult:
+    """A Finding plus what the crawl cost (the contract's Finding has no room for these)."""
+
+    finding: Finding
+    pages: int = 0
+    requests: int = 0
+    home_url: str | None = None  # the URL that answered (scheme and host), for the shard
+
+
+async def scan_with_stats(
+    client: httpx.AsyncClient,
+    domain: str,
+    country: str | None,
+    *,
+    max_pages: int = 4,
+    pacer: HostPacer | None = None,
+) -> ScanResult:
+    norm = normalize_domain(domain)
+    if not norm:
+        return ScanResult(
+            Finding(domain=domain.strip().lower(), status="error", error="bad domain")
+        )
+    pacer = pacer or HostPacer(1.0)
+    site = _Site(client, norm, pacer)
+    finding = Finding(domain=norm)
+    result = ScanResult(finding)
+    seen_ids: set[tuple[str, str]] = set()
+    phones: list[str] = []
+    evidence_legal = False
+
+    def read(url: str, html: str) -> bool:
+        """Take the facts of one page. True when a register number sits on a legal page."""
+        nonlocal evidence_legal
+        text = visible_text(html)
+        legal = _is_legal(url)
+        found = [i for i in find_ids(text, country) if (i.registry, i.number) not in seen_ids]
+        for item in found:
+            seen_ids.add((item.registry, item.number))
+            finding.ids.append(item)
+        if found and (finding.evidence_url is None or (legal and not evidence_legal)):
+            finding.evidence_url = url
+            evidence_legal = legal
+        for phone in switchboard_phones(text, country):
+            if phone not in phones and len(phones) < MAX_PHONES:
+                phones.append(phone)
+        return bool(found) and legal
+
+    try:
+        async with asyncio.timeout(DOMAIN_DEADLINE):
+            home_url, html = await _open_home(site)
+            parts = urlsplit(home_url)
+            result.home_url = f"{parts.scheme}://{parts.netloc}/"
+            pages = 1
+            finding.title = page_title(html)
+            done = read(home_url, html)
+            seen = {_url_key(home_url)}
+            candidates = rank_links(html, home_url, norm, limit=max_pages * 2) + [
+                urljoin(home_url, p) for p in guess_paths(country)
+            ]
+            attempts = 0
+            failures = 0
+            for url in candidates:
+                if done or pages >= max_pages or attempts >= 2 * (max_pages - 1):
+                    break
+                key = _url_key(url)
+                if key in seen or not site.in_scope(url):
+                    continue
+                seen.add(key)
+                attempts += 1
+                try:
+                    final, page_html = await site.get_html(url)
+                except _NetworkError:
+                    failures += 1
+                    if failures >= 2:
+                        break  # the site went away
+                    continue
+                except _Skip:  # 404, not HTML, off-domain redirect, robots on this page
+                    continue
+                if _url_key(final) in seen and final != url:
+                    continue
+                seen.add(_url_key(final))
+                pages += 1
+                done = read(final, page_html)
+            result.pages = pages
+    except _RobotsStop as exc:
+        finding.status, finding.error = "robots", str(exc)
+    except _NetworkError as exc:
+        finding.status, finding.error = "no-site", str(exc)
+    except _Skip as exc:
+        finding.status, finding.error = "error", str(exc)
+    except TimeoutError:
+        finding.status, finding.error = "error", "domain timeout"
+    finding.phones = phones
+    result.requests = site.requests
+    return result
+
+
+async def scan_domain(
+    client: httpx.AsyncClient,
+    domain: str,
+    country: str | None,
+    *,
+    max_pages: int = 4,
+    pacer: HostPacer | None = None,
+) -> Finding:
+    """Scan one domain: see the module doc. Never raises for site problems."""
+    return (
+        await scan_with_stats(client, domain, country, max_pages=max_pages, pacer=pacer)
+    ).finding
+
+
+# --------------------------------------------------------------------------- many domains
+
+FINDINGS_GLOB = "findings-*.parquet"
+_SCHEMA_SQL = (
+    "domain VARCHAR, country VARCHAR, status VARCHAR, error VARCHAR, title VARCHAR, "
+    "home_url VARCHAR, evidence_url VARCHAR, ids VARCHAR, phones VARCHAR, pages INTEGER, "
+    "scanned_at VARCHAR"
+)
+
+
+def _row(res: ScanResult, country: str | None) -> tuple:
+    f = res.finding
+    return (
+        f.domain,
+        country,
+        f.status,
+        f.error,
+        f.title,
+        res.home_url,
+        f.evidence_url,
+        json.dumps([asdict(i) for i in f.ids], ensure_ascii=False),
+        json.dumps(f.phones),
+        res.pages,
+        datetime.now(UTC).replace(microsecond=0).isoformat(),
+    )
+
+
+def _sql_path(path: Path) -> str:
+    return str(path).replace("'", "''")
+
+
+def done_domains(out_dir: Path) -> set[str]:
+    """Domains already in the checkpoint files of `out_dir`."""
+    import duckdb
+
+    if not any(out_dir.glob(FINDINGS_GLOB)):
+        return set()
+    con = duckdb.connect()
+    try:
+        rows = con.execute(
+            f"SELECT domain FROM read_parquet('{_sql_path(out_dir)}/{FINDINGS_GLOB}')"
+        ).fetchall()
+    finally:
+        con.close()
+    return {r[0] for r in rows}
+
+
+def _write_batch(rows: list[tuple], path: Path) -> None:
+    import duckdb
+
+    con = duckdb.connect()
+    try:
+        con.execute(f"CREATE TABLE f({_SCHEMA_SQL})")
+        con.executemany("INSERT INTO f VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
+        tmp = path.with_name(path.name + ".tmp")
+        con.execute(f"COPY f TO '{_sql_path(tmp)}' (FORMAT PARQUET, COMPRESSION ZSTD)")
+        tmp.replace(path)
+    finally:
+        con.close()
+
+
+def _next_batch_number(out_dir: Path) -> int:
+    nums = [
+        int(m.group(1)) for p in out_dir.glob(FINDINGS_GLOB) if (m := re.search(r"(\d+)", p.stem))
+    ]
+    return max(nums, default=0) + 1
+
+
+async def scan_many(
+    domains: Iterable[tuple[str, str | None]],
+    out_path: Path,
+    *,
+    concurrency: int = 100,
+    per_host_delay: float = 1.0,
+    checkpoint_every: int = 500,
+    max_pages: int = 4,
+    progress_every: float = 30.0,
+) -> dict:
+    """Scan many domains and write Findings to Parquet batches in the directory `out_path`.
+
+    Bounded concurrency (`concurrency` workers pull domains lazily, so a 10M-line input costs no
+    memory), one request at a time per site, `per_host_delay` seconds apart. Every
+    `checkpoint_every` finished domains a file `findings-NNNNN.parquet` is written (atomically);
+    domains already in such files are skipped, so a killed run resumes where it stopped. Returns
+    the stats: domains, skipped, with_ids, by_registry, by_status, errors, pages, requests, seconds.
+    """
+    out_path.mkdir(parents=True, exist_ok=True)
+    done = done_domains(out_path)
+    skipped = 0
+    started = time.monotonic()
+    stats: dict = {
+        "domains": 0,
+        "skipped": 0,
+        "with_ids": 0,
+        "by_registry": Counter(),
+        "by_status": Counter(),
+        "errors": 0,
+        "pages": 0,
+        "requests": 0,
+    }
+    if done:
+        log.info("resuming: %d domains already scanned in %s", len(done), out_path)
+
+    def feed() -> Iterator[tuple[str, str | None]]:
+        nonlocal skipped
+        for raw, country in domains:
+            norm = normalize_domain(raw) or raw.strip().lower()
+            if not norm or norm in done:
+                skipped += 1
+                continue
+            done.add(norm)
+            yield norm, (country or country_for_domain(norm))
+
+    pending: list[tuple] = []
+    flush_lock = asyncio.Lock()
+    batch_no = _next_batch_number(out_path)
+    pacer = HostPacer(per_host_delay)
+    last_log = time.monotonic()
+
+    async def flush() -> None:
+        nonlocal pending, batch_no
+        async with flush_lock:
+            if not pending:
+                return
+            rows, pending = pending, []
+            path = out_path / f"findings-{batch_no:05d}.parquet"
+            batch_no += 1
+            await asyncio.to_thread(_write_batch, rows, path)
+            log.info("checkpoint: %s (%d rows)", path.name, len(rows))
+
+    def record(res: ScanResult, country: str | None) -> None:
+        f = res.finding
+        stats["domains"] += 1
+        stats["by_status"][f.status] += 1
+        stats["pages"] += res.pages
+        stats["requests"] += res.requests
+        if f.status == "error":
+            stats["errors"] += 1
+        if f.ids:
+            stats["with_ids"] += 1
+            for registry in {i.registry for i in f.ids}:
+                stats["by_registry"][registry] += 1
+        pending.append(_row(res, country))
+
+    async def worker(client: httpx.AsyncClient, source: Iterator[tuple[str, str | None]]) -> None:
+        nonlocal last_log
+        for domain, country in source:
+            try:
+                res = await scan_with_stats(
+                    client, domain, country, max_pages=max_pages, pacer=pacer
+                )
+            except Exception as exc:  # one bad site must never stop the run
+                log.warning("scan of %s failed: %r", domain, exc)
+                res = ScanResult(Finding(domain=domain, status="error", error=repr(exc)[:200]))
+            pacer.forget(res.finding.domain)
+            record(res, country)
+            if len(pending) >= checkpoint_every:
+                await flush()
+            now = time.monotonic()
+            if now - last_log >= progress_every:
+                last_log = now
+                secs = now - started
+                log.info(
+                    "scanned %d domains (%.1f/s), %d with register numbers, %d no-site, %d errors",
+                    stats["domains"],
+                    stats["domains"] / secs,
+                    stats["with_ids"],
+                    stats["by_status"]["no-site"],
+                    stats["errors"],
+                )
+
+    loop = asyncio.get_running_loop()
+    loop.set_default_executor(ThreadPoolExecutor(max_workers=min(max(concurrency, 8), 128)))
+    limits = httpx.Limits(
+        max_connections=concurrency + 10, max_keepalive_connections=concurrency, keepalive_expiry=5
+    )
+    source = feed()
+    try:
+        async with httpx.AsyncClient(limits=limits) as client:
+            await asyncio.gather(*(worker(client, source) for _ in range(max(1, concurrency))))
+    finally:
+        await flush()  # partial output on interruption
+    stats["skipped"] = skipped
+    stats["seconds"] = round(time.monotonic() - started, 1)
+    stats["by_registry"] = dict(stats["by_registry"])
+    stats["by_status"] = dict(stats["by_status"])
+    return stats
+
+
+def run_scan(domains: Iterable[tuple[str, str | None]], out_path: Path, **kwargs: object) -> dict:
+    """Blocking wrapper of `scan_many` for the CLI."""
+    return asyncio.run(scan_many(domains, out_path, **kwargs))  # type: ignore[arg-type]
+
+
+__all__ = [
+    "USER_AGENT",
+    "HostPacer",
+    "ScanResult",
+    "done_domains",
+    "run_scan",
+    "scan_domain",
+    "scan_many",
+    "scan_with_stats",
+]
