@@ -53,8 +53,9 @@ items and takes about 70 minutes.
 
 The SEC asks every automated client to say who it is. Set `LEADCOMMONS_CONTACT_EMAIL` before
 building a pack and LeadCommons adds it to its User-Agent; without it, EDGAR is skipped. The
-monthly workflow uses the project's GitHub no-reply address, or the repository variable
-`EDGAR_CONTACT_EMAIL` when it is set. Requests stay
+monthly workflow reads it from the repository secret `EDGAR_CONTACT_EMAIL` (Settings > Secrets
+and variables > Actions > New repository secret); GitHub masks secrets in the public logs. SEC
+refuses the GitHub no-reply address used as a fallback. Requests stay
 under the SEC's limit of 10 per second. The bulk source `edgar_bulk` (one download of
 `submissions.zip`) refuses to run without a contact address.
 

@@ -121,8 +121,10 @@ jobs:
           SOURCE: ${{ matrix.source }}
           LIMIT: ${{ needs.plan.outputs.limit }}
           # SEC EDGAR asks every client to declare a contact address in its User-Agent.
-          # The repository variable EDGAR_CONTACT_EMAIL overrides the project's GitHub no-reply address.
-          LEADCOMMONS_CONTACT_EMAIL: ${{ vars.EDGAR_CONTACT_EMAIL || '181950936+aymaneprojects@users.noreply.github.com' }}
+          # SEC asks for a reachable contact. Set it as the repository *secret* EDGAR_CONTACT_EMAIL
+          # (GitHub masks secrets in the public logs); the no-reply address is only a fallback and
+          # SEC refuses it.
+          LEADCOMMONS_CONTACT_EMAIL: ${{ secrets.EDGAR_CONTACT_EMAIL || vars.EDGAR_CONTACT_EMAIL || '181950936+aymaneprojects@users.noreply.github.com' }}
           # 16 GB runners: leave room for Python and the page cache; DuckDB spills to the work dir.
           LEADCOMMONS_DUCKDB_MEMORY: 10GB
         run: |
