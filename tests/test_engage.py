@@ -135,6 +135,12 @@ def install_fake_smtp(monkeypatch: pytest.MonkeyPatch) -> type[FakeSMTP]:
     return FakeSMTP
 
 
+@pytest.fixture(autouse=True)
+def _clock_before_monday(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Tests run on a fixed calendar, so enrolment must happen before MONDAY whatever today is.
+    monkeypatch.setattr(core, "utcnow", lambda: MONDAY - timedelta(days=3))
+
+
 @pytest.fixture
 def smtp(monkeypatch: pytest.MonkeyPatch) -> type[FakeSMTP]:
     return install_fake_smtp(monkeypatch)

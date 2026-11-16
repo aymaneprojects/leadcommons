@@ -148,6 +148,16 @@ def test_shard_has_no_person_columns_and_merges_by_register_key(tmp_path: Path):
 
     assert r["id"] == stable_company_id("FR-SIREN", "552081317")
 
+    # end to end: the real shard attaches its website and phone to the register company
+    from leadcommons.packs.merge import merge_shards
+    from tests.test_pack_merge import BUILT, fr, rows, write_shard
+
+    write_shard(tmp_path / "out", "sirene_stock", [fr("552081317", "ACME SAS")])
+    merge_shards(tmp_path / "out", tmp_path / "packs", built_at=BUILT)
+    (company,) = rows(tmp_path / "packs", "FR").values()
+    assert company["name"] == "ACME SAS" and company["domain"] == "acme.fr"
+    assert company["website"] == "https://acme.fr/"
+
 
 def test_cli_run_part_and_shard_read_part_directories(tmp_path: Path, monkeypatch):
     from typer.testing import CliRunner

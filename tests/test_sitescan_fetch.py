@@ -38,6 +38,16 @@ def mount(router: respx.MockRouter, host: str, pages: dict[str, httpx.Response],
     router.route(host=host).mock(return_value=httpx.Response(404))
 
 
+@pytest.fixture(autouse=True)
+def public_dns(monkeypatch):
+    """Every test host resolves to a public address unless a test says otherwise."""
+
+    async def resolve(host: str) -> list[str]:
+        return ["93.184.216.34"]
+
+    monkeypatch.setattr(fetch, "_addresses", resolve)
+
+
 @pytest.fixture
 def router():
     with respx.mock(assert_all_called=False, assert_all_mocked=False) as r:
@@ -356,3 +366,15 @@ async def test_scan_many_survives_a_crashing_scan(router, tmp_path, monkeypatch)
     stats = await scan_many([("a.fr", "FR"), ("b.fr", "FR")], tmp_path, per_host_delay=0)
     assert stats["by_status"] == {"error": 1, "ok": 1}
     assert stats["errors"] == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("address", ["127.0.0.1", "10.0.0.8", "169.254.169.254", "::1", "fd00::1"])
+async def test_a_host_on_a_private_address_is_never_requested(router, monkeypatch, address):
+    async def resolve(host: str) -> list[str]:
+        return ["93.184.216.34", address] if host == "www.acme.fr" else [address]
+
+    monkeypatch.setattr(fetch, "_addresses", resolve)
+    mount(router, "acme.fr", {"/": html(HOME)})
+    finding = await scan(router, "acme.fr")
+    assert finding.status == "no-site" and not router.calls

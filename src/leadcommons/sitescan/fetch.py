@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import ipaddress
 import json
 import logging
 import re
@@ -117,6 +118,11 @@ def _classify(exc: BaseException) -> _NetworkError:
 # --------------------------------------------------------------------------- helpers
 
 
+async def _addresses(host: str) -> list[str]:
+    infos = await asyncio.get_running_loop().getaddrinfo(host, None, type=socket.SOCK_STREAM)
+    return [info[4][0].split("%")[0] for info in infos]  # drop an IPv6 zone id
+
+
 def registrable(host: str | None) -> str | None:
     """Registrable domain of a host name (no network, small public-suffix table)."""
     return normalize_domain(host) if host else None
@@ -191,6 +197,7 @@ class _Site:
     robots: dict[str, RobotFileParser | str | None] = field(default_factory=dict)
     crawl_delay: float = 0.0
     requests: int = 0
+    public_hosts: set[str] = field(default_factory=set)
 
     def in_scope(self, url: str) -> bool:
         parts = urlsplit(url)
@@ -198,6 +205,7 @@ class _Site:
 
     async def _request(self, url: str, cap: int, *, html_only: bool) -> _Response:
         """One GET, redirects not followed, body cut at `cap` bytes. Raises _NetworkError."""
+        await self._check_public(urlsplit(url).hostname or "")
         self.requests += 1
         try:
             async with (
@@ -231,6 +239,22 @@ class _Site:
                 )
         except (httpx.HTTPError, OSError, TimeoutError) as exc:
             raise _classify(exc) from exc
+
+    async def _check_public(self, host: str) -> None:
+        """Refuse hosts that resolve to private, loopback or link-local addresses (SSRF).
+
+        shortcut: httpx resolves the name again, so DNS rebinding between the two lookups is not
+        caught; pin the checked address in a custom transport if this runs next to private services.
+        """
+        if host in self.public_hosts:
+            return
+        try:
+            addresses = await _addresses(host)
+        except OSError as exc:
+            raise _classify(exc) from exc
+        if not addresses or not all(ipaddress.ip_address(a).is_global for a in addresses):
+            raise _NetworkError("dns", "no public address")
+        self.public_hosts.add(host)
 
     async def get(self, url: str, *, robots: bool = False) -> _Response:
         """GET with same-domain redirects, robots checks and per-site pacing.
