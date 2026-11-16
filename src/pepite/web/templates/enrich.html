@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{% block title %}Enrichment · Pépite{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Enrichment</h1><p>Upload a CSV of names and companies. Pépite finds and verifies emails and gives the file back.</p></div></div>
+<div class="card" style="max-width:760px">
+  <h2>Accepted columns</h2>
+  <ul class="steps">
+    <li><code>first_name</code> and <code>last_name</code>, or <code>full_name</code></li>
+    <li><code>company_domain</code>, or <code>company_name</code></li>
+  </ul>
+  <p class="muted">Other columns are kept as they are. Files up to 5 MB, UTF-8, with a header row.</p>
+</div>
+<form class="card" id="enrich-form" method="post" action="/api/enrich" enctype="multipart/form-data" style="max-width:760px">
+  <h2>Upload a CSV</h2>
+  <div class="drop">
+    {{ icon("file-up", "lg") }}
+    <label for="enrich-file"><b>Choose a .csv file</b></label>
+    <input id="enrich-file" type="file" name="file" accept=".csv,text/csv" required>
+    <button class="btn primary" type="submit">Start enrichment</button>
+  </div>
+  <p class="hint mt">With JavaScript off, the upload returns a JSON job id: open <code>/api/jobs/&lt;id&gt;</code> to follow it, then <code>/api/enrich/&lt;id&gt;/result.csv</code> to download.</p>
+  <div id="enrich-status" class="mt" role="status" aria-live="polite"></div>
+</form>
+{% endblock %}

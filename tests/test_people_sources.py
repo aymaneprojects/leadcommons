@@ -13,31 +13,31 @@ import httpx
 import pytest
 import respx
 
-from leadcommons import enrich
-from leadcommons.connectors.people import (
+from pepite import enrich
+from pepite.connectors.people import (
     CompanyRefs,
     OfficialPerson,
     SourceSkipped,
     official_people,
     source_label,
 )
-from leadcommons.connectors.people import edgar_insiders as edgar
-from leadcommons.connectors.people.brreg_roles import BrregRoles, parse_roles
-from leadcommons.connectors.people.companies_house_officers import (
+from pepite.connectors.people import edgar_insiders as edgar
+from pepite.connectors.people.brreg_roles import BrregRoles, parse_roles
+from pepite.connectors.people.companies_house_officers import (
     CompaniesHouseOfficers,
     parse_officers,
 )
-from leadcommons.connectors.people.wikidata_people import (
+from pepite.connectors.people.wikidata_people import (
     ENDPOINT,
     WikidataPeople,
     build_people_query,
     build_resolve_query,
     parse_people,
 )
-from leadcommons.enrich.people import gather_people, merge_people
-from leadcommons.enrich.titles import guess_department, map_seniority
-from leadcommons.models import Company, Person, Seniority
-from leadcommons.web.jobs import JobRunner
+from pepite.enrich.people import gather_people, merge_people
+from pepite.enrich.titles import guess_department, map_seniority
+from pepite.models import Company, Person, Seniority
+from pepite.web.jobs import JobRunner
 from tests.fakes import FakeSearch, FakeStore
 from tests.test_api import make_settings
 
@@ -83,7 +83,7 @@ def test_wikidata_people_by_website_and_ids() -> None:
     # one resolve query, one people query, both polite
     assert len(respx.calls) == 2
     assert "microsoft" not in respx.calls[0].request.headers["User-Agent"].lower()
-    assert "LeadCommons" in respx.calls[0].request.headers["User-Agent"]
+    assert "Pepite" in respx.calls[0].request.headers["User-Agent"]
 
 
 @respx.mock
@@ -160,7 +160,7 @@ def mock_edgar() -> None:
 
 @respx.mock
 def test_edgar_insiders_officers_and_directors(monkeypatch) -> None:
-    monkeypatch.setenv("LEADCOMMONS_CONTACT_EMAIL", "ops@example.org")
+    monkeypatch.setenv("PEPITE_CONTACT_EMAIL", "ops@example.org")
     mock_edgar()
     people = edgar.EdgarInsiders(min_interval=0, today=TODAY).fetch(ACME)
     got = {p.name: p.title for p in people}
@@ -183,19 +183,19 @@ def test_edgar_insiders_officers_and_directors(monkeypatch) -> None:
 
 @respx.mock
 def test_edgar_needs_a_declared_contact(monkeypatch) -> None:
-    monkeypatch.delenv("LEADCOMMONS_CONTACT_EMAIL", raising=False)
+    monkeypatch.delenv("PEPITE_CONTACT_EMAIL", raising=False)
     route = respx.get(SUBMISSIONS)
-    with pytest.raises(SourceSkipped, match="LEADCOMMONS_CONTACT_EMAIL"):
+    with pytest.raises(SourceSkipped, match="PEPITE_CONTACT_EMAIL"):
         edgar.EdgarInsiders(min_interval=0).fetch(ACME)
     assert not route.called
     people, reports = official_people(ACME, [edgar.EdgarInsiders(min_interval=0)])
     assert people == [] and reports[0].status == "skipped"
-    assert "LEADCOMMONS_CONTACT_EMAIL" in (reports[0].reason or "")
+    assert "PEPITE_CONTACT_EMAIL" in (reports[0].reason or "")
 
 
 @respx.mock
 def test_edgar_403_asks_for_contact_and_404_is_empty(monkeypatch) -> None:
-    monkeypatch.setenv("LEADCOMMONS_CONTACT_EMAIL", "ops@example.org")
+    monkeypatch.setenv("PEPITE_CONTACT_EMAIL", "ops@example.org")
     respx.get(SUBMISSIONS).mock(return_value=httpx.Response(403))
     with pytest.raises(SourceSkipped, match="403"):
         edgar.EdgarInsiders(min_interval=0).fetch(ACME)
@@ -248,20 +248,20 @@ def test_companies_house_parser_keeps_active_people_only() -> None:
 
 
 def test_companies_house_without_key_is_skipped_with_a_reason(monkeypatch) -> None:
-    monkeypatch.delenv("LEADCOMMONS_COMPANIES_HOUSE_KEY", raising=False)
+    monkeypatch.delenv("PEPITE_COMPANIES_HOUSE_KEY", raising=False)
     with respx.mock:
         route = respx.get(CH_URL)
         people, reports = official_people(GB, [CompaniesHouseOfficers(min_interval=0)])
         assert not route.called
     assert people == []
     assert reports[0].status == "skipped"
-    assert "LEADCOMMONS_COMPANIES_HOUSE_KEY" in reports[0].reason
+    assert "PEPITE_COMPANIES_HOUSE_KEY" in reports[0].reason
     assert "free API key" in reports[0].reason
 
 
 @respx.mock
 def test_companies_house_fetch_sends_key_as_basic_auth(monkeypatch) -> None:
-    monkeypatch.setenv("LEADCOMMONS_COMPANIES_HOUSE_KEY", "abc-123")
+    monkeypatch.setenv("PEPITE_COMPANIES_HOUSE_KEY", "abc-123")
     route = respx.get(CH_URL).mock(
         return_value=httpx.Response(200, json=load("companies_house_officers.json"))
     )
@@ -274,7 +274,7 @@ def test_companies_house_fetch_sends_key_as_basic_auth(monkeypatch) -> None:
 
 @respx.mock
 def test_companies_house_bad_key_and_unknown_company(monkeypatch) -> None:
-    monkeypatch.setenv("LEADCOMMONS_COMPANIES_HOUSE_KEY", "bad")
+    monkeypatch.setenv("PEPITE_COMPANIES_HOUSE_KEY", "bad")
     respx.get(CH_URL).mock(return_value=httpx.Response(401))
     with pytest.raises(SourceSkipped, match="rejected"):
         CompaniesHouseOfficers(min_interval=0).fetch(GB)

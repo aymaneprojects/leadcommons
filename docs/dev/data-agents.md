@@ -5,8 +5,8 @@ Read `docs/dev/data-roadmap.md` first (goal, rules per source, what is out of sc
 ## Shared tree
 
 Several agents edit this repository at the same time. Edit only the files you own. For shared
-files (`src/leadcommons/cli.py`, `src/leadcommons/connectors/bulk/__init__.py`, `docs/data-sources.md`,
-`src/leadcommons/web/jobs.py`) make small `Edit` calls, re-read before editing, never rewrite the
+files (`src/pepite/cli.py`, `src/pepite/connectors/bulk/__init__.py`, `docs/data-sources.md`,
+`src/pepite/web/jobs.py`) make small `Edit` calls, re-read before editing, never rewrite the
 whole file, never undo someone else's change. Do not run `git commit`, `checkout`, `stash`,
 `reset` or `clean`: the lead commits. Before you finish: `.venv/bin/pytest -q -p no:warnings`,
 `.venv/bin/ruff check src tests tools packaging`, `.venv/bin/ruff format src tests tools packaging`.
@@ -26,18 +26,18 @@ open.canada.ca) are blocked here but work on GitHub Actions runners. So:
 
 ## Contracts
 
-**Source shards** (`src/leadcommons/connectors/bulk/__init__.py`): one `BulkSource` per module,
+**Source shards** (`src/pepite/connectors/bulk/__init__.py`): one `BulkSource` per module,
 registered with `register(...)`; output Parquet with exactly `PACK_COLUMNS`
-(`src/leadcommons/search.py`, schema v0.3), via `shard_select` + `write_shard`. File names:
+(`src/pepite/search.py`, schema v0.3), via `shard_select` + `write_shard`. File names:
 `<source>.parquet`, or `<source>-<CC>.parquet` when a worldwide source splits by country.
 
-**CLI** (`src/leadcommons/cli.py`, `pack` group):
+**CLI** (`src/pepite/cli.py`, `pack` group):
 
-- `leadcommons pack fetch-source <name> --out <shards dir> [--limit N] [--country CC ...] [--work <dir>]`
+- `pepite pack fetch-source <name> --out <shards dir> [--limit N] [--country CC ...] [--work <dir>]`
   (bulk registers agent)
-- `leadcommons pack merge <shards dir> --out <packs dir> [--release packs-YYYY-MM]`
+- `pepite pack merge <shards dir> --out <packs dir> [--release packs-YYYY-MM]`
   (linking agent)
-- `leadcommons pack quality <packs dir>` prints the quality summary (linking agent)
+- `pepite pack quality <packs dir>` prints the quality summary (linking agent)
 
 **Merged pack** (written by `pack merge`, read by the app):
 
@@ -71,7 +71,7 @@ must keep reading them.
 
 **Stable company ids**: the merged id comes from the most permanent key, in this order:
 `registry:company_number` (a SIREN counts as `FR-SIREN:<siren>`), LEI, CIK, Wikidata id, domain,
-then name + country. Build it with `leadcommons.models.make_id("co", kind, value)` using kinds
+then name + country. Build it with `pepite.models.make_id("co", kind, value)` using kinds
 `reg`, `lei`, `cik`, `wd`, `domain`, `name`, so the same company keeps its id month after month
 (saved lists and deals point to it). A national register number never changes; an LEI or a Wikidata
 item can appear later, which is why they come after it.

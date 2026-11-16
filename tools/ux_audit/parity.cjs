@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * Parity shots: put LeadCommons in the same state as each reference screenshot and capture it.
+ * Parity shots: put Pépite in the same state as each reference screenshot and capture it.
  *
  * Usage: node tools/ux_audit/parity.cjs --base http://127.0.0.1:8171 --empty-base http://127.0.0.1:8173 --out /tmp/parity
  * Writes <out>/<id>.png for every scene below and <out>/scenes.json (id, title, ok, note).

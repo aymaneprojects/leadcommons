@@ -10,13 +10,13 @@ import pytest
 import respx
 from fastapi.testclient import TestClient
 
-from leadcommons.config import Settings
-from leadcommons.models import utcnow
-from leadcommons.packs import DEFAULT_PACKS_REPO
-from leadcommons.packs import installed as pack_installed
-from leadcommons.store import Store
-from leadcommons.web.app import create_app
-from leadcommons.web.jobs import Job
+from pepite.config import Settings
+from pepite.models import utcnow
+from pepite.packs import DEFAULT_PACKS_REPO
+from pepite.packs import installed as pack_installed
+from pepite.store import Store
+from pepite.web.app import create_app
+from pepite.web.jobs import Job
 from tests.fakes import FakeJobs, FakeSearch
 
 API = f"https://api.github.com/repos/{DEFAULT_PACKS_REPO}/releases"
@@ -177,5 +177,5 @@ def test_first_run_notice(tmp_path: Path) -> None:
         finished_at=utcnow(),
     )  # fmt: skip
     html = client.get("/settings/data-packs").text
-    assert "France was downloaded when LeadCommons first started" in html
+    assert "France was downloaded when Pépite first started" in html
     assert "Add more countries" in html

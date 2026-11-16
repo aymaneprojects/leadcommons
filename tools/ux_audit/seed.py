@@ -1,15 +1,15 @@
-"""Seed a throwaway LeadCommons home with a few obviously fake people for the UX audit.
+"""Seed a throwaway Pépite home with a few obviously fake people for the UX audit.
 
-Usage: LEADCOMMONS_HOME=/tmp/x python tools/ux_audit/seed.py
+Usage: PEPITE_HOME=/tmp/x python tools/ux_audit/seed.py
 """
 
 from __future__ import annotations
 
-from leadcommons.config import Settings
-from leadcommons.models import EmailCandidate, EmailStatus, Person, Seniority, make_id
-from leadcommons.packs import DuckDBCompanySearch
-from leadcommons.search import CompanyFilters
-from leadcommons.store import Store
+from pepite.config import Settings
+from pepite.models import EmailCandidate, EmailStatus, Person, Seniority, make_id
+from pepite.packs import DuckDBCompanySearch
+from pepite.search import CompanyFilters
+from pepite.store import Store
 
 FAKE = [
     ("Alex Example", "Chief Executive Officer", Seniority.C_SUITE, EmailStatus.VALID, 92),

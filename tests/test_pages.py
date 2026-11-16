@@ -16,11 +16,11 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.testclient import TestClient
 
-from leadcommons.config import Settings
-from leadcommons.models import EmailStatus
-from leadcommons.web.deps import STATIC_DIR
-from leadcommons.web.pages import router
-from leadcommons.web.pages_extra import router as extra_router
+from pepite.config import Settings
+from pepite.models import EmailStatus
+from pepite.web.deps import STATIC_DIR
+from pepite.web.pages import router
+from pepite.web.pages_extra import router as extra_router
 from tests.fakes import FakeJobs, FakeSearch, FakeStore, sample_email, sample_person
 
 HX = {"HX-Request": "true"}
@@ -96,7 +96,7 @@ def test_email_health_lives_in_settings(client: TestClient) -> None:
 def test_shell_navigation(client: TestClient) -> None:
     html = client.get("/companies").text
     assert 'aria-current="page"' in html
-    assert "LeadCommons" in html and "Ctrl K" in html
+    assert "Pépite" in html and "Ctrl K" in html
     assert "Apollo" not in html
     for label in ("Prospect", "Engage", "Win deals", "Onboarding", "Email setup"):
         assert label in html
@@ -110,7 +110,7 @@ def test_logout_only_with_auth(tmp_path: Path) -> None:
 
 
 def test_login_template_renders(app: FastAPI) -> None:
-    from leadcommons.web.deps import templates
+    from pepite.web.deps import templates
 
     @app.get("/login-test")
     def _login(request: Request):
@@ -394,8 +394,8 @@ def test_settings_suppression_and_content(app: FastAPI, client: TestClient) -> N
     html = client.get("/settings").text
     for needle in (
         "fake.parquet",
-        "leadcommons pack download latest",
-        "LEADCOMMONS_SMTP_PROBE",
+        "pepite pack download latest",
+        "PEPITE_SMTP_PROBE",
         "AGPL-3.0-or-later",
         "Wikidata",
         "GLEIF",
@@ -440,7 +440,7 @@ def test_static_assets_served(client: TestClient) -> None:
 
 
 def test_pager_math() -> None:
-    from leadcommons.web.pages import pager
+    from pepite.web.pages import pager
 
     pg = pager("/companies", {"country": ["DE"]}, 3, 130, 25)
     assert (pg["pages"], pg["start"], pg["end"]) == (6, 51, 75)
@@ -454,7 +454,7 @@ def test_pager_math() -> None:
 
 
 def test_size_range_maps_to_buckets(client: TestClient) -> None:
-    from leadcommons.web.pages import buckets_for_range
+    from pepite.web.pages import buckets_for_range
 
     assert buckets_for_range(20, 300) == ["11-50", "51-200", "201-500"]
     assert buckets_for_range(None, 10) == ["1-10"]
@@ -525,7 +525,7 @@ def test_all_filters_modal_renders(client: TestClient, seeded: FastAPI) -> None:
 
 
 def real_people_app(tmp_path: Path) -> FastAPI:
-    from leadcommons.store import Store
+    from pepite.store import Store
 
     app = make_app(tmp_path)
     app.state.store = Store(f"sqlite:///{tmp_path / 't.db'}")
@@ -543,7 +543,7 @@ def real_people_app(tmp_path: Path) -> FastAPI:
 
 
 def test_include_exclude_titles_and_similar(tmp_path: Path) -> None:
-    from leadcommons.web.pages import expand_titles
+    from pepite.web.pages import expand_titles
 
     assert "chief executive officer" in expand_titles(["CEO"])
     assert {"founder", "co-founder"} <= set(expand_titles(["founder"]))
@@ -660,8 +660,8 @@ def no_insights(monkeypatch: pytest.MonkeyPatch) -> None:
     def not_ready(*a: object, **k: object) -> None:
         raise NotImplementedError
 
-    monkeypatch.setattr("leadcommons.insights.get", lambda store, company_id: None)
-    monkeypatch.setattr("leadcommons.insights.lookalikes", not_ready)
+    monkeypatch.setattr("pepite.insights.get", lambda store, company_id: None)
+    monkeypatch.setattr("pepite.insights.lookalikes", not_ready)
 
 
 @pytest.fixture
@@ -729,7 +729,7 @@ def test_call_is_a_tel_link_only_when_a_phone_is_known(
     assert 'href="tel:' not in html and "No phone data" in html
     assert "No phone number known" in html
     monkeypatch.setattr(
-        "leadcommons.insights.get",
+        "pepite.insights.get",
         lambda store, company_id: (
             SimpleNamespace(phones=["+33 4 72 00 11 22"]) if company_id == cid else None
         ),
@@ -816,7 +816,7 @@ def test_company_panel_has_activity_insights_score_and_dnc(stubbed: FastAPI) -> 
 
 
 def test_completeness_scores_reflect_the_data(stubbed: FastAPI, monkeypatch) -> None:
-    from leadcommons.web.pages import company_score, profile_score
+    from pepite.web.pages import company_score, profile_score
 
     store, search = stubbed.state.store, stubbed.state.search
     pid = person_id(stubbed)
@@ -927,7 +927,7 @@ def test_bulk_create_tasks_uses_the_engage_contract(
         calls.append((title, kw))
         return "t1"
 
-    monkeypatch.setattr("leadcommons.engage.create_task", fake_create)
+    monkeypatch.setattr("pepite.engage.create_task", fake_create)
     client = TestClient(stubbed, follow_redirects=False)
     pids = [person_id(stubbed), person_id(stubbed, "Jonas Weber")]
     r = client.post(
@@ -967,7 +967,7 @@ def test_bulk_create_tasks_when_engage_is_not_installed(
     def missing(*a: object, **k: object) -> None:
         raise NotImplementedError
 
-    monkeypatch.setattr("leadcommons.engage.create_task", missing)
+    monkeypatch.setattr("pepite.engage.create_task", missing)
     client = TestClient(stubbed, follow_redirects=False)
     r = client.post(
         "/bulk/create-tasks",
@@ -1027,8 +1027,8 @@ def test_demo_mode_disables_crawling_actions(tmp_path: Path) -> None:
 
 @pytest.fixture
 def llm_on(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
-    monkeypatch.setenv("LEADCOMMONS_LLM_URL", "http://llm.test/v1")
-    monkeypatch.setenv("LEADCOMMONS_LLM_MODEL", "tiny")
+    monkeypatch.setenv("PEPITE_LLM_URL", "http://llm.test/v1")
+    monkeypatch.setenv("PEPITE_LLM_MODEL", "tiny")
     sent: list[dict] = []
 
     def fake_post(url, json=None, headers=None, timeout=None):  # noqa: ANN001
@@ -1043,7 +1043,7 @@ def llm_on(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
 
         return R()
 
-    monkeypatch.setattr("leadcommons.web.pages.httpx.post", fake_post)
+    monkeypatch.setattr("pepite.web.pages.httpx.post", fake_post)
     return sent
 
 
@@ -1054,12 +1054,12 @@ def ai_items(html: str) -> list[str]:
 def test_ai_menu_is_disabled_with_a_how_to_without_a_model(
     stubbed: FastAPI, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.delenv("LEADCOMMONS_LLM_URL", raising=False)
-    monkeypatch.delenv("LEADCOMMONS_LLM_MODEL", raising=False)
+    monkeypatch.delenv("PEPITE_LLM_URL", raising=False)
+    monkeypatch.delenv("PEPITE_LLM_MODEL", raising=False)
     html = TestClient(stubbed).get("/people").text
     items = ai_items(html)
     assert items and all(
-        'aria-disabled="true"' in i and "LEADCOMMONS_LLM_URL" in i and "aria-describedby" in i
+        'aria-disabled="true"' in i and "PEPITE_LLM_URL" in i and "aria-describedby" in i
         for i in items
     )
     assert "Ask the Assistant" in html
@@ -1067,7 +1067,7 @@ def test_ai_menu_is_disabled_with_a_how_to_without_a_model(
     r = client.post(
         "/bulk/ai-prompt", data={"kind": "people", "ids": [person_id(stubbed)], "prompt": "x"}
     )
-    assert r.status_code == 400 and "LEADCOMMONS_LLM_MODEL" in r.json()["error"]
+    assert r.status_code == 400 and "PEPITE_LLM_MODEL" in r.json()["error"]
 
 
 def test_ai_menu_is_enabled_with_a_model_and_has_templates(
@@ -1124,13 +1124,13 @@ def test_ai_prompt_sends_only_visible_fields_and_caps_rows(
 def test_ai_prompt_survives_a_broken_model(
     stubbed: FastAPI, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("LEADCOMMONS_LLM_URL", "http://llm.test/v1")
-    monkeypatch.setenv("LEADCOMMONS_LLM_MODEL", "tiny")
+    monkeypatch.setenv("PEPITE_LLM_URL", "http://llm.test/v1")
+    monkeypatch.setenv("PEPITE_LLM_MODEL", "tiny")
 
     def boom(*a, **k):  # noqa: ANN002, ANN003
         raise TimeoutError
 
-    monkeypatch.setattr("leadcommons.web.pages.httpx.post", boom)
+    monkeypatch.setattr("pepite.web.pages.httpx.post", boom)
     pid = person_id(stubbed)
     r = TestClient(stubbed).post(
         "/bulk/ai-prompt", data={"kind": "people", "ids": [pid], "prompt": "x"}
@@ -1154,7 +1154,7 @@ def listed(html: str, *names: str) -> set[str]:
 
 def test_company_lookalike_filter(stubbed: FastAPI, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "leadcommons.insights.lookalikes", fake_lookalikes(["nordwind.example", "bruecke.example"])
+        "pepite.insights.lookalikes", fake_lookalikes(["nordwind.example", "bruecke.example"])
     )
     client = TestClient(stubbed)
     names = ("Atelier Nuage", "Nordwind Data", "Brücke Software", "Kestrel Systems")
@@ -1182,7 +1182,7 @@ def test_people_lookalike_filters(stubbed: FastAPI, monkeypatch: pytest.MonkeyPa
     search = stubbed.state.search
     kestrel = search.companies[4]
     store.save_person(sample_person(kestrel, "Kim Lee", "CTO"))
-    monkeypatch.setattr("leadcommons.insights.lookalikes", fake_lookalikes(["nordwind.example"]))
+    monkeypatch.setattr("pepite.insights.lookalikes", fake_lookalikes(["nordwind.example"]))
     client = TestClient(stubbed)
     names = ("Claire Martin", "Jonas Weber", "Kim Lee")
     assert listed(client.get("/people?lookalike=Atelier").text, *names) == {"Jonas Weber"}
@@ -1211,7 +1211,7 @@ def test_technology_and_job_filters_work_over_refreshed_insights(
 ) -> None:
     c = ids(stubbed)
     monkeypatch.setattr(
-        "leadcommons.insights.get",
+        "pepite.insights.get",
         insights_for(
             {
                 c["Atelier Nuage"]: {

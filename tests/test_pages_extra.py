@@ -13,11 +13,11 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from leadcommons.config import Settings
-from leadcommons.models import utcnow
-from leadcommons.web import pages_extra
-from leadcommons.web.app import create_app
-from leadcommons.web.jobs import Job
+from pepite.config import Settings
+from pepite.models import utcnow
+from pepite.web import pages_extra
+from pepite.web.app import create_app
+from pepite.web.jobs import Job
 from tests.fakes import FakeJobs, FakeSearch, FakeStore, sample_email, sample_person
 
 
@@ -238,9 +238,9 @@ def test_settings_overview_shows_only_real_numbers(app: FastAPI, client: TestCli
     store.save_search("s", "companies", "{}")
     html = client.get("/settings").text
     assert "Workspace settings" in html and "5</dd>" not in html
-    assert "fake.parquet" in html and "leadcommons pack download latest" in html
+    assert "fake.parquet" in html and "pepite pack download latest" in html
     assert "5 companies" in html
-    assert "SMTP probe off" in html and "LEADCOMMONS_SMTP_PROBE" in html
+    assert "SMTP probe off" in html and "PEPITE_SMTP_PROBE" in html
     assert re.search(r"<dt>People</dt><dd class=\"mono\">1</dd>", html)
     assert re.search(r"<dt>Lists</dt><dd class=\"mono\">1</dd>", html)
     assert re.search(r"<dt>Saved searches</dt><dd class=\"mono\">1</dd>", html)
@@ -409,7 +409,7 @@ def test_email_health_mailboxes_tab_links_to_mailboxes(client: TestClient) -> No
 
 def test_onboarding_hub_groups_and_progress(app: FastAPI, client: TestClient) -> None:
     html = client.get("/onboarding").text
-    assert "Your first steps with LeadCommons" in html and "0 of 18</b> done" in html
+    assert "Your first steps with Pépite" in html and "0 of 18</b> done" in html
     assert "Find the people you want to reach" in html and "0 of 6 completed" in html
     assert "Find a company phone number" in html and "save a mobile" not in html.lower()
     assert (

@@ -13,13 +13,13 @@ import respx
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from leadcommons.ai.assistant import detect_intent, extract_domain
-from leadcommons.config import Settings
-from leadcommons.enrich import crawl
-from leadcommons.models import Seniority
-from leadcommons.store import Store
-from leadcommons.store.tools import repo_for
-from leadcommons.web.app import create_app
+from pepite.ai.assistant import detect_intent, extract_domain
+from pepite.config import Settings
+from pepite.enrich import crawl
+from pepite.models import Seniority
+from pepite.store import Store
+from pepite.store.tools import repo_for
+from pepite.web.app import create_app
 from tests.fakes import FakeJobs, FakeSearch, sample_email, sample_person
 
 HX = {"HX-Request": "true"}
@@ -42,8 +42,8 @@ def make_app(tmp_path: Path, **kw: Any) -> FastAPI:
 
 @pytest.fixture(autouse=True)
 def no_llm(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("LEADCOMMONS_LLM_URL", raising=False)
-    monkeypatch.delenv("LEADCOMMONS_LLM_MODEL", raising=False)
+    monkeypatch.delenv("PEPITE_LLM_URL", raising=False)
+    monkeypatch.delenv("PEPITE_LLM_MODEL", raising=False)
 
 
 @pytest.fixture
@@ -305,8 +305,8 @@ def test_llm_summarises_website_and_suggests_buyers(
     app: FastAPI, client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     fake_site(monkeypatch)
-    monkeypatch.setenv("LEADCOMMONS_LLM_URL", "http://llm.test/v1")
-    monkeypatch.setenv("LEADCOMMONS_LLM_MODEL", "m")
+    monkeypatch.setenv("PEPITE_LLM_URL", "http://llm.test/v1")
+    monkeypatch.setenv("PEPITE_LLM_MODEL", "m")
     reply = {
         "summary": "Niteo coaches founders.",
         "buyers": ["universities in France", "business schools"],
@@ -325,8 +325,8 @@ def test_llm_failure_falls_back_to_rules(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     fake_site(monkeypatch)
-    monkeypatch.setenv("LEADCOMMONS_LLM_URL", "http://llm.test/v1")
-    monkeypatch.setenv("LEADCOMMONS_LLM_MODEL", "m")
+    monkeypatch.setenv("PEPITE_LLM_URL", "http://llm.test/v1")
+    monkeypatch.setenv("PEPITE_LLM_MODEL", "m")
     with respx.mock() as mock:
         mock.post("http://llm.test/v1/chat/completions").mock(side_effect=httpx.ConnectError("x"))
         _, html = say(client, "/site niteo.example")
@@ -336,8 +336,8 @@ def test_llm_failure_falls_back_to_rules(
 def test_llm_reads_a_search_when_rules_find_nothing(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("LEADCOMMONS_LLM_URL", "http://llm.test/v1")
-    monkeypatch.setenv("LEADCOMMONS_LLM_MODEL", "m")
+    monkeypatch.setenv("PEPITE_LLM_URL", "http://llm.test/v1")
+    monkeypatch.setenv("PEPITE_LLM_MODEL", "m")
     filters = {
         "countries": ["FR"],
         "size_ranges": [],
@@ -361,8 +361,8 @@ def test_demo_never_crawls_or_calls_an_llm(tmp_path: Path, monkeypatch: pytest.M
     app = make_app(tmp_path, mode="demo")
     client = TestClient(app, follow_redirects=False)
     asked = fake_site(monkeypatch)
-    monkeypatch.setenv("LEADCOMMONS_LLM_URL", "http://llm.test/v1")
-    monkeypatch.setenv("LEADCOMMONS_LLM_MODEL", "m")
+    monkeypatch.setenv("PEPITE_LLM_URL", "http://llm.test/v1")
+    monkeypatch.setenv("PEPITE_LLM_MODEL", "m")
     with respx.mock(assert_all_called=False) as mock:
         route = mock.post("http://llm.test/v1/chat/completions").respond(200, json={})
         _, html = say(client, "/site niteo.example")
@@ -384,7 +384,7 @@ def test_demo_refuses_find_people_choice(tmp_path: Path) -> None:
     cid, _ = say(client, "companies in France")
     msg = last_assistant(app, cid)
     # a forged choice is still refused by the assistant
-    from leadcommons.ai.assistant import Assistant
+    from pepite.ai.assistant import Assistant
 
     a = Assistant(
         app.state.store,
@@ -434,7 +434,7 @@ def test_mcp_card_can_be_dismissed(app: FastAPI, client: TestClient) -> None:
 
 def test_embed_mode_has_no_mcp_card(client: TestClient) -> None:
     html = client.get("/assistant?embed=1").text
-    assert "app embed" in html and "Use LeadCommons from Claude" not in html
+    assert "app embed" in html and "Use Pépite from Claude" not in html
 
 
 def test_home_banner_continues_the_conversation(app: FastAPI, client: TestClient) -> None:

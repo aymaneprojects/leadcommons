@@ -2,7 +2,7 @@
 
 import re
 
-from leadcommons.web.deps import STATIC_DIR
+from pepite.web.deps import STATIC_DIR
 
 CSS = (STATIC_DIR / "css" / "app.css").read_text()
 

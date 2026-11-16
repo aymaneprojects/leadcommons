@@ -11,8 +11,8 @@ import httpx
 import pytest
 import respx
 
-from leadcommons.sitescan import fetch
-from leadcommons.sitescan.fetch import HostPacer, scan_domain, scan_many
+from pepite.sitescan import fetch
+from pepite.sitescan.fetch import HostPacer, scan_domain, scan_many
 
 SIREN_TEXT = "Acme SAS, SIREN 552 081 317, RCS Nanterre. Standard : 01 40 20 30 40"
 HOME = (
@@ -94,7 +94,7 @@ async def test_user_agent_names_the_bot(router):
     agents = {c.request.headers["user-agent"] for c in router.calls}
     assert len(agents) == 1
     (agent,) = agents
-    assert agent.startswith("LeadCommonsBot/")
+    assert agent.startswith("PepiteBot/")
     assert "docs/sitescan.md" in agent
 
 
@@ -113,7 +113,7 @@ async def test_robots_disallow_for_our_agent(router):
         router,
         "acme.fr",
         {"/": html(HOME)},
-        robots="User-agent: LeadCommonsBot\nDisallow: /\n\nUser-agent: *\nAllow: /\n",
+        robots="User-agent: PepiteBot\nDisallow: /\n\nUser-agent: *\nAllow: /\n",
     )
     finding = await scan(router, "acme.fr")
     assert finding.status == "robots"

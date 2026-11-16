@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% from "_engage_macros.html" import eic, task_icon, prio_chip, when, dlg_link, person_cell, post_btn %}
+{% block title %}Tasks · Pépite{% endblock %}
+{% block content %}
+<div class="eg-page">
+<div class="page-head eg-head">
+  <h1>Tasks</h1>
+  <div class="eg-head-actions">
+    {% if calls_today %}<a class="btn" href="/tasks?tab=call&view=today&sort=priority" title="Work through today's {{ calls_today }} call task{{ 's' if calls_today != 1 }}, highest priority first">{{ eic("phone", "sm") }}<span>Start call queue</span><span class="tab-n">{{ calls_today }}</span></a>
+    {% else %}<button class="btn" type="button" disabled aria-disabled="true" title="No call tasks are due today">{{ eic("phone", "sm") }}<span>Start call queue</span></button>{% endif %}
+    {{ dlg_link("/partials/task-new?refresh=1", "Create task", "plus", "btn primary") }}
+  </div>
+</div>
+
+{% if not cfg.tasks_tip_dismissed %}
+<div class="eg-tip eg-tip-accent" id="eg-task-tip" role="note">
+  <span class="eg-tip-box">{{ eic("phone") }}</span>
+  <div><b>Calls and LinkedIn steps are always done by you.</b> Pépite never dials anyone or automates LinkedIn; it reminds you, and moves the sequence on when you complete the task.</div>
+  <a class="btn sm" href="{{ 'https://github.com/aymaneprojects/pepite/blob/main/docs/engage.md#tasks' }}" target="_blank" rel="noopener noreferrer">How tasks work</a>
+  <form method="post" action="/tasks/tip" hx-post="/tasks/tip" hx-target="#eg-task-tip" hx-swap="outerHTML">
+    <button class="btn ghost icon-only" type="submit" aria-label="Dismiss">{{ eic("x") }}</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="eg-tabrow">
+<nav class="tabs eg-tabs" role="tablist" aria-label="Task types">
+  {% for key, label in tabs %}
+  <a class="tab" role="tab" href="/tasks?{{ qs(params, tab=key if key != 'all' else none) }}" {% if f.tab == key %}aria-selected="true"{% endif %}>{{ label }} <span class="tab-n{% if key == 'overdue' and counts[key] %} red{% endif %}">{{ counts[key] }}</span></a>
+  {% endfor %}
+</nav>
+<details class="dd eg-views">
+  <summary class="btn ghost">{{ eic("layout-list", "sm") }}<span>{{ dict(views)[f.view] }}</span>{{ eic("chevron-down", "sm") }}</summary>
+  <div class="menu eg-menu">
+    <div class="menu-head">Show</div>
+    {% for key, label in views %}
+    <a class="menu-item{% if f.view == key %} on{% endif %}" href="/tasks?{{ qs(params, view=key if key != 'open' else none) }}"{% if f.view == key %} aria-current="true"{% endif %}>{{ eic("check" if f.view == key else "circle-dot", "sm") }} {{ label }}</a>
+    {% endfor %}
+    <div class="menu-sep"></div>
+    <span class="menu-item" aria-disabled="true" title="Pépite has one user here: everyone's tasks are your tasks.">{{ eic("users", "sm") }} Everyone's tasks <small>Same as yours on this install</small></span>
+  </div>
+</details>
+</div>
+
+<form class="eg-toolbar" method="get" action="/tasks" data-eg-autosubmit>
+  {% if f.tab != "all" %}<input type="hidden" name="tab" value="{{ f.tab }}">{% endif %}
+  {% if f.view != "open" %}<input type="hidden" name="view" value="{{ f.view }}">{% endif %}
+  <button class="btn ghost" type="button" data-eg-toggle-el="#eg-task-filters" aria-expanded="{{ 'true' if f.priority else 'false' }}">{{ eic("sliders-horizontal", "sm") }}<span>{{ "Hide filters" if f.priority else "Show filters" }}</span>{% if f.priority %}<span class="tab-n">{{ f.priority|length }}</span>{% endif %}</button>
+  <label class="eg-search">{{ eic("search", "sm") }}<span class="sr-only">Search tasks</span>
+    <input type="search" name="q" value="{{ f.q }}" placeholder="Find a task" autocomplete="off"></label>
+  <span class="grow"></span>
+  <label class="eg-sort">{{ eic("arrow-up-down", "sm") }}<span class="sr-only">Sort</span>
+    <select name="sort">
+      <option value="due"{% if f.sort == "due" %} selected{% endif %}>Due date</option>
+      <option value="priority"{% if f.sort == "priority" %} selected{% endif %}>Priority</option>
+      <option value="created"{% if f.sort == "created" %} selected{% endif %}>Newest</option>
+    </select></label>
+  <details class="dd eg-viewopts">
+    <summary class="btn ghost">{{ eic("settings", "sm") }}<span>View options</span></summary>
+    <div class="menu eg-menu pad">
+      <div class="menu-head">Display</div>
+      <label class="eg-opt"><input type="checkbox" data-eg-pref="compact"> Compact rows</label>
+      <div class="menu-head">Columns</div>
+      <label class="eg-opt"><input type="checkbox" data-eg-pref="col-contact" checked> Contact</label>
+      <label class="eg-opt"><input type="checkbox" data-eg-pref="col-due" checked> Due</label>
+      <label class="eg-opt"><input type="checkbox" data-eg-pref="col-priority" checked> Priority</label>
+      <label class="eg-opt"><input type="checkbox" data-eg-pref="col-sequence" checked> Sequence</label>
+      <div class="menu-sep"></div>
+      <label class="eg-opt"><input type="checkbox" name="done" value="1"{% if f.done or f.view in ("done", "all") %} checked{% endif %}{% if f.view in ("done", "all") %} disabled{% endif %}> Show completed tasks</label>
+    </div>
+  </details>
+  <div id="eg-task-filters" class="eg-filters"{% if not f.priority %} hidden{% endif %}>
+    <span class="eg-label">Priority</span>
+    {% for p in priorities %}<label class="eg-fchip"><input type="checkbox" name="priority" value="{{ p }}"{% if p in f.priority %} checked{% endif %}>{{ eic("flag", "sm") }}{{ p|capitalize }}</label>{% endfor %}
+    {% if f.priority %}<a class="btn ghost sm" href="/tasks?{{ qs(params, priority=none) }}">Clear</a>{% endif %}
+    <noscript><button class="btn sm" type="submit">Apply</button></noscript>
+  </div>
+</form>
+
+{% if items %}
+<div class="table-wrap eg-table">
+  <table class="data eg-tasks" data-eg-prefs-target>
+    <thead><tr>
+      <th scope="col" class="cb"><span class="sr-only">Done</span></th><th scope="col">Task</th><th scope="col" data-col="contact">Contact</th><th scope="col" data-col="due">Due</th>
+      <th scope="col" data-col="priority">Priority</th><th scope="col" data-col="sequence">Sequence</th><th scope="col"><span class="sr-only">Actions</span></th>
+    </tr></thead>
+    <tbody>
+    {% for it in items %}{% set t = it.t %}
+      <tr class="{% if t.status != 'open' %}eg-done{% endif %}">
+        <td class="cb">
+          {% if t.status == "open" %}
+          <form method="post" action="/tasks/{{ t.id }}/complete" class="eg-inline"><input type="hidden" name="next" value="{{ current_url }}">
+            <button class="eg-tick" type="submit" title="Complete task" aria-label="Complete {{ t.title }}">{{ eic("check", "sm") }}</button></form>
+          {% else %}
+          <span class="eg-tick on" title="{{ 'Completed' if t.status == 'done' else 'Skipped' }}">{{ eic("check" if t.status == "done" else "skip-forward", "sm") }}</span>
+          {% endif %}
+        </td>
+        <td><div class="eg-task-t">
+          <span class="eg-task-kind k-{{ t.kind }}" title="{{ eg_task_labels[t.kind] }}">{{ task_icon(t.kind, "sm") }}</span>
+          <span><b>{{ t.title }}</b>{% if t.body %}<span class="eg-sub">{{ t.body|truncate(110) }}</span>{% endif %}{% if t.note %}<span class="eg-sub">{{ eic("message-square", "sm") }} {{ t.note }}</span>{% endif %}</span>
+        </div></td>
+        <td data-col="contact">{% if it.p %}{{ person_cell(it.p) }}{% elif it.c %}<span class="eg-inline-ic">{{ eic("building-2", "sm") }} <a href="/companies/{{ it.c.id }}">{{ it.c.name }}</a></span>{% else %}<span class="eg-dim">—</span>{% endif %}</td>
+        <td data-col="due" class="{% if it.overdue %}eg-overdue{% endif %}">{% if t.status != "open" %}<span class="eg-dim">{{ "Done" if t.status == "done" else "Skipped" }} {{ when(t.completed_at, true) }}</span>{% elif t.due_at %}{{ when(t.due_at, true) }}{% else %}<span class="eg-dim">No date</span>{% endif %}</td>
+        <td data-col="priority">{{ prio_chip(t.priority) }}</td>
+        <td data-col="sequence">{% if it.seq %}<a href="/sequences/{{ it.seq.id }}">{{ it.seq.name }}</a>{% else %}<span class="eg-dim">—</span>{% endif %}</td>
+        <td class="eg-ract">
+          {% if t.status == "open" %}
+            {% if t.kind == "email" and it.p %}{{ dlg_link("/partials/email-compose?person_id=" ~ it.p.id ~ "&task_id=" ~ t.id ~ "&refresh=1", "Write email", "mail", "btn sm") }}
+            {% elif t.kind == "linkedin" and it.p %}<a class="btn sm" href="https://www.linkedin.com/search/results/people/?keywords={{ (it.p.name ~ ' ' ~ it.p.company)|urlencode }}" target="_blank" rel="noopener noreferrer">{{ eic("linkedin", "sm") }}<span>Open LinkedIn</span></a>
+            {% elif t.kind == "call" and it.p %}{{ dlg_link("/partials/call-log?person_id=" ~ it.p.id, "Log call", "phone", "btn sm") }}
+            {% endif %}
+          {% endif %}
+          <details class="dd">
+            <summary class="btn ghost icon-only sm" aria-label="More actions for {{ t.title }}">{{ eic("ellipsis", "sm") }}</summary>
+            <div class="menu eg-menu">
+              {% if t.status == "open" %}
+              <a class="menu-item" href="/partials/task-done/{{ t.id }}?action=complete&next={{ current_url|urlencode }}" data-eg-dialog="/partials/task-done/{{ t.id }}?action=complete&next={{ current_url|urlencode }}">{{ eic("circle-check", "sm") }} Complete with a note</a>
+              <a class="menu-item" href="/partials/task-done/{{ t.id }}?action=skip&next={{ current_url|urlencode }}" data-eg-dialog="/partials/task-done/{{ t.id }}?action=skip&next={{ current_url|urlencode }}">{{ eic("skip-forward", "sm") }} Skip</a>
+              {% else %}
+              <form method="post" action="/tasks/{{ t.id }}/reopen"><input type="hidden" name="next" value="{{ current_url }}"><button class="menu-item" type="submit">{{ eic("repeat", "sm") }} Reopen</button></form>
+              {% endif %}
+              <div class="menu-sep"></div>
+              <form method="post" action="/tasks/{{ t.id }}/delete" data-eg-confirm="Delete this task?"><input type="hidden" name="next" value="{{ current_url }}"><button class="menu-item btn-danger" type="submit">{{ eic("trash-2", "sm") }} Delete</button></form>
+            </div>
+          </details>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="eg-empty eg-empty-tasks">
+  <div class="eg-mock" aria-hidden="true">
+    <div class="eg-mock-row"><i class="c"></i><i class="l"></i><i class="m"></i><i class="p"></i></div>
+    <div class="eg-mock-row hi"><i class="c on"></i><i class="l"></i><i class="m"></i><i class="p hot"></i><span class="eg-mock-tip">Complete task</span></div>
+    <div class="eg-mock-row"><i class="c"></i><i class="l"></i><i class="m"></i><i class="p"></i></div>
+    <div class="eg-mock-row"><i class="c"></i><i class="l"></i><i class="m"></i><i class="p"></i></div>
+  </div>
+  <h2>{% if not any_tasks %}No tasks on your list{% elif filtered %}No task matches these filters{% else %}Nothing here right now{% endif %}</h2>
+  <p class="eg-dim">{{ eic("circle-question-mark", "sm") }} <a href="https://github.com/aymaneprojects/pepite/blob/main/docs/engage.md#tasks" target="_blank" rel="noopener noreferrer">How tasks work</a></p>
+  <div class="actions">
+    {% if any_tasks and (f.view != "all" or f.tab != "all" or filtered) %}<a class="btn" href="/tasks?view=all">See every task</a>
+    {% else %}<button class="btn" type="button" disabled aria-disabled="true" title="Pépite has one user here: everyone's tasks are your tasks, and there are none yet.">See everyone's tasks</button>{% endif %}
+    {{ dlg_link("/partials/task-new?refresh=1", "New task", "plus", "btn primary") }}
+  </div>
+</div>
+{% endif %}
+</div>
+{% endblock %}

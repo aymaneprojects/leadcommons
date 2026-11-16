@@ -1,6 +1,6 @@
-# Use LeadCommons from Claude or ChatGPT (MCP)
+# Use Pépite from Claude or ChatGPT (MCP)
 
-LeadCommons ships an [MCP](https://modelcontextprotocol.io) server. Once connected, you can ask an AI assistant things like "find 10 software companies in Lyon with 11-50 people, find their CEOs, and export a CSV". The assistant calls LeadCommons tools; the data stays in your own LeadCommons database.
+Pépite ships an [MCP](https://modelcontextprotocol.io) server. Once connected, you can ask an AI assistant things like "find 10 software companies in Lyon with 11-50 people, find their CEOs, and export a CSV". The assistant calls Pépite tools; the data stays in your own Pépite database.
 
 ## Tools
 
@@ -16,51 +16,51 @@ LeadCommons ships an [MCP](https://modelcontextprotocol.io) server. Once connect
 | `export_list` | read | the list as CSV text |
 | `opt_out` | write | add an email or domain to the suppression list |
 
-Suppressed (opted-out) addresses and domains are never returned, stored or exported. Exported CSV cells that could run as spreadsheet formulas are neutralised. People data is never uploaded anywhere by LeadCommons; note that the AI assistant you connect does see what the tools return.
+Suppressed (opted-out) addresses and domains are never returned, stored or exported. Exported CSV cells that could run as spreadsheet formulas are neutralised. People data is never uploaded anywhere by Pépite; note that the AI assistant you connect does see what the tools return.
 
 ## Claude Desktop (local, stdio)
 
-Install LeadCommons first ([install.md](install.md)), so that `leadcommons` is on your PATH. Edit `claude_desktop_config.json` (Settings, Developer, Edit config):
+Install Pépite first ([install.md](install.md)), so that `pepite` is on your PATH. Edit `claude_desktop_config.json` (Settings, Developer, Edit config):
 
 ```json
 {
   "mcpServers": {
-    "leadcommons": {
-      "command": "leadcommons",
+    "pepite": {
+      "command": "pepite",
       "args": ["mcp"]
     }
   }
 }
 ```
 
-If Claude Desktop cannot find the command, use its full path (`which leadcommons`, or `where leadcommons` on Windows). Restart Claude Desktop.
+If Claude Desktop cannot find the command, use its full path (`which pepite`, or `where pepite` on Windows). Restart Claude Desktop.
 
 ## Claude Code
 
 ```sh
-claude mcp add leadcommons -- leadcommons mcp
+claude mcp add pepite -- pepite mcp
 ```
 
-From a source checkout: `claude mcp add leadcommons -- uv run --directory /path/to/leadcommons leadcommons mcp`.
+From a source checkout: `claude mcp add pepite -- uv run --directory /path/to/pepite pepite mcp`.
 
 ## ChatGPT and other remote clients (HTTP)
 
 Remote clients need a URL, so the server must be reachable from the internet over HTTPS, with a token.
 
-1. Set a token in the server's `.env`: `LEADCOMMONS_MCP_TOKEN=$(openssl rand -hex 32)`.
+1. Set a token in the server's `.env`: `PEPITE_MCP_TOKEN=$(openssl rand -hex 32)`.
 2. Run the MCP server next to the app. With the Docker Compose deployment from [server.md](server.md), add a service that reuses the same image and environment:
 
    ```yaml
    mcp:
-     image: ghcr.io/aymaneprojects/leadcommons:latest
+     image: ghcr.io/aymaneprojects/pepite:latest
      restart: unless-stopped
-     command: ["leadcommons", "mcp", "--http", "--host", "0.0.0.0", "--port", "8001"]
+     command: ["pepite", "mcp", "--http", "--host", "0.0.0.0", "--port", "8001"]
      environment:
-       LEADCOMMONS_MODE: server
-       LEADCOMMONS_MCP_TOKEN: ${LEADCOMMONS_MCP_TOKEN:?set LEADCOMMONS_MCP_TOKEN in .env}
-       LEADCOMMONS_PASSWORD_HASH: ${LEADCOMMONS_PASSWORD_HASH}
-       LEADCOMMONS_SECRET_KEY: ${LEADCOMMONS_SECRET_KEY}
-       LEADCOMMONS_DATABASE_URL: postgresql+psycopg://leadcommons:${POSTGRES_PASSWORD}@db:5432/leadcommons
+       PEPITE_MODE: server
+       PEPITE_MCP_TOKEN: ${PEPITE_MCP_TOKEN:?set PEPITE_MCP_TOKEN in .env}
+       PEPITE_PASSWORD_HASH: ${PEPITE_PASSWORD_HASH}
+       PEPITE_SECRET_KEY: ${PEPITE_SECRET_KEY}
+       PEPITE_DATABASE_URL: postgresql+psycopg://pepite:${POSTGRES_PASSWORD}@db:5432/pepite
      volumes:
        - app-data:/data
      depends_on:
@@ -88,10 +88,10 @@ Test: `curl -i https://your-domain/mcp` must answer `401`.
 Command-line summary:
 
 ```sh
-LEADCOMMONS_MCP_TOKEN=... leadcommons mcp --http --host 127.0.0.1 --port 8001
+PEPITE_MCP_TOKEN=... pepite mcp --http --host 127.0.0.1 --port 8001
 ```
 
-The HTTP transport is the streamable HTTP endpoint at `/mcp`. In server mode (or on a non-loopback `--host`) the command refuses to start without `LEADCOMMONS_MCP_TOKEN`.
+The HTTP transport is the streamable HTTP endpoint at `/mcp`. In server mode (or on a non-loopback `--host`) the command refuses to start without `PEPITE_MCP_TOKEN`.
 
 ## Security notes
 
@@ -100,7 +100,7 @@ The HTTP transport is the streamable HTTP endpoint at `/mcp`. In server mode (or
 - The token is separate from the web login password; the web app login does not protect `/mcp`.
 - stdio mode has no network exposure: only the app that launched the process can talk to it.
 - Tools that crawl (`find_people`, `find_email`) contact third-party sites and mail servers from your machine, politely and respecting robots.txt.
-- Be careful what you paste into an assistant connected to LeadCommons: web pages can contain instructions aimed at the assistant. Review exports before using them.
+- Be careful what you paste into an assistant connected to Pépite: web pages can contain instructions aimed at the assistant. Review exports before using them.
 
 ## Limits
 

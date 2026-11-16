@@ -9,9 +9,9 @@ import httpx
 import pytest
 import respx
 
-from leadcommons.connectors._http import PoliteClient
-from leadcommons.insights import boards
-from leadcommons.insights.model import Jobs
+from pepite.connectors._http import PoliteClient
+from pepite.insights import boards
+from pepite.insights.model import Jobs
 
 FIXTURES = Path(__file__).parent / "fixtures" / "insights"
 

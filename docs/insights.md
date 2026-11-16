@@ -1,7 +1,7 @@
 # Company insights
 
 Company insights show what can honestly be learned about a company from public sources. Open a
-company, click **Refresh** in the Company insights card, and LeadCommons reads the company's own
+company, click **Refresh** in the Company insights card, and Pépite reads the company's own
 website, public DNS, the job board the site links to, and Wikidata. Nothing is bought, guessed
 or scraped from login-walled sites.
 
@@ -25,7 +25,7 @@ or scraped from login-walled sites.
   (back-off, `Retry-After`).
 - No personal data in insights: numbers inside team or person cards and Person structured data
   are skipped, only role mailboxes are kept, only company profiles (not `linkedin.com/in/...`).
-- Demo mode (`LEADCOMMONS_MODE=demo`) never refreshes: the API answers 403, jobs are refused and
+- Demo mode (`PEPITE_MODE=demo`) never refreshes: the API answers 403, jobs are refused and
   the button is disabled. Insights saved earlier still display.
 
 ## Using it
@@ -55,4 +55,4 @@ ranks people by seniority, department and shared title words (via `enrich/titles
 - Wikidata covers mostly larger companies, and its numbers are reported figures that can be years
   old. Small companies usually show "no public data" for employees, revenue and listing.
 - Phone numbers without a `+` need the company's country (from the pack) to become E.164.
-- Technology rules are written for LeadCommons; see `insights/techrules.py` to add more.
+- Technology rules are written for Pépite; see `insights/techrules.py` to add more.

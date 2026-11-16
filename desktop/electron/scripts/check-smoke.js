@@ -1,5 +1,5 @@
 "use strict";
-// Read the result.json written by `LeadCommons --smoke-test=<dir>` and fail when it is not ok.
+// Read the result.json written by `Pépite --smoke-test=<dir>` and fail when it is not ok.
 const fs = require("node:fs");
 const path = require("node:path");
 

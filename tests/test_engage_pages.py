@@ -15,11 +15,11 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-from leadcommons.engage import core, crypto, enroll
-from leadcommons.models import EmailStatus
-from leadcommons.store import Store
-from leadcommons.store.engage import repo_for
-from leadcommons.web.app import create_app
+from pepite.engage import core, crypto, enroll
+from pepite.models import EmailStatus
+from pepite.store import Store
+from pepite.store.engage import repo_for
+from pepite.web.app import create_app
 from tests.fakes import FakeJobs, FakeSearch, FakeStore
 from tests.test_engage import (
     EMAIL_STEPS,
@@ -663,16 +663,16 @@ class _Resp:
 def test_ai_draft_is_disabled_without_a_model(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.delenv("LEADCOMMONS_LLM_URL", raising=False)
-    monkeypatch.delenv("LEADCOMMONS_LLM_MODEL", raising=False)
+    monkeypatch.delenv("PEPITE_LLM_URL", raising=False)
+    monkeypatch.delenv("PEPITE_LLM_MODEL", raising=False)
     html = client.get("/sequences").text
     assert re.search(
         r'<button class="btn" type="button" disabled aria-disabled="true" '
-        r'title="To turn this on, set LEADCOMMONS_LLM_URL',
+        r'title="To turn this on, set PEPITE_LLM_URL',
         html,
     )
     r = client.post("/sequences/ai", data={"goal": "Book demos with logistics leaders"}, headers=HX)
-    assert r.status_code == 422 and "LEADCOMMONS_LLM_URL" in toast(r)["message"]
+    assert r.status_code == 422 and "PEPITE_LLM_URL" in toast(r)["message"]
 
 
 def test_ai_draft_creates_a_reviewed_draft(
@@ -680,8 +680,8 @@ def test_ai_draft_creates_a_reviewed_draft(
 ) -> None:
     import httpx
 
-    monkeypatch.setenv("LEADCOMMONS_LLM_URL", "http://llm.local/v1")
-    monkeypatch.setenv("LEADCOMMONS_LLM_MODEL", "tiny")
+    monkeypatch.setenv("PEPITE_LLM_URL", "http://llm.local/v1")
+    monkeypatch.setenv("PEPITE_LLM_MODEL", "tiny")
     sent: list[dict[str, Any]] = []
     answer = {
         "name": "Logistics demos",
@@ -731,8 +731,8 @@ def test_ai_draft_creates_a_reviewed_draft(
 
 
 def test_ai_draft_is_off_in_demo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("LEADCOMMONS_LLM_URL", "http://llm.local/v1")
-    monkeypatch.setenv("LEADCOMMONS_LLM_MODEL", "tiny")
+    monkeypatch.setenv("PEPITE_LLM_URL", "http://llm.local/v1")
+    monkeypatch.setenv("PEPITE_LLM_MODEL", "tiny")
     c = TestClient(make_app(tmp_path, mode="demo"))
     assert "Turned off in the public demo." in c.get("/sequences").text
     r = c.post("/sequences/ai", data={"goal": "Book demos with logistics leaders"}, headers=HX)

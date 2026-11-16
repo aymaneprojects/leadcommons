@@ -1,5 +1,5 @@
 "use strict";
-// LeadCommons desktop app. Electron draws the window, menus, dialogs and notifications; the
+// Pépite desktop app. Electron draws the window, menus, dialogs and notifications; the
 // frozen Python backend (resources/backend) serves the screens on 127.0.0.1 only.
 
 const {
@@ -13,14 +13,14 @@ const { spawn } = require("node:child_process");
 const L = require("./lib/logic");
 const { stringsFor } = require("./lib/strings");
 
-const REPO = "aymaneprojects/leadcommons";
+const REPO = "aymaneprojects/pepite";
 const DOCS_URL = `https://github.com/${REPO}/blob/main/docs/desktop.md`;
 const ISSUES_URL = `https://github.com/${REPO}/issues`;
 const BG = "#121110";
 const isMac = process.platform === "darwin";
 
 const smokeArg = process.argv.find((a) => a.startsWith("--smoke-test"));
-const SMOKE_DIR = smokeArg ? (smokeArg.split("=")[1] || path.join(os.tmpdir(), "leadcommons-smoke")) : null;
+const SMOKE_DIR = smokeArg ? (smokeArg.split("=")[1] || path.join(os.tmpdir(), "pepite-smoke")) : null;
 const SMOKE_HOLD = Number((process.argv.find((a) => a.startsWith("--smoke-hold=")) || "=0").split("=")[1]) || 0;
 
 let S = stringsFor("en");
@@ -55,9 +55,9 @@ async function start() {
   S = stringsFor(app.getLocale());
   nativeTheme.themeSource = "dark";
   app.setAboutPanelOptions({
-    applicationName: "LeadCommons",
+    applicationName: "Pépite",
     applicationVersion: app.getVersion(),
-    copyright: "LeadCommons contributors. AGPL-3.0-or-later.",
+    copyright: "Pépite contributors. AGPL-3.0-or-later.",
     website: `https://github.com/${REPO}`,
   });
   setupSession();
@@ -79,7 +79,7 @@ function startBackend(port) {
   const exe = L.backendExecutable({ resourcesPath: process.resourcesPath, platform: process.platform });
   const args = ["--headless", "--port", String(port), "--parent-pid", String(process.pid)];
   backend = spawn(exe, args, {
-    env: { ...process.env, LEADCOMMONS_DESKTOP: "1", LEADCOMMONS_LOCALE: localeTag() },
+    env: { ...process.env, PEPITE_DESKTOP: "1", PEPITE_LOCALE: localeTag() },
     stdio: "ignore",
     windowsHide: true,
   });
@@ -101,7 +101,7 @@ function localeTag() {
 function showSplash() {
   splash = new BrowserWindow({
     width: 420, height: 300, frame: false, resizable: false, movable: true, show: false,
-    backgroundColor: BG, skipTaskbar: false, title: "LeadCommons",
+    backgroundColor: BG, skipTaskbar: false, title: "Pépite",
     webPreferences: { contextIsolation: true, sandbox: true },
   });
   splash.loadFile(path.join(__dirname, "splash.html"), { query: { t: S.starting, h: S.startingHint } });
@@ -114,7 +114,7 @@ function createMainWindow() {
   const state = loadWindowState();
   mainWindow = new BrowserWindow({
     ...state.bounds,
-    minWidth: 1024, minHeight: 680, show: false, backgroundColor: BG, title: "LeadCommons",
+    minWidth: 1024, minHeight: 680, show: false, backgroundColor: BG, title: "Pépite",
     icon: isMac ? undefined : path.join(__dirname, "lib", "logo.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -216,7 +216,7 @@ function buildMenu() {
   ];
   const template = [
     ...(isMac ? [{
-      label: "LeadCommons",
+      label: "Pépite",
       submenu: [{ role: "about", label: S.about }, sep,
         { label: S.settings, accelerator: "Cmd+,", click: go("settings") }, sep,
         { role: "services" }, sep, { role: "hide" }, { role: "hideOthers" }, { role: "unhide" }, sep,
@@ -282,7 +282,7 @@ function buildMenu() {
 
 function showAbout() {
   dialog.showMessageBox(mainWindow, {
-    type: "info", title: S.about, message: "LeadCommons", detail: S.aboutDetail(app.getVersion()),
+    type: "info", title: S.about, message: "Pépite", detail: S.aboutDetail(app.getVersion()),
     icon: path.join(__dirname, "lib", "logo.png"), buttons: ["OK"],
   });
 }
@@ -323,7 +323,7 @@ function focusWindow() {
 async function checkForUpdates(verbose) {
   try {
     const res = await net.fetch(`https://api.github.com/repos/${REPO}/releases?per_page=20`, {
-      headers: { Accept: "application/vnd.github+json", "User-Agent": "LeadCommons-Desktop" },
+      headers: { Accept: "application/vnd.github+json", "User-Agent": "Pepite-Desktop" },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const latest = L.latestAppRelease(await res.json());
@@ -417,7 +417,7 @@ async function runSmokeTest() {
     const title = wc.getTitle();
     const isDesktop = await wc.executeJavaScript("document.documentElement.dataset.app === 'desktop'");
     pages.push({ name, title, url: wc.getURL(), desktopMode: isDesktop });
-    if (!title.includes("LeadCommons") || !isDesktop) throw new Error(`unexpected page ${name}: ${title}`);
+    if (!title.includes("Pépite") || !isDesktop) throw new Error(`unexpected page ${name}: ${title}`);
   }
   if (SMOKE_HOLD) await new Promise((r) => setTimeout(r, SMOKE_HOLD * 1000));
   smokeDone(true, null, pages);

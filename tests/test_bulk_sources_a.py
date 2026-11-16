@@ -13,8 +13,8 @@ import httpx
 import pytest
 from typer.testing import CliRunner
 
-from leadcommons.cli import app
-from leadcommons.connectors.bulk import (
+from pepite.cli import app
+from pepite.connectors.bulk import (
     SOURCES,
     BuildOptions,
     edgar_bulk,
@@ -22,12 +22,12 @@ from leadcommons.connectors.bulk import (
     load_all,
     sirene_stock,
 )
-from leadcommons.connectors.bulk import companies_house as ch
-from leadcommons.models import make_id
-from leadcommons.packs import bulk
-from leadcommons.packs.domains import normalize_domain
-from leadcommons.packs.isic import naf_section, sic_section
-from leadcommons.search import PACK_COLUMNS
+from pepite.connectors.bulk import companies_house as ch
+from pepite.models import make_id
+from pepite.packs import bulk
+from pepite.packs.domains import normalize_domain
+from pepite.packs.isic import naf_section, sic_section
+from pepite.search import PACK_COLUMNS
 
 FIX = Path(__file__).parent / "fixtures" / "bulk"
 TODAY = date(2026, 11, 15)
@@ -593,11 +593,11 @@ def submissions_zip(tmp_path: Path) -> Path:
 
 
 def test_edgar_refuses_to_run_without_a_contact(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.delenv("LEADCOMMONS_CONTACT_EMAIL", raising=False)
+    monkeypatch.delenv("PEPITE_CONTACT_EMAIL", raising=False)
     monkeypatch.setenv(edgar_bulk.URL_ENV, str(submissions_zip(tmp_path)))
-    with pytest.raises(RuntimeError, match="LEADCOMMONS_CONTACT_EMAIL"):
+    with pytest.raises(RuntimeError, match="PEPITE_CONTACT_EMAIL"):
         bulk.run_source("edgar_bulk", opts(tmp_path))
-    monkeypatch.setenv("LEADCOMMONS_CONTACT_EMAIL", "ops@example.org")
+    monkeypatch.setenv("PEPITE_CONTACT_EMAIL", "ops@example.org")
     assert edgar_bulk.contact_user_agent(opts(tmp_path)).endswith("contact:ops@example.org")
     assert "me@x.org" in edgar_bulk.contact_user_agent(opts(tmp_path, contact="me@x.org"))
 
@@ -651,7 +651,7 @@ def test_edgar_takes_the_cik_from_the_file_name(tmp_path: Path) -> None:
 
 
 def test_edgar_end_to_end(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setenv("LEADCOMMONS_CONTACT_EMAIL", "ops@example.org")
+    monkeypatch.setenv("PEPITE_CONTACT_EMAIL", "ops@example.org")
     monkeypatch.setenv(edgar_bulk.URL_ENV, str(submissions_zip(tmp_path)))
     stats = bulk.run_source("edgar_bulk", opts(tmp_path, countries=frozenset({"US"})))
     got = rows(stats.files[0])

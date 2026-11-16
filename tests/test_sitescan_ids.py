@@ -1,10 +1,10 @@
-"""Tests for leadcommons.sitescan.ids.find_ids: register numbers printed on company pages."""
+"""Tests for pepite.sitescan.ids.find_ids: register numbers printed on company pages."""
 
 from __future__ import annotations
 
 import pytest
 
-from leadcommons.sitescan.ids import find_ids
+from pepite.sitescan.ids import find_ids
 
 # ---- check-digit helpers, written from each algorithm's definition (not from ids.py) ---------
 

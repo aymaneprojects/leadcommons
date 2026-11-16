@@ -1,0 +1,16 @@
+{% extends "shell_settings_base.html" %}
+{% from "_macros.html" import icon %}
+{% block title %}Account · Pépite{% endblock %}
+{% block settings_body %}
+<h1 class="set-h1">Account</h1>
+<section class="card">
+  {% if settings.auth_required %}
+  <p><span class="chip ok">Password protected</span></p>
+  <p class="muted">This instance asks for a password before showing any data.</p>
+  <form method="post" action="/logout"><button class="btn" type="submit">{{ icon("log-out") }} Log out</button></form>
+  {% else %}
+  <p><span class="chip plain">Local mode</span></p>
+  <p class="muted">Pépite runs on this machine for a single user and has no login. To protect an instance that others can reach, run it in server mode with a password (see the server guide in the documentation).</p>
+  {% endif %}
+</section>
+{% endblock %}

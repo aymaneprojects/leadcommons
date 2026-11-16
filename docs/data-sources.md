@@ -1,6 +1,6 @@
 # Data sources
 
-LeadCommons only uses public data that it is allowed to use.
+Pépite only uses public data that it is allowed to use.
 
 | Source | Licence | What we take | Notes |
 | --- | --- | --- | --- |
@@ -16,7 +16,7 @@ Each pack ships with an `ATTRIBUTION.md` listing sources and licences. Packs con
 ## Bulk registers (monthly packs)
 
 The monthly packs are built from whole official registers, downloaded in bulk
-(`leadcommons pack sources` lists them; `leadcommons pack fetch-source <name> --out shards/`
+(`pepite pack sources` lists them; `pepite pack fetch-source <name> --out shards/`
 builds one shard). Active companies only.
 
 | Source (`name`) | Licence | Kept | Left out |
@@ -51,8 +51,8 @@ items and takes about 70 minutes.
 
 ## SEC EDGAR contact address
 
-The SEC asks every automated client to say who it is. Set `LEADCOMMONS_CONTACT_EMAIL` before
-building a pack and LeadCommons adds it to its User-Agent; without it, EDGAR is skipped. The
+The SEC asks every automated client to say who it is. Set `PEPITE_CONTACT_EMAIL` before
+building a pack and Pépite adds it to its User-Agent; without it, EDGAR is skipped. The
 monthly workflow reads it from the repository secret `EDGAR_CONTACT_EMAIL` (Settings > Secrets
 and variables > Actions > New repository secret); GitHub masks secrets in the public logs. SEC
 refuses the GitHub no-reply address used as a fallback. Requests stay
@@ -62,14 +62,14 @@ under the SEC's limit of 10 per second. The bulk source `edgar_bulk` (one downlo
 ## Build your own pack
 
 ```sh
-leadcommons pack build --country FR --country DE --out ./data/packs
+pepite pack build --country FR --country DE --out ./data/packs
 ```
 
 Options: `--source wikidata --source gleif --source sirene --source edgar`, `--limit N` per source. Packs are Parquet files; every `*.parquet` in the data directory is searched.
 
 ## Published packs
 
-A monthly workflow publishes a GitHub Release tagged `packs-YYYY-MM` containing one `companies-<CC>-<date>.parquet` per country, `manifest.json` (rows, size and sha256 per country) and `ATTRIBUTION.md`. The app downloads only the countries you pick (Settings > Data packs, or `leadcommons pack download --country FR`), checks each file's sha256 and prepares it for fast search (docs/dev/search-performance.md). Older releases with a single `companies-*.parquet` still work with `leadcommons pack download latest`.
+A monthly workflow publishes a GitHub Release tagged `packs-YYYY-MM` containing one `companies-<CC>-<date>.parquet` per country, `manifest.json` (rows, size and sha256 per country) and `ATTRIBUTION.md`. The app downloads only the countries you pick (Settings > Data packs, or `pepite pack download --country FR`), checks each file's sha256 and prepares it for fast search (docs/dev/search-performance.md). Older releases with a single `companies-*.parquet` still work with `pepite pack download latest`.
 
 ## Adding a source
 

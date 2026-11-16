@@ -9,10 +9,10 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
-from leadcommons import engage, insights
-from leadcommons.models import utcnow
-from leadcommons.store.pipeline import Pipeline
-from leadcommons.web.pages_pipeline import (
+from pepite import engage, insights
+from pepite.models import utcnow
+from pepite.store.pipeline import Pipeline
+from pepite.web.pages_pipeline import (
     duration_label,
     insight_phone,
     parse_duration_sec,

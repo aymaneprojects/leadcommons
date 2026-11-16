@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from leadcommons.sitescan.pages import (
+from pepite.sitescan.pages import (
     GUESS_PATHS,
     guess_paths,
     page_title,

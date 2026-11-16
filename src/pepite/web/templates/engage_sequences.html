@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% from "_engage_macros.html" import eic, step_icon, seq_chip, when, send_bar, post_btn %}
+{% block title %}Sequences · Pépite{% endblock %}
+{% block content %}
+<div class="eg-page">
+<div class="page-head eg-head">
+  <h1>Sequences</h1>
+  <div class="eg-split eg-split-primary">
+    <button class="btn primary" type="button" data-open-dialog="eg-new-seq">{{ eic("plus", "sm") }}<span>Create sequence</span></button>
+    <details class="dd eg-split-dd">
+      <summary class="btn primary icon-only" aria-label="Other ways to create a sequence">{{ eic("chevron-down", "sm") }}</summary>
+      <div class="menu eg-menu">
+        {% if ai_off %}
+        <span class="menu-item" aria-disabled="true" title="{{ ai_off }}" data-tip="{{ ai_off }}">{{ eic("sparkles", "sm") }}<span><b>Draft with AI</b><small>{{ ai_off }}</small></span></span>
+        {% else %}
+        <button class="menu-item" type="button" data-open-dialog="eg-ai-seq">{{ eic("sparkles", "sm") }}<span><b>Draft with AI</b><small>Describe the goal; your model writes the steps.</small></span></button>
+        {% endif %}
+        <div class="menu-sep"></div>
+        {% for key, t in templates_list.items() %}
+        <form method="post" action="/sequences"><input type="hidden" name="template" value="{{ key }}">
+          <button class="menu-item" type="submit">{{ eic("plus" if key == "blank" else "layout-list", "sm") }}<span><b>{{ t.label }}</b><small>{{ t.lead }}</small></span></button></form>
+        {% endfor %}
+      </div>
+    </details>
+  </div>
+</div>
+
+<nav class="tabs eg-tabs" role="tablist" aria-label="Sequences views">
+  <a class="tab" role="tab" href="/sequences" {% if tab == "all" %}aria-selected="true"{% endif %}>All sequences</a>
+  <a class="tab" role="tab" href="/sequences?tab=analytics" {% if tab == "analytics" %}aria-selected="true"{% endif %}>Analytics</a>
+  <a class="tab" role="tab" href="/sequences?tab=health" {% if tab == "health" %}aria-selected="true"{% endif %}>Health</a>
+</nav>
+
+{% if not cfg.tip_dismissed %}
+<div class="eg-tip" id="eg-seq-tip" role="note">
+  {{ eic("info") }}
+  <div><b>Sequences step aside on their own</b>
+    <p>A contact leaves the sequence as soon as they reply, bounce or unsubscribe, and every email carries an unsubscribe link. Adjust this anytime in <a href="/settings/sending">Settings &gt; Sending rules</a>.</p></div>
+  <form method="post" action="/sequences/tip" hx-post="/sequences/tip" hx-target="#eg-seq-tip" hx-swap="outerHTML">
+    <button class="btn ghost icon-only" type="submit" aria-label="Dismiss">{{ eic("x") }}</button>
+  </form>
+</div>
+{% endif %}
+{{ send_bar(demo, demo_reason, mailboxes) }}
+
+{% if tab == "all" %}
+  {% if total == 0 %}
+  <section class="eg-hero">
+    <span class="eg-hero-ic">{{ eic("send", "lg") }}</span>
+    <h2>Start your first sequence</h2>
+    <p>Reach the people you prospect with a series of emails, calls and tasks that runs on a schedule and stops when they answer.</p>
+    <div class="eg-hero-actions">
+      {% if ai_off %}
+      <button class="btn" type="button" disabled aria-disabled="true" title="{{ ai_off }}" data-tip="{{ ai_off }}">{{ eic("sparkles", "sm") }}<span>Draft with AI</span></button>
+      {% else %}
+      <button class="btn" type="button" data-open-dialog="eg-ai-seq">{{ eic("sparkles", "sm") }}<span>Draft with AI</span></button>
+      {% endif %}
+      <div class="eg-split">
+        <button class="btn" type="button" data-open-dialog="eg-new-seq" data-eg-pick="blank">Build from scratch</button>
+        <details class="dd eg-split-dd">
+          <summary class="btn icon-only" aria-label="More ways to start">{{ eic("chevron-down", "sm") }}</summary>
+          <div class="menu eg-menu">
+            {% for key, t in templates_list.items() %}
+            <form method="post" action="/sequences"><input type="hidden" name="template" value="{{ key }}">
+              <button class="menu-item" type="submit">{{ eic("plus" if key == "blank" else "layout-list", "sm") }}<span><b>{{ t.label }}</b><small>{{ t.lead }}</small></span></button></form>
+            {% endfor %}
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+  <div class="eg-feats">
+    <div class="eg-feat"><span class="eg-feat-ic">{{ eic("list") }}</span><b>Plan each step</b><span>Mix automatic emails, manual emails, calls, LinkedIn steps and to-dos in one ordered sequence. Reorder any step.</span></div>
+    <div class="eg-feat"><span class="eg-feat-ic">{{ eic("calendar-clock") }}</span><b>Goes out when you choose</b><span>Set the wait between steps, a sending window and a daily limit per mailbox. Emails are spaced out for you.</span></div>
+    <div class="eg-feat"><span class="eg-feat-ic">{{ eic("reply") }}</span><b>Stops when they reply</b><span>Contacts who reply, bounce or unsubscribe leave the sequence on their own, so nobody gets a follow-up by mistake.</span></div>
+  </div>
+  {% else %}
+  <form class="eg-toolbar" method="get" action="/sequences" data-eg-autosubmit>
+    <label class="eg-search">{{ eic("search", "sm") }}<span class="sr-only">Search sequences</span>
+      <input type="search" name="q" value="{{ q }}" placeholder="Search sequences" autocomplete="off"></label>
+    <div class="eg-seg" role="group" aria-label="Status">
+      {% for key, label in [("", "Current"), ("active", "Active"), ("paused", "Paused"), ("draft", "Drafts"), ("archived", "Archived")] %}
+      <a href="/sequences?{{ qs({'q': q, 'status': key}) }}" {% if sfilter == key %}aria-current="true"{% endif %}>{{ label }}{% if key %} <span class="n">{{ counts.get(key, 0) }}</span>{% endif %}</a>
+      {% endfor %}
+    </div>
+  </form>
+  {% if rows %}
+  <div class="table-wrap eg-table">
+    <table class="data">
+      <thead><tr>
+        <th scope="col">Name</th><th scope="col">Status</th><th scope="col" class="num">Steps</th><th scope="col" class="num">Enrolled</th>
+        <th scope="col" class="num">Active</th><th scope="col" class="num">Replied</th><th scope="col" class="num">Finished</th><th scope="col">Created</th><th scope="col"><span class="sr-only">Actions</span></th>
+      </tr></thead>
+      <tbody>
+      {% for row in rows %}{% set s = row.seq %}{% set st = row.stats %}
+        <tr>
+          <td><a class="co-name" href="/sequences/{{ s.id }}">{{ s.name }}</a>
+            <span class="eg-kinds" aria-label="Steps">{% for k in row.kinds[:8] %}<span class="eg-kind" title="{{ eg_step_labels[k] }}">{{ step_icon(k, "sm") }}</span>{% endfor %}{% if row.kinds|length > 8 %}<span class="eg-dim">+{{ row.kinds|length - 8 }}</span>{% endif %}</span></td>
+          <td>
+            {% if s.status in ("active", "paused", "draft") %}
+            <form method="post" action="/sequences/{{ s.id }}/status" class="eg-inline">
+              <input type="hidden" name="next" value="{{ current_url }}"><input type="hidden" name="action" value="{{ 'pause' if s.status == 'active' else 'activate' }}">
+              <button class="eg-switch" type="submit" role="switch" aria-checked="{{ 'true' if s.status == 'active' else 'false' }}" title="{{ 'Pause' if s.status == 'active' else 'Activate' }} {{ s.name }}"><i></i><span>{{ eg_seq_status[s.status] }}</span></button>
+            </form>
+            {% else %}{{ seq_chip(s.status) }}{% endif %}
+          </td>
+          <td class="num">{{ st.get("steps", 0) }}</td>
+          <td class="num">{{ st.get("enrolled", 0) }}</td>
+          <td class="num">{{ st.get("active", 0) }}</td>
+          <td class="num">{{ st.get("replied", 0) }}</td>
+          <td class="num">{{ st.get("finished", 0) }}</td>
+          <td class="eg-dim">{{ when(s.created_at, true) }}</td>
+          <td class="eg-ract">
+            <details class="dd">
+              <summary class="btn ghost icon-only sm" aria-label="Actions for {{ s.name }}">{{ eic("ellipsis", "sm") }}</summary>
+              <div class="menu eg-menu">
+                <a class="menu-item" href="/sequences/{{ s.id }}">{{ eic("pencil", "sm") }} Edit steps</a>
+                <a class="menu-item" href="/sequences/{{ s.id }}?tab=contacts">{{ eic("users", "sm") }} Contacts</a>
+                <form method="post" action="/sequences/{{ s.id }}/duplicate"><button class="menu-item" type="submit">{{ eic("copy", "sm") }} Duplicate</button></form>
+                {% if s.status == "archived" %}
+                <form method="post" action="/sequences/{{ s.id }}/status"><input type="hidden" name="next" value="{{ current_url }}"><input type="hidden" name="action" value="unarchive"><button class="menu-item" type="submit">{{ eic("archive", "sm") }} Unarchive</button></form>
+                {% else %}
+                <form method="post" action="/sequences/{{ s.id }}/status"><input type="hidden" name="next" value="{{ current_url }}"><input type="hidden" name="action" value="archive"><button class="menu-item" type="submit">{{ eic("archive", "sm") }} Archive</button></form>
+                {% endif %}
+                <div class="menu-sep"></div>
+                <form method="post" action="/sequences/{{ s.id }}/delete" data-eg-confirm="Delete {{ s.name }} and its contact history? This cannot be undone."><button class="menu-item btn-danger" type="submit">{{ eic("trash-2", "sm") }} Delete</button></form>
+              </div>
+            </details>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="eg-empty-row"><b>No sequence matches.</b> <a href="/sequences?status=all">Show every sequence</a></div>
+  {% endif %}
+  {% endif %}
+
+{% elif tab == "analytics" %}
+  <div class="eg-kpis">
+    <div class="eg-kpi"><span>Emails sent</span><b>{{ fmt_int(stats.sent) }}</b></div>
+    <div class="eg-kpi"><span>Replies</span><b>{{ fmt_int(stats.replies) }}</b><small>{{ stats.reply_rate }}% of sent</small></div>
+    <div class="eg-kpi"><span>Bounced</span><b>{{ fmt_int(stats.bounced) }}</b><small>{{ stats.bounce_rate }}% of sent</small></div>
+    <div class="eg-kpi"><span>Unsubscribed</span><b>{{ fmt_int(stats.unsubscribed) }}</b></div>
+    <div class="eg-kpi"><span>Active contacts</span><b>{{ fmt_int(stats.active) }}</b></div>
+  </div>
+  <p class="hint">Opens are not tracked: Pépite adds no tracking pixel. Replies are counted when a mailbox has IMAP set up, or when you mark them by hand.</p>
+  {% if stats.rows %}
+  <div class="table-wrap eg-table mt">
+    <table class="data">
+      <thead><tr><th scope="col">Sequence</th><th scope="col">Status</th><th scope="col" class="num">Enrolled</th><th scope="col" class="num">Emails sent</th><th scope="col" class="num">Replied</th><th scope="col" class="num">Bounced</th><th scope="col" style="width:28%">Reply rate</th></tr></thead>
+      <tbody>{% for r in stats.rows %}<tr>
+        <td><a class="co-name" href="/sequences/{{ r.seq.id }}">{{ r.seq.name }}</a></td><td>{{ seq_chip(r.seq.status) }}</td>
+        <td class="num">{{ r.enrolled }}</td><td class="num">{{ r.sent }}</td><td class="num">{{ r.replied }}</td><td class="num">{{ r.bounced }}</td>
+        <td><span class="eg-meter" role="img" aria-label="{{ r.rate }} percent"><i style="width: {{ r.rate }}%"></i></span> <span class="mono">{{ r.rate }}%</span></td>
+      </tr>{% endfor %}</tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="eg-empty-row">Create a sequence and enroll contacts to see numbers here.</div>
+  {% endif %}
+
+{% else %}
+  <div class="eg-checks">
+    {% for c in checks %}
+    <article class="eg-check {{ c.state }}">
+      <span class="eg-check-ic">{{ eic({"ok": "circle-check", "warn": "triangle-alert", "fail": "circle-alert"}[c.state]) }}</span>
+      <div><b>{{ c.title }}</b><p>{{ c.text }}</p></div>
+      {% if c.href %}<a class="btn sm" href="{{ c.href }}">{{ c.label }}</a>{% endif %}
+    </article>
+    {% else %}
+    <div class="eg-empty-row">Nothing to check yet.</div>
+    {% endfor %}
+  </div>
+{% endif %}
+</div>
+{% endblock %}
+
+{% block dialogs %}
+<dialog id="eg-new-seq" class="eg-dlg eg-dlg-wide" aria-labelledby="eg-new-seq-t">
+  <form method="post" action="/sequences">
+    <header class="eg-dlg-head">
+      <div class="eg-dlg-title"><span class="eg-dlg-ic">{{ eic("send") }}</span><div><h2 id="eg-new-seq-t">Create a sequence</h2><p>Pick a starting point. You can change every step afterwards.</p></div></div>
+      <button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">{{ eic("x") }}</button>
+    </header>
+    <div class="eg-dlg-body">
+      <div class="field"><label for="eg-seq-name">Name</label>
+        <input id="eg-seq-name" type="text" name="name" placeholder="e.g. Founders in Lyon, first touch" maxlength="200" autocomplete="off"></div>
+      <fieldset class="eg-tpl-grid"><legend>Start from</legend>
+        {% for key, t in templates_list.items() %}
+        <label class="eg-tpl"><input type="radio" name="template" value="{{ key }}"{% if key == "blank" %} checked{% endif %}>
+          <span class="eg-tpl-c"><b>{{ t.label }}</b><small>{{ t.lead }}</small>
+            <span class="eg-kinds">{% for s in t.steps %}<span class="eg-kind" title="{{ eg_step_labels[s.kind] }}">{{ step_icon(s.kind, "sm") }}</span>{% else %}<span class="eg-dim">No steps yet</span>{% endfor %}</span></span></label>
+        {% endfor %}
+      </fieldset>
+    </div>
+    <footer class="eg-dlg-foot"><button type="button" class="btn close-dlg">Cancel</button><button class="btn primary" type="submit">Create sequence</button></footer>
+  </form>
+</dialog>
+<dialog id="eg-ai-seq" class="eg-dlg" aria-labelledby="eg-ai-seq-t">
+  <form method="post" action="/sequences/ai" hx-post="/sequences/ai" hx-swap="none" data-quiet>
+    <header class="eg-dlg-head">
+      <div class="eg-dlg-title"><span class="eg-dlg-ic">{{ eic("sparkles") }}</span><div><h2 id="eg-ai-seq-t">Draft a sequence with AI</h2><p>Your own model writes a first draft. Only the goal below is sent.</p></div></div>
+      <button type="button" class="btn ghost icon-only close-dlg" aria-label="Close">{{ eic("x") }}</button>
+    </header>
+    <div class="eg-dlg-body">
+      <div class="field"><label for="eg-ai-goal">Goal</label>
+        <textarea id="eg-ai-goal" name="goal" rows="4" maxlength="600" required placeholder="e.g. Book a demo with heads of sales at logistics companies; friendly, short, one call step"></textarea></div>
+      <div class="eg-row2">
+        <div class="field"><label for="eg-ai-name">Name <span class="eg-dim">(optional)</span></label><input id="eg-ai-name" type="text" name="name" maxlength="200" autocomplete="off"></div>
+        <div class="field"><label for="eg-ai-steps">Steps</label><select id="eg-ai-steps" name="steps">{% for n in range(2, 9) %}<option{% if n == 4 %} selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+      </div>
+      <p class="hint">The draft opens in the editor as a draft sequence: review every step before you activate it.</p>
+    </div>
+    <footer class="eg-dlg-foot"><button type="button" class="btn close-dlg">Cancel</button><button class="btn primary" type="submit">{{ eic("sparkles", "sm") }}<span>Draft it</span></button></footer>
+  </form>
+</dialog>
+{% endblock %}

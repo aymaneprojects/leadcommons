@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  {% include "_head.html" %}
+  <title>Unsubscribe · Pépite</title>
+  <meta name="robots" content="noindex">
+</head>
+<body>
+<main class="solo">
+  <div class="card eg-unsub">
+    <div class="brand"><span class="logo" aria-hidden="true"></span><span>Pépite</span></div>
+    {% if state == "done" %}
+      <h1>You are unsubscribed</h1>
+      <p><b class="mono">{{ masked }}</b> will not receive any more emails from this sender. Nothing else to do.</p>
+      <p class="muted">You can close this page.</p>
+    {% elif state == "confirm" %}
+      <h1>Stop these emails?</h1>
+      <p>Confirm and <b class="mono">{{ masked }}</b> is added to this sender's do-not-contact list straight away. Every planned email to it is cancelled.</p>
+      <form method="post" action="/u/{{ token }}">
+        <button class="btn primary" type="submit">Unsubscribe</button>
+      </form>
+    {% elif state == "expired" %}
+      <h1>This link has expired</h1>
+      <p class="muted">You can still ask this sender to stop: enter your address on the opt-out page.</p>
+      <p><a class="btn" href="/opt-out">Go to the opt-out page</a></p>
+    {% else %}
+      <h1>This link is not valid</h1>
+      <p class="muted">It may have been cut or changed. You can still ask this sender to stop on the opt-out page.</p>
+      <p><a class="btn" href="/opt-out">Go to the opt-out page</a></p>
+    {% endif %}
+  </div>
+</main>
+</body>
+</html>

@@ -13,7 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 INVENTORY = ROOT / "docs" / "dev" / "ux-inventory.md"
-SOURCES = ROOT / "src" / "leadcommons"
+SOURCES = ROOT / "src" / "pepite"
 
 KEPT_LABELS = {"email setup and health"}  # sidebar item name, kept on purpose
 
@@ -27,7 +27,7 @@ def quoted_phrases() -> set[str]:
     for m in re.finditer(r"'([^'\n]{8,160})'", INVENTORY.read_text(encoding="utf-8")):
         q = m.group(1).strip()
         if len(q.split()) >= 4 and not q.startswith(("http", "/")):
-            phrases.add(_norm(q).replace("apollo", "leadcommons"))
+            phrases.add(_norm(q).replace("apollo", "pepite"))
     return phrases - KEPT_LABELS
 
 

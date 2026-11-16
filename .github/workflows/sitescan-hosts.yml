@@ -114,7 +114,7 @@ jobs:
           # Stop with SIGINT shortly before the job timeout: the command still writes the file
           # from the index files it has read (marked partial in the .json).
           rc=0
-          timeout -s INT 330m uv run leadcommons sitescan hosts "${args[@]}" || rc=$?
+          timeout -s INT 330m uv run pepite sitescan hosts "${args[@]}" || rc=$?
           if [ "$rc" -ne 0 ] && [ "$rc" -ne 124 ]; then exit "$rc"; fi
           ls -l hosts-out
           test -s "hosts-out/domains-$TLD.txt.gz"
@@ -166,5 +166,5 @@ jobs:
             gh release create "$RELEASE" "${files[@]}" \
               --latest=false \
               --title "Site scan hosts $RELEASE" \
-              --notes "Candidate domains per country TLD (one domain per line, gzip), from Common Crawl's URL index: registered domains fetched successfully in the crawl named in each domains-<tld>.json. Input of 'leadcommons sitescan run'; see docs/sitescan.md."
+              --notes "Candidate domains per country TLD (one domain per line, gzip), from Common Crawl's URL index: registered domains fetched successfully in the crawl named in each domains-<tld>.json. Input of 'pepite sitescan run'; see docs/sitescan.md."
           fi

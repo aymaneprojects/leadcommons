@@ -8,8 +8,8 @@ import httpx
 import pytest
 import respx
 
-from leadcommons.connectors.base import USER_AGENT
-from leadcommons.enrich import crawl
+from pepite.connectors.base import USER_AGENT
+from pepite.enrich import crawl
 
 FIXTURES = Path(__file__).parent / "fixtures" / "enrich"
 BASE = "https://acme.example"

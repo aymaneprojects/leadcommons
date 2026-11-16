@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{% from "_shell_macros.html" import tic %}
+{% block app_class %} settings-mode{% endblock %}
+{% block sidebar %}
+{% set secs = sections if sections is defined else settings_sections() %}
+{% set by_key = {} %}
+{% for s in secs %}{% if by_key.update({s[0]: s}) %}{% endif %}{% endfor %}
+{% set placed = [] %}
+<aside class="sidebar settings-side" aria-label="Settings menu">
+  <div class="side-top set-top">
+    <a class="set-back" href="/">{{ tic("arrow-left") }}<span>Back</span></a>
+    <button class="collapse-btn" type="button" data-collapse aria-label="Collapse sidebar" data-tip="Collapse">{{ tic("chevrons-left") }}</button>
+  </div>
+  <div class="set-search"><label class="sr-only" for="set-find">Search settings</label>{{ tic("search", "sm") }}<input id="set-find" type="search" placeholder="Search settings" autocomplete="off" data-settings-find></div>
+  <nav aria-label="Settings sections" data-settings-nav>
+    {% for label, keys in settings_groups() %}
+    {% set items = [] %}
+    {% for k in keys %}{% if k in by_key %}{% if items.append(by_key[k]) %}{% endif %}{% if placed.append(k) %}{% endif %}{% endif %}{% endfor %}
+    {% if items %}
+    {% if label and items|length > 0 %}
+    <div class="set-group{% if section in keys %} open{% endif %}" data-set-group>
+      <button class="set-group-btn" type="button" aria-expanded="{{ 'true' if section in keys else 'false' }}">{{ label }}{{ tic("chevron-down", "sm chev") }}</button>
+      <div class="set-group-items">
+        {% for key, href, lab, ico in items %}<a class="nav-link" href="{{ href }}"{% if section == key %} aria-current="page"{% endif %} data-find="{{ lab|lower }}">{{ tic(ico) }}<span class="nav-label">{{ lab }}</span></a>{% endfor %}
+      </div>
+    </div>
+    {% else %}
+    {% for key, href, lab, ico in items %}<a class="nav-link" href="{{ href }}"{% if section == key %} aria-current="page"{% endif %} data-find="{{ lab|lower }}">{{ tic(ico) }}<span class="nav-label">{{ lab }}</span></a>{% endfor %}
+    {% endif %}
+    {% endif %}
+    {% endfor %}
+    {% for s in secs if s[0] not in placed %}<a class="nav-link" href="{{ s[1] }}"{% if section == s[0] %} aria-current="page"{% endif %} data-find="{{ s[2]|lower }}">{{ tic(s[3]) }}<span class="nav-label">{{ s[2] }}</span></a>{% endfor %}
+    <p class="muted set-none" data-find-none hidden>No setting matches.</p>
+  </nav>
+  <div class="nav-spacer"></div>
+  <div class="set-invite">
+    {% if settings.mode == "server" %}
+    <button class="btn" type="button" data-open-dialog="invite-dlg">{{ tic("users-round", "sm") }}<span class="nav-label">Invite teammates</span></button>
+    {% elif settings.mode == "demo" %}
+    <button class="btn" type="button" disabled aria-disabled="true" title="The public demo is already open to everyone, and nothing in it is private.">{{ tic("users-round", "sm") }}<span class="nav-label">Invite teammates</span></button>
+    <p class="hint set-invite-why">The public demo is open to everyone. <a href="{{ self_host_doc }}" target="_blank" rel="noopener noreferrer">Run your own server</a> to invite a team.</p>
+    {% else %}
+    <button class="btn" type="button" disabled aria-disabled="true" title="Pépite is running for one person on this computer. Run it on a server to share it with a team (see the self-hosting guide).">{{ tic("users-round", "sm") }}<span class="nav-label">Invite teammates</span></button>
+    <p class="hint set-invite-why">Single user on this computer. Run it on a server to share it: <a href="{{ self_host_doc }}" target="_blank" rel="noopener noreferrer">self-hosting guide</a>.</p>
+    {% endif %}
+  </div>
+</aside>
+{% if settings.mode == "server" %}
+<dialog id="invite-dlg" class="invite-dlg" aria-labelledby="invite-h">
+  <div class="dlg">
+  <div class="inv-head"><h2 id="invite-h">Invite teammates</h2><button class="btn ghost icon-only close-dlg" type="button" aria-label="Close">{{ tic("x") }}</button></div>
+  <div class="inv-body">
+    <p class="muted">Everyone who knows the server address and the password can use this workspace. There are no separate accounts yet, so share both only with people you trust.</p>
+    <ol class="steps">
+      <li>Send them the address: <code class="mono" data-copy-text>{{ request.base_url }}</code></li>
+      <li>Give them the password you set with <code>PEPITE_PASSWORD</code>. They sign in on the login page.</li>
+      <li>For scripts and other tools, create an access token for each one on the <a href="/settings/api">API tokens page</a>.</li>
+    </ol>
+  </div>
+  <div class="foot"><a class="btn" href="{{ self_host_doc }}" target="_blank" rel="noopener noreferrer">Server guide</a><button class="btn primary close-dlg" type="button">Done</button></div>
+  </div>
+</dialog>
+{% endif %}
+{% endblock %}
+{% block content %}<div class="set-wrap">{% block settings_body %}{% endblock %}</div>{% endblock %}

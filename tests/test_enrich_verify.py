@@ -15,17 +15,17 @@ import dns.resolver
 import pytest
 import respx
 
-from leadcommons import enrich
-from leadcommons.enrich import crawl, finder, verify
-from leadcommons.enrich.providers import classify_mx, is_disposable, is_free_mail
-from leadcommons.enrich.score import (
+from pepite import enrich
+from pepite.enrich import crawl, finder, verify
+from pepite.enrich.providers import classify_mx, is_disposable, is_free_mail
+from pepite.enrich.score import (
     VALID_PROBABILITY,
     assess,
     calibrate,
     combine,
     evidence_ratio,
 )
-from leadcommons.models import EmailStatus, Person, make_id
+from pepite.models import EmailStatus, Person, make_id
 
 FIXTURES = Path(__file__).parent / "fixtures" / "enrich"
 DOMAIN = "acme.example"
@@ -139,7 +139,7 @@ def sleeps(monkeypatch: pytest.MonkeyPatch) -> list[float]:
     """No real waiting: record the back-off and pacing sleeps instead."""
     waited: list[float] = []
     monkeypatch.setattr(verify, "_sleep", waited.append)
-    monkeypatch.setenv("LEADCOMMONS_MODE", "local")
+    monkeypatch.setenv("PEPITE_MODE", "local")
     verify.reset_rate_limits()
     return waited
 
@@ -352,12 +352,12 @@ def test_sessions_to_one_mx_are_paced(dns_table, smtp, sleeps) -> None:
 
 def test_never_probes_in_demo_mode(dns_table, smtp, monkeypatch) -> None:
     sessions = smtp({TARGET: OK})
-    monkeypatch.setenv("LEADCOMMONS_MODE", "demo")
+    monkeypatch.setenv("PEPITE_MODE", "demo")
     cand = enrich.verify_email(TARGET, smtp_probe=True)
     assert sessions == []
     assert cand.checks["smtp"] == "skipped"
     assert verify.probing_allowed(True) is False
-    monkeypatch.setenv("LEADCOMMONS_MODE", "local")
+    monkeypatch.setenv("PEPITE_MODE", "local")
     assert verify.probing_allowed(True) is True and verify.probing_allowed(False) is False
 
 
@@ -513,7 +513,7 @@ def test_find_email_microsoft_needs_format_evidence() -> None:
     }
 
     def fake_verify(addresses, *, smtp_probe=False):
-        from leadcommons.models import EmailCandidate
+        from pepite.models import EmailCandidate
 
         return [EmailCandidate(a, EmailStatus.UNKNOWN, 0, checks=dict(checks)) for a in addresses]
 

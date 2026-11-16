@@ -1,10 +1,10 @@
-# LeadCommons installer for Windows (PowerShell):
-#   irm https://raw.githubusercontent.com/aymaneprojects/leadcommons/main/scripts/install.ps1 | iex
-# Env overrides: LEADCOMMONS_REPO (owner/name), LEADCOMMONS_VERSION (tag, branch or commit).
+# Pepite installer for Windows (PowerShell):
+#   irm https://raw.githubusercontent.com/aymaneprojects/pepite/main/scripts/install.ps1 | iex
+# Env overrides: PEPITE_REPO (owner/name), PEPITE_VERSION (tag, branch or commit).
 $ErrorActionPreference = 'Stop'
 
-$Repo = if ($env:LEADCOMMONS_REPO) { $env:LEADCOMMONS_REPO } else { 'aymaneprojects/leadcommons' }
-$Version = $env:LEADCOMMONS_VERSION
+$Repo = if ($env:PEPITE_REPO) { $env:PEPITE_REPO } else { 'aymaneprojects/pepite' }
+$Version = $env:PEPITE_VERSION
 
 # 1. uv
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
@@ -32,10 +32,10 @@ if (-not $Version) {
         $Version = 'main'
     }
 }
-Write-Host "Installing LeadCommons $Version ..."
+Write-Host "Installing Pepite $Version ..."
 
 # 3. Install
-uv tool install --force --python 3.13 "leadcommons @ git+https://github.com/$Repo@$Version"
+uv tool install --force --python 3.13 "pepite @ git+https://github.com/$Repo@$Version"
 if ($LASTEXITCODE -ne 0) { throw 'Installation failed.' }
 
 $toolBin = (uv tool dir --bin 2>$null)
@@ -44,15 +44,15 @@ if ($toolBin) { $env:Path = "$toolBin;$env:Path" }
 # 4. Company data (not fatal)
 Write-Host 'Downloading the latest company data pack ...'
 try {
-    $env:LEADCOMMONS_PACKS_REPO = if ($env:LEADCOMMONS_PACKS_REPO) { $env:LEADCOMMONS_PACKS_REPO } else { $Repo }
-    leadcommons pack download latest
+    $env:PEPITE_PACKS_REPO = if ($env:PEPITE_PACKS_REPO) { $env:PEPITE_PACKS_REPO } else { $Repo }
+    pepite pack download latest
     if ($LASTEXITCODE -ne 0) { throw 'download failed' }
 } catch {
-    Write-Warning 'Could not download a pack; the bundled sample will be used. Retry later with: leadcommons pack download latest'
+    Write-Warning 'Could not download a pack; the bundled sample will be used. Retry later with: pepite pack download latest'
 }
 
 Write-Host ''
-Write-Host 'LeadCommons is installed.'
-Write-Host 'Start it with:   leadcommons serve'
+Write-Host 'Pepite is installed.'
+Write-Host 'Start it with:   pepite serve'
 Write-Host 'Then open:       http://127.0.0.1:8000'
-Write-Host "If 'leadcommons' is not found, run: uv tool update-shell   (then open a new terminal)"
+Write-Host "If 'pepite' is not found, run: uv tool update-shell   (then open a new terminal)"

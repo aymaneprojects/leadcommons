@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% from "_pipeline_macros.html" import pi, title, empty, dlg_btn %}
+{% block title %}Deals · Pépite{% endblock %}
+{% block content %}
+<div class="pl-page" data-pl-board-page>
+  {% call title("Deals") %}
+    <a class="btn" href="/settings/deal-stages">{{ pi("kanban") }}<span>Customize stages</span></a>
+    {{ dlg_btn("/partials/deal-new", "New deal", "plus", "btn primary") }}
+  {% endcall %}
+
+  <div class="pl-tabs" role="navigation" aria-label="Deal views">
+    <a href="/deals?view=board{% if q %}&q={{ q|urlencode }}{% endif %}"{% if view == "board" %} aria-current="page"{% endif %}>{{ pi("kanban", "sm") }} Board</a>
+    <a href="/deals?view=table{% if q %}&q={{ q|urlencode }}{% endif %}"{% if view == "table" %} aria-current="page"{% endif %}>{{ pi("table", "sm") }} Table</a>
+    <span class="grow"></span>
+    <span class="pl-tab-sum muted" title="Total amount of deals in open stages">Open pipeline <b class="mono">{{ pl_totals(open_total) }}</b></span>
+  </div>
+
+  {% if deal_total %}
+  <form class="pl-toolbar" method="get" action="/deals" role="search">
+    <input type="hidden" name="view" value="{{ view }}">
+    <label class="pl-search">{{ pi("search", "sm") }}<span class="sr-only">Search deals</span><input type="search" name="q" value="{{ q }}" placeholder="Search deals, companies, contacts" autocomplete="off"></label>
+    {% if view == "table" %}
+    <label class="pl-sel"><span class="sr-only">Stage</span><select name="stage" onchange="this.form.requestSubmit()"><option value="">All stages</option>{% for s in stages %}<option value="{{ s.id }}"{% if s.id == stage_filter %} selected{% endif %}>{{ s.name }}</option>{% endfor %}</select></label>
+    {% endif %}
+    <button class="btn" type="submit">Search</button>
+    {% if q or stage_filter %}<a class="btn ghost" href="/deals?view={{ view }}">Clear</a>{% endif %}
+    <span class="grow"></span>
+    {% if view == "board" %}<span class="muted pl-hint">Drag cards between columns. Keyboard: focus a card, then Shift + ← or →.</span>{% endif %}
+  </form>
+
+  {% if view == "board" and q and not deals %}
+  <div class="pl-empty slim"><h2>No deals match</h2><p class="muted">Try another search or clear the filters.</p></div>
+  {% elif view == "board" %}
+  <div class="pl-board" id="pl-board" aria-label="Deal board">
+    {% for col in columns %}
+    <section class="pl-col kind-{{ col.stage.kind }}" data-stage-id="{{ col.stage.id }}" aria-label="{{ col.stage.name }}">
+      <header class="pl-col-head">
+        <div class="pl-col-title"><h2>{{ col.stage.name }}</h2><span class="chip plain" data-count>{{ col.count }}</span></div>
+        <div class="pl-col-total mono" data-total>{{ pl_totals(col.total) }}</div>
+      </header>
+      <div class="pl-col-body" data-dropzone>
+        {% for d in col.deals %}{% include "_pipeline_deal_card.html" %}{% endfor %}
+        <p class="pl-col-empty muted" data-col-empty{% if col.deals %} hidden{% endif %}>No deals here</p>
+      </div>
+      <footer class="pl-col-foot">{{ dlg_btn("/partials/deal-new?stage_id=" ~ col.stage.id, "Add deal", "plus", "btn ghost sm") }}</footer>
+    </section>
+    {% endfor %}
+  </div>
+  <div class="pl-live sr-only" id="pl-live" aria-live="polite"></div>
+
+  {% else %}
+  {% if deals %}
+  <div class="table-wrap">
+    <table class="data pl-table">
+      <thead><tr>
+        {% macro th(key, label) %}<th{% if sort == key %} aria-sort="{{ 'ascending' if dir == 'asc' else 'descending' }}"{% endif %}><a class="pl-th" href="/deals?{{ qs({'view': 'table', 'q': q, 'stage': stage_filter, 'sort': key, 'dir': ('asc' if (sort == key and dir == 'desc') else 'desc')}) }}">{{ label }}{% if sort == key %}{{ pi("arrow-down" if dir == "desc" else "arrow-up", "sm") }}{% endif %}</a></th>{% endmacro %}
+        {{ th("name", "Deal") }}{{ th("company", "Company") }}<th>Contact</th>{{ th("stage", "Stage") }}{{ th("amount", "Amount") }}{{ th("close", "Expected close") }}<th>Prob.</th>{{ th("updated", "Updated") }}
+      </tr></thead>
+      <tbody>
+      {% for d in deals %}
+      {% set st = stage_by_id.get(d.stage_id) %}
+      <tr>
+        <td><a class="co-name" href="/deals/{{ d.id }}" hx-get="/deals/{{ d.id }}" hx-target="#drawer" hx-select="unset" hx-swap="innerHTML" hx-push-url="false">{{ d.name }}</a></td>
+        <td>{% if d.company_id %}<a href="/companies/{{ d.company_id }}">{{ d.company_name }}</a>{% else %}{{ d.company_name or "—" }}{% endif %}</td>
+        <td>{% if d.person_id %}<a href="/people/{{ d.person_id }}">{{ d.person_name }}</a>{% else %}{{ d.person_name or "—" }}{% endif %}</td>
+        <td>
+          <form class="pl-inline" method="post" action="/deals/{{ d.id }}/move"><input type="hidden" name="next" value="{{ current_url }}">
+            <label class="sr-only" for="st-{{ d.id }}">Stage of {{ d.name }}</label>
+            <select id="st-{{ d.id }}" name="stage_id" class="pl-stage-select {{ st.kind if st else '' }}" onchange="this.form.requestSubmit()">{% for s in stages %}<option value="{{ s.id }}"{% if s.id == d.stage_id %} selected{% endif %}>{{ s.name }}</option>{% endfor %}</select>
+            <button class="btn sm nojs-only" type="submit">Move</button>
+          </form>
+        </td>
+        <td class="mono">{{ pl_money(d.amount, d.currency) }}</td>
+        <td>{{ pl_day(d.close_date) }}</td>
+        <td class="mono">{{ d.probability ~ "%" if d.probability is not none else "—" }}</td>
+        <td class="muted">{{ ago(d.updated_at) }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="pl-empty slim"><h2>No deals match</h2><p class="muted">Try another search or clear the filters.</p></div>
+  {% endif %}
+  {% endif %}
+
+  {% else %}
+  {% call empty("handshake", "No deals yet", "Track every opportunity from first conversation to signed. Create a deal, or add one from a company or person page.") %}
+    {{ dlg_btn("/partials/deal-new", "New deal", "plus", "btn primary") }}
+    <a class="btn" href="/settings/deal-stages">Customize stages</a>
+  {% endcall %}
+  {% endif %}
+</div>
+{% endblock %}

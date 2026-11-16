@@ -1,6 +1,6 @@
 name: Desktop apps
 
-# The installable LeadCommons app, built like the big desktop apps: an Electron shell (window,
+# The installable Pepite app, built like the big desktop apps: an Electron shell (window,
 # menus, dialogs, notifications) around the frozen Python backend. Windows (setup .exe),
 # macOS on Apple Silicon (.dmg) and Linux (.AppImage and .deb). Every build is started for
 # real and checked, screenshots included, then attached to the GitHub release of the tag.
@@ -11,7 +11,7 @@ on:
     paths:
       - "desktop/**"
       - "packaging/desktop/**"
-      - "src/leadcommons/desktop.py"
+      - "src/pepite/desktop.py"
       - ".github/workflows/desktop.yml"
   release:
     types: [published]
@@ -48,7 +48,7 @@ jobs:
         shell: bash
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false" # no paid signing certificate yet
-      LEADCOMMONS_DESKTOP_NO_DOWNLOAD: "1" # smoke tests use the built-in sample data
+      PEPITE_DESKTOP_NO_DOWNLOAD: "1" # smoke tests use the built-in sample data
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -65,15 +65,15 @@ jobs:
           python -m pip install . "pyinstaller>=6.10,<7"
       - name: Version
         id: v
-        run: echo "version=$(python -c 'import leadcommons; print(leadcommons.__version__)')" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(python -c 'import pepite; print(pepite.__version__)')" >> "$GITHUB_OUTPUT"
 
       - name: Freeze the backend (PyInstaller)
-        run: pyinstaller --noconfirm --clean packaging/desktop/leadcommons.spec
+        run: pyinstaller --noconfirm --clean packaging/desktop/pepite.spec
       - name: Smoke test the backend
         env:
-          LEADCOMMONS_HOME: ${{ runner.temp }}/lc-backend
+          PEPITE_HOME: ${{ runner.temp }}/lc-backend
         run: |
-          exe=dist/leadcommons-backend/leadcommons-backend
+          exe=dist/pepite-backend/pepite-backend
           [ "$RUNNER_OS" = "Windows" ] && exe="$exe.exe"
           bash packaging/desktop/smoke.sh "$exe" 8765
 
@@ -90,11 +90,11 @@ jobs:
       - name: Smoke test the app (Linux)
         if: runner.os == 'Linux'
         env:
-          LEADCOMMONS_HOME: ${{ runner.temp }}/lc-app
+          PEPITE_HOME: ${{ runner.temp }}/lc-app
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq xvfb imagemagick >/dev/null
           out="$RUNNER_TEMP/smoke"
-          xvfb-run -a -s "-screen 0 1500x960x24" dist-desktop/linux-unpacked/leadcommons-desktop \
+          xvfb-run -a -s "-screen 0 1500x960x24" dist-desktop/linux-unpacked/pepite-desktop \
             --no-sandbox --disable-gpu --smoke-test="$out/unpacked"
           node desktop/electron/scripts/check-smoke.js "$out/unpacked"
           app="$(ls dist-desktop/*.AppImage)"
@@ -104,7 +104,7 @@ jobs:
           node desktop/electron/scripts/check-smoke.js "$out/appimage"
           # A picture of the whole screen: window and menu bar as the user sees them.
           cat > "$RUNNER_TEMP/shot.sh" <<EOF
-          dist-desktop/linux-unpacked/leadcommons-desktop --no-sandbox --disable-gpu --smoke-test="$out/screen" --smoke-hold=8 &
+          dist-desktop/linux-unpacked/pepite-desktop --no-sandbox --disable-gpu --smoke-test="$out/screen" --smoke-hold=8 &
           sleep 14
           import -window root "$out/screen-linux.png"
           wait
@@ -114,12 +114,12 @@ jobs:
       - name: Smoke test the app (macOS)
         if: runner.os == 'macOS'
         env:
-          LEADCOMMONS_HOME: ${{ runner.temp }}/lc-app
+          PEPITE_HOME: ${{ runner.temp }}/lc-app
         run: |
           out="$RUNNER_TEMP/smoke"
           mnt="$(mktemp -d)"
           hdiutil attach -nobrowse -readonly -mountpoint "$mnt" dist-desktop/*.dmg
-          app="$mnt/LeadCommons.app/Contents/MacOS/LeadCommons"
+          app="$mnt/Pepite.app/Contents/MacOS/Pepite"
           "$app" --smoke-test="$out/dmg"
           node desktop/electron/scripts/check-smoke.js "$out/dmg"
           "$app" --smoke-test="$out/screen" --smoke-hold=10 &
@@ -132,22 +132,22 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $setup = (Get-Item dist-desktop\LeadCommons-*-setup.exe).FullName
+          $setup = (Get-Item dist-desktop\Pepite-*-setup.exe).FullName
           $p = Start-Process -Wait -PassThru -FilePath $setup -ArgumentList '/S'
           if ($p.ExitCode -ne 0) { throw "installer exit code $($p.ExitCode)" }
-          # Per-user install: %LOCALAPPDATA%\Programs\<folder named by electron-builder>\LeadCommons.exe
-          $exe = Get-ChildItem "$env:LOCALAPPDATA\Programs" -Recurse -Filter LeadCommons.exe -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $exe) { throw "LeadCommons.exe was not installed" }
+          # Per-user install: %LOCALAPPDATA%\Programs\<folder named by electron-builder>\Pepite.exe
+          $exe = Get-ChildItem "$env:LOCALAPPDATA\Programs" -Recurse -Filter Pepite.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) { throw "Pepite.exe was not installed" }
           Write-Host "Installed: $($exe.FullName)"
           "LC_EXE=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          $lnk = Get-ChildItem "$env:APPDATA\Microsoft\Windows\Start Menu" -Recurse -Filter "LeadCommons*.lnk" -ErrorAction SilentlyContinue
+          $lnk = Get-ChildItem "$env:APPDATA\Microsoft\Windows\Start Menu" -Recurse -Filter "Pepite*.lnk" -ErrorAction SilentlyContinue
           if (-not $lnk) { throw "no Start menu shortcut" }
           Write-Host "Start menu shortcut: $($lnk[0].FullName)"
       - name: Smoke test the installed app (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         env:
-          LEADCOMMONS_HOME: ${{ runner.temp }}\lc-app
+          PEPITE_HOME: ${{ runner.temp }}\lc-app
         run: |
           $exe = $env:LC_EXE
           $out = "$env:RUNNER_TEMP\smoke"
@@ -174,7 +174,7 @@ jobs:
         with:
           name: desktop-${{ matrix.target }}
           path: |
-            dist-desktop/LeadCommons-*
+            dist-desktop/Pepite-*
             !dist-desktop/*.blockmap
           if-no-files-found: error
       - uses: actions/upload-artifact@v4

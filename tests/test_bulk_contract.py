@@ -7,7 +7,7 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from leadcommons.connectors.bulk import (
+from pepite.connectors.bulk import (
     BuildOptions,
     BulkSource,
     ShardStats,
@@ -15,8 +15,8 @@ from leadcommons.connectors.bulk import (
     shard_select,
     write_shard,
 )
-from leadcommons.packs.duck import DuckDBCompanySearch
-from leadcommons.search import PACK_COLUMNS
+from pepite.packs.duck import DuckDBCompanySearch
+from pepite.search import PACK_COLUMNS
 
 
 def test_shard_select_writes_every_pack_column_in_order(tmp_path: Path) -> None:
