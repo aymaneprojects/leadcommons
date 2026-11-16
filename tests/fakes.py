@@ -7,10 +7,10 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
 
-from leadcommons.models import Company, EmailCandidate, EmailStatus, Person, Provenance, make_id
-from leadcommons.search import CompanyFilters, Page, PeopleFilters
-from leadcommons.store import ListInfo, SavedSearch
-from leadcommons.web.jobs import Job
+from pepite.models import Company, EmailCandidate, EmailStatus, Person, Provenance, make_id
+from pepite.search import CompanyFilters, Page, PeopleFilters
+from pepite.store import ListInfo, SavedSearch
+from pepite.web.jobs import Job
 
 
 def sample_companies() -> list[Company]:

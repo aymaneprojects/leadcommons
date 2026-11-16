@@ -9,7 +9,7 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from leadcommons.sitescan import hosts
+from pepite.sitescan import hosts
 
 PATHS_TXT = """\
 cc-index/table/cc-main/warc/crawl=CC-MAIN-2026-33/subset=crawldiagnostics/part-00000-a.c000.gz.parquet

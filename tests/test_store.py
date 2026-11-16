@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta, timezone
 import pytest
 from sqlalchemy import select, text
 
-from leadcommons.models import (
+from pepite.models import (
     Company,
     EmailCandidate,
     EmailStatus,
@@ -18,9 +18,9 @@ from leadcommons.models import (
     Provenance,
     Seniority,
 )
-from leadcommons.search import CompanyFilters, PeopleFilters
-from leadcommons.store import Store
-from leadcommons.store.tables import SuppressionRow
+from pepite.search import CompanyFilters, PeopleFilters
+from pepite.store import Store
+from pepite.store.tables import SuppressionRow
 
 T0 = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -150,7 +150,7 @@ def test_save_email_upsert_on_person_and_address(store):
     )
     store.save_email("p1", make_email("ada@acme.example", status=EmailStatus.VALID, confidence=85))
     with store._sessions() as s:
-        from leadcommons.store.tables import EmailRow
+        from pepite.store.tables import EmailRow
 
         rows = list(s.scalars(select(EmailRow)))
     assert len(rows) == 1
@@ -372,10 +372,10 @@ def test_suppression_add_is_idempotent(store):
         assert len(list(s.scalars(select(SuppressionRow)))) == 1
 
 
-PG_URL = os.environ.get("LEADCOMMONS_TEST_PG_URL")
+PG_URL = os.environ.get("PEPITE_TEST_PG_URL")
 
 
-@pytest.mark.skipif(not PG_URL, reason="set LEADCOMMONS_TEST_PG_URL to run the Postgres test")
+@pytest.mark.skipif(not PG_URL, reason="set PEPITE_TEST_PG_URL to run the Postgres test")
 def test_postgres_round_trip():
     store = Store(PG_URL)
     try:

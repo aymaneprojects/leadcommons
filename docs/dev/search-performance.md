@@ -2,8 +2,8 @@
 
 Packs grow from 13,625 companies (one file) to one Parquet file per country: up to ~15M rows for
 one country and 30M+ in total. This page records how search stays fast on a laptop, with the
-numbers behind each choice. Code: `src/leadcommons/packs/index.py` (storage),
-`src/leadcommons/packs/duck.py` (queries), `tools/bench_search.py` (benchmark).
+numbers behind each choice. Code: `src/pepite/packs/index.py` (storage),
+`src/pepite/packs/duck.py` (queries), `tools/bench_search.py` (benchmark).
 
 Targets (data roadmap, phase 1): p95 under 1.5 s for the results page, under 3 s for the filter
 panel counts, memory a laptop survives, no DuckDB extension downloaded at runtime.
@@ -161,7 +161,7 @@ Why these choices (prototype numbers on the 7M-row FR file, 4 threads):
 
 Packs without an index are still searched: up to 300,000 rows they are loaded into the same
 structure in memory when the search opens (the bundled sample, packs built with
-`leadcommons pack build`); larger ones are read through plain Parquet views (correct, slow) and
+`pepite pack build`); larger ones are read through plain Parquet views (correct, slow) and
 reported by `DuckDBCompanySearch.needs_index`, so Settings > Data packs offers "Prepare for fast
 search" and the desktop app builds them in the background at start-up.
 
@@ -182,11 +182,11 @@ removal creates a new search object, so they never show old data.
 
 ## Memory and threads
 
-`index.configure` sets, for searching: `memory_limit` = LEADCOMMONS_DUCKDB_MEMORY or 1/16 of
+`index.configure` sets, for searching: `memory_limit` = PEPITE_DUCKDB_MEMORY or 1/16 of
 RAM between 256 MB and 1 GB (512 MB on an 8 GB laptop, 1 GB from 16 GB); `threads` =
-LEADCOMMONS_DUCKDB_THREADS or the number of cores up to 8; `temp_directory` in `.index/tmp`
+PEPITE_DUCKDB_THREADS or the number of cores up to 8; `temp_directory` in `.index/tmp`
 (DuckDB's default `.tmp` in the working directory is read-only inside an installed app). Building
-an index uses LEADCOMMONS_DUCKDB_BUILD_MEMORY or 1/6 of RAM between 512 MB and 2 GB, and spills to
+an index uses PEPITE_DUCKDB_BUILD_MEMORY or 1/6 of RAM between 512 MB and 2 GB, and spills to
 disk beyond it.
 
 ## What remains slow

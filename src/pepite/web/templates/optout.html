@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  {% include "_head.html" %}
+  <title>Opt out · Pépite</title>
+  <meta name="robots" content="noindex">
+</head>
+<body>
+<main class="solo">
+  <div class="card">
+    <div class="brand"><span class="logo" aria-hidden="true"></span><span>Pépite</span></div>
+    {% if state == "done" %}
+      <h1 style="font-size:20px;margin-bottom:8px">Thank you, it is done</h1>
+      <p>We will not contact <b class="mono">{{ value }}</b> again, and it will be left out of every export.</p>
+      <p class="muted">You can close this page.</p>
+    {% else %}
+      <h1 style="font-size:20px;margin-bottom:8px">Ask us to stop</h1>
+      <p class="muted">Enter your email address (or your company domain) and it is added to this instance's suppression list straight away. No account needed.</p>
+      <form method="post" action="/opt-out">
+        {% if error %}<div class="notice error" role="alert">{{ error }}</div>{% endif %}
+        <div class="field"><label for="oe">Email address or domain</label>
+        <input id="oe" type="text" name="email" value="{{ value }}" required autofocus placeholder="you@example.com" autocomplete="email"></div>
+        <button class="btn primary" type="submit">Remove me</button>
+      </form>
+    {% endif %}
+  </div>
+</main>
+</body>
+</html>

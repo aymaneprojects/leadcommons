@@ -1,18 +1,18 @@
 # UX parity: Engage (sequences, emails, tasks, mailboxes)
 
 Status of every control listed in `docs/dev/ux-inventory.md` for screens 21, 22, 23 and the
-mailbox part of 29, in LeadCommons. **works** = does the job for real; **disabled** = visible,
-`aria-disabled`, with a tooltip saying why; **n/a** = not part of this screen in LeadCommons.
+mailbox part of 29, in Pépite. **works** = does the job for real; **disabled** = visible,
+`aria-disabled`, with a tooltip saying why; **n/a** = not part of this screen in Pépite.
 
 Rows 01-20 of screens 21-23 (sidebar rail, top bar, help button) belong to the shell and are
 covered in the shell's parity file; they are listed once here for completeness.
 
 ## 21 - Sequences (`/sequences`)
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | 21-01..21-20 | Sidebar rail, top bar, help | Shell (`base.html`) | see shell parity |
-| 21-17 | Credits pill | No credits: LeadCommons is free | n/a (rule 3) |
+| 21-17 | Credits pill | No credits: Pépite is free | n/a (rule 3) |
 | 21-21 | Page title | "Sequences" | works |
 | 21-22 | Create sequence | Opens the create dialog (name + template); chevron menu: Draft with AI, every template | works |
 | 21-23 | All sequences tab | Table: name + step icons, status switch, steps, enrolled, active, replied, finished, created, row menu | works |
@@ -23,7 +23,7 @@ covered in the shell's parity file; they are listed once here for completeness.
 | 21-28 | No-mailbox warning bar | Shown while no mailbox exists; demo reason in the public demo; mailbox error when a login fails | works |
 | 21-29 | Link mailbox | "Connect mailbox" to `/settings/mailboxes` | works |
 | 21-30 | Hero card | "Start your first sequence" | works |
-| 21-31 | Create with AI | "Draft with AI": your own model drafts the steps from a goal (`POST /sequences/ai`) | works with `LEADCOMMONS_LLM_URL` + `LEADCOMMONS_LLM_MODEL`; otherwise disabled (tooltip says how to turn it on); disabled in the demo |
+| 21-31 | Create with AI | "Draft with AI": your own model drafts the steps from a goal (`POST /sequences/ai`) | works with `PEPITE_LLM_URL` + `PEPITE_LLM_MODEL`; otherwise disabled (tooltip says how to turn it on); disabled in the demo |
 | 21-32 | Create manually | "Build from scratch": create dialog | works |
 | 21-33 | Create manually chevron | Menu of templates (blank, three-touch, email then call, LinkedIn first); each creates a draft and opens it | works |
 | 21-34..36 | Feature cards | Own wording: Plan each step / Goes out when you choose / Stops when they reply | works (info) |
@@ -36,7 +36,7 @@ reply), rename, activate/pause, duplicate, archive, delete. All work; sending is
 
 ## 22 - Emails (`/emails`)
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | 22-01..22-20 | Sidebar rail, top bar, help | Shell | see shell parity |
 | 22-17 | Credits pill | No credits | n/a (rule 3) |
@@ -52,7 +52,7 @@ Compose's send button is disabled in the demo with the reason.
 
 ## 23 - Tasks (`/tasks`)
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | 23-01..23-20 | Sidebar rail, top bar, help | Shell | see shell parity |
 | 23-17 | Credits pill | No credits | n/a (rule 3) |
@@ -84,7 +84,7 @@ log. Completing a sequence task moves the sequence on.
 
 ## 29 - Mailbox setup (`/settings/mailboxes`, `/settings/mailboxes/new`, `/settings/sending`)
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | 29-01 | Settings sidebar | Shell settings menu (Outbound group: Mailboxes, Sending, Email verification & health) | see shell parity |
 | 29-02 | Page title | "Outbound email" | works |

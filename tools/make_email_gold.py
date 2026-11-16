@@ -1,4 +1,4 @@
-"""Generate the synthetic email gold set used by `leadcommons eval emails` and the tests.
+"""Generate the synthetic email gold set used by `pepite eval emails` and the tests.
 
 Everything here is fake: people are random combinations of common given and family names,
 companies live under the reserved `.example` TLD (RFC 2606, e.g. `nordwind.de.example`, where
@@ -8,7 +8,7 @@ The generator renders true addresses with its own small renderer and domain "hou
 (umlaut spelling, hyphens, particles, compound surnames, transliteration, name order); it never
 imports the finder's name or pattern code, so the evaluation does not grade the model with its
 own logic. Its parameters are assumptions written down below, not measurements; build a real
-gold set with `leadcommons eval build-gold` to measure on real companies.
+gold set with `pepite eval build-gold` to measure on real companies.
 
     python tools/make_email_gold.py --seed 11 --domains 300 --out tests/fixtures/email_gold/dev
     python tools/make_email_gold.py --seed 97 --domains 150 --out tests/fixtures/email_gold/test

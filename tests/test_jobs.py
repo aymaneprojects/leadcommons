@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from leadcommons import enrich
-from leadcommons.models import EmailCandidate, EmailStatus
-from leadcommons.web.jobs import JobRunner
+from pepite import enrich
+from pepite.models import EmailCandidate, EmailStatus
+from pepite.web.jobs import JobRunner
 from tests.fakes import FakeSearch, FakeStore, sample_companies, sample_person
 from tests.test_api import make_settings
 
@@ -123,7 +123,7 @@ def test_enrich_csv_progress_and_result(runner, monkeypatch, tmp_path: Path) -> 
             calls.append(r.recent(1)[0].result)
         return {"rows": 3, "found": 2, "output": out}
 
-    from leadcommons import pipeline
+    from pepite import pipeline
 
     monkeypatch.setattr(pipeline, "enrich_csv", fake_enrich)
     jid = r.submit("enrich_csv", {"input": "i.csv", "output": "o.csv"}, "x")

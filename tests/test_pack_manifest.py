@@ -12,8 +12,8 @@ import httpx
 import pytest
 import respx
 
-from leadcommons import packs
-from leadcommons.packs import (
+from pepite import packs
+from pepite.packs import (
     DOWNLOADS_FILE,
     country_from_locale,
     default_country,
@@ -26,10 +26,10 @@ from leadcommons.packs import (
     run_pack_job,
     update_countries,
 )
-from leadcommons.packs import index as pack_index
-from leadcommons.packs import installed as pack_installed
-from leadcommons.packs.builder import write_parquet
-from leadcommons.search import PACK_COLUMNS, CompanyFilters
+from pepite.packs import index as pack_index
+from pepite.packs import installed as pack_installed
+from pepite.packs.builder import write_parquet
+from pepite.search import PACK_COLUMNS, CompanyFilters
 
 REPO = "acme/packs"
 API = f"https://api.github.com/repos/{REPO}/releases"
@@ -313,7 +313,7 @@ def test_legacy_release_still_downloads_one_file(data: Path, tmp_path: Path) -> 
 
 @respx.mock
 def test_latest_installs_your_own_country_first(data: Path, dec, monkeypatch) -> None:
-    monkeypatch.setenv("LEADCOMMONS_LOCALE", "en-GB")
+    monkeypatch.setenv("PEPITE_LOCALE", "en-GB")
     _github(dec)
     path = install_latest_pack(data, REPO)
     assert path.name == "companies-GB-20261201.parquet"
@@ -403,10 +403,10 @@ def test_country_from_locale(text: str, cc: str | None) -> None:
 
 
 def test_default_country_prefers_the_desktop_locale(monkeypatch) -> None:
-    monkeypatch.setenv("LEADCOMMONS_LOCALE", "nb-NO")
+    monkeypatch.setenv("PEPITE_LOCALE", "nb-NO")
     monkeypatch.setenv("LANG", "en_US.UTF-8")
     assert default_country() == "NO"
-    monkeypatch.delenv("LEADCOMMONS_LOCALE")
+    monkeypatch.delenv("PEPITE_LOCALE")
     monkeypatch.delenv("LC_ALL", raising=False)
     monkeypatch.delenv("LC_MESSAGES", raising=False)
     assert default_country() == "US"
@@ -416,12 +416,12 @@ def test_default_country_prefers_the_desktop_locale(monkeypatch) -> None:
 def test_cli_downloads_lists_and_removes_countries(tmp_path: Path, dec, monkeypatch) -> None:
     from typer.testing import CliRunner
 
-    from leadcommons.cli import app
+    from pepite.cli import app
 
-    monkeypatch.setenv("LEADCOMMONS_HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("LEADCOMMONS_DATA_DIR", str(tmp_path / "home" / "packs"))
-    monkeypatch.setenv("LEADCOMMONS_PACKS_REPO", REPO)
-    monkeypatch.setattr("leadcommons.cli.DEFAULT_PACKS_REPO", REPO)
+    monkeypatch.setenv("PEPITE_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("PEPITE_DATA_DIR", str(tmp_path / "home" / "packs"))
+    monkeypatch.setenv("PEPITE_PACKS_REPO", REPO)
+    monkeypatch.setattr("pepite.cli.DEFAULT_PACKS_REPO", REPO)
     _github(dec)
     runner = CliRunner()
     res = runner.invoke(app, ["pack", "download", "--country", "gb"])

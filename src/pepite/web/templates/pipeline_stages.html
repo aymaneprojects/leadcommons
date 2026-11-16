@@ -1,0 +1,54 @@
+{% extends "shell_settings_base.html" %}
+{% from "_pipeline_macros.html" import pi %}
+{% block title %}Deal stages · Pépite{% endblock %}
+{% block settings_body %}
+<h1 class="set-h1">Deal stages</h1>
+<p class="muted pl-lead">The columns of your deals board, in order. Rename them, change how likely a deal is to close at each stage, add your own, or archive the ones you do not use. Stages marked <b>Won</b> or <b>Lost</b> close a deal and stay at the end.</p>
+
+<section class="card pl-stages" aria-label="Active stages">
+  <ol class="pl-stage-list" id="pl-stage-list" data-order-url="/settings/deal-stages/order">
+  {% for s in stages %}
+    <li class="pl-stage-row" draggable="true" data-stage-id="{{ s.id }}">
+      <span class="pl-grip" aria-hidden="true" title="Drag to reorder">{{ pi("grip", "sm") }}</span>
+      <form class="pl-stage-form" method="post" action="/settings/deal-stages/{{ s.id }}" hx-post="/settings/deal-stages/{{ s.id }}" hx-swap="none" hx-push-url="false" data-quiet>
+        <label class="sr-only" for="sn-{{ s.id }}">Stage name</label>
+        <input type="text" id="sn-{{ s.id }}" name="name" value="{{ s.name }}" required maxlength="80">
+        <label class="sr-only" for="sk-{{ s.id }}">Stage type</label>
+        <select id="sk-{{ s.id }}" name="kind">{% for k in kinds %}<option value="{{ k }}"{% if k == s.kind %} selected{% endif %}>{{ {"open": "Open", "won": "Won", "lost": "Lost"}[k] }}</option>{% endfor %}</select>
+        <label class="pl-prob-in"><span class="sr-only">Probability</span><input type="number" name="probability" min="0" max="100" value="{{ s.probability }}"><span class="muted">%</span></label>
+        <button class="btn sm" type="submit">Save</button>
+      </form>
+      <span class="pl-stage-count muted">{{ counts[s.id] }} deal{{ "" if counts[s.id] == 1 else "s" }}</span>
+      <div class="pl-stage-btns">
+        <form method="post" action="/settings/deal-stages/{{ s.id }}/shift" hx-post="/settings/deal-stages/{{ s.id }}/shift" hx-swap="none" hx-push-url="false" data-quiet><input type="hidden" name="dir" value="up"><button class="btn ghost icon-only sm" type="submit" aria-label="Move {{ s.name }} up"{% if loop.first %} disabled aria-disabled="true" title="Already the first stage."{% endif %}>{{ pi("arrow-up", "sm") }}</button></form>
+        <form method="post" action="/settings/deal-stages/{{ s.id }}/shift" hx-post="/settings/deal-stages/{{ s.id }}/shift" hx-swap="none" hx-push-url="false" data-quiet><input type="hidden" name="dir" value="down"><button class="btn ghost icon-only sm" type="submit" aria-label="Move {{ s.name }} down"{% if loop.last %} disabled aria-disabled="true" title="Already the last stage."{% endif %}>{{ pi("arrow-down", "sm") }}</button></form>
+        <form method="post" action="/settings/deal-stages/{{ s.id }}/archive" hx-post="/settings/deal-stages/{{ s.id }}/archive" hx-swap="none" hx-push-url="false" data-quiet><button class="btn ghost icon-only sm" type="submit" aria-label="Archive {{ s.name }}" title="Archive (only possible when it has no deals)">{{ pi("archive", "sm") }}</button></form>
+      </div>
+    </li>
+  {% endfor %}
+  </ol>
+</section>
+
+<section class="card">
+  <h2>Add a stage</h2>
+  <form class="pl-stage-add" method="post" action="/settings/deal-stages" hx-post="/settings/deal-stages" hx-swap="none" hx-push-url="false" data-quiet>
+    <div class="field"><label for="ns-name">Name</label><input type="text" id="ns-name" name="name" required maxlength="80" placeholder="e.g. Contract sent"></div>
+    <div class="field"><label for="ns-kind">Type</label><select id="ns-kind" name="kind"><option value="open">Open</option><option value="won">Won</option><option value="lost">Lost</option></select></div>
+    <div class="field"><label for="ns-prob">Probability (%)</label><input type="number" id="ns-prob" name="probability" min="0" max="100" value="50"></div>
+    <button class="btn primary" type="submit">{{ pi("plus", "sm") }} Add stage</button>
+  </form>
+</section>
+
+{% if archived %}
+<section class="card">
+  <h2>Archived stages</h2>
+  <ul class="pl-mini">
+  {% for s in archived %}
+    <li><span>{{ s.name }}</span>
+      <form method="post" action="/settings/deal-stages/{{ s.id }}/restore" hx-post="/settings/deal-stages/{{ s.id }}/restore" hx-swap="none" hx-push-url="false" data-quiet><button class="btn sm" type="submit">{{ pi("rotate-ccw", "sm") }} Restore</button></form>
+    </li>
+  {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

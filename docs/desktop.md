@@ -1,52 +1,52 @@
 # The desktop app
 
-LeadCommons installs on your computer like any other application: an icon in the Start menu,
+Pépite installs on your computer like any other application: an icon in the Start menu,
 the Dock or your app list, its own window, a real menu bar, notifications, and the usual
 "Save as" window for exports. No terminal, no account, nothing to pay. Your data stays on your
-computer, in the `.leadcommons` folder of your home folder.
+computer, in the `.pepite` folder of your home folder.
 
 It is built the way Slack, Visual Studio Code or Notion are built: an Electron shell draws the
-window, menus and dialogs, and the LeadCommons engine runs inside the app, out of sight. It
+window, menus and dialogs, and the Pépite engine runs inside the app, out of sight. It
 only listens on your own computer (127.0.0.1); nothing is reachable from the network.
 
 Download the file for your computer from the
-[latest release](https://github.com/aymaneprojects/leadcommons/releases/latest):
+[latest release](https://github.com/aymaneprojects/pepite/releases/latest):
 
 | Computer | File |
 | --- | --- |
-| Windows 10 or 11 (64-bit) | `LeadCommons-<version>-windows-x64-setup.exe` |
-| Mac with Apple Silicon (M1 or newer) | `LeadCommons-<version>-macos-arm64.dmg` |
-| Ubuntu, Debian, Linux Mint (64-bit) | `LeadCommons-<version>-linux-amd64.deb` |
-| Other Linux (64-bit) | `LeadCommons-<version>-linux-x86_64.AppImage` |
+| Windows 10 or 11 (64-bit) | `Pepite-<version>-windows-x64-setup.exe` |
+| Mac with Apple Silicon (M1 or newer) | `Pepite-<version>-macos-arm64.dmg` |
+| Ubuntu, Debian, Linux Mint (64-bit) | `Pepite-<version>-linux-amd64.deb` |
+| Other Linux (64-bit) | `Pepite-<version>-linux-x86_64.AppImage` |
 
 On a Mac with an Intel processor, use the one-line installer in [install.md](install.md).
 
 ## Install
 
 **Windows.** Run the setup file. It installs for your user only (no administrator rights) and
-adds LeadCommons to the Start menu and the desktop. Windows may show "Windows protected your PC"
+adds Pépite to the Start menu and the desktop. Windows may show "Windows protected your PC"
 because the app is not signed with a paid certificate yet: click **More info**, then **Run
 anyway**.
 
-**macOS.** Open the `.dmg` and drag LeadCommons into Applications. The first time, macOS says it
+**macOS.** Open the `.dmg` and drag Pépite into Applications. The first time, macOS says it
 cannot check the app because it is not notarised by Apple. Open **System Settings > Privacy &
-Security**, scroll down and click **Open Anyway** next to LeadCommons. You only do this once. If
-you prefer the terminal: `xattr -dr com.apple.quarantine /Applications/LeadCommons.app`.
+Security**, scroll down and click **Open Anyway** next to Pépite. You only do this once. If
+you prefer the terminal: `xattr -dr com.apple.quarantine /Applications/Pépite.app`.
 
 **Ubuntu, Debian, Mint.** Open the `.deb` with your software installer, or:
 
 ```bash
-sudo apt install ./LeadCommons-*-linux-amd64.deb
+sudo apt install ./Pepite-*-linux-amd64.deb
 ```
 
 **Other Linux.** Make the AppImage executable and run it:
 
 ```bash
-chmod +x LeadCommons-*-linux-x86_64.AppImage
+chmod +x Pepite-*-linux-x86_64.AppImage
 ```
 
 ```bash
-./LeadCommons-*-linux-x86_64.AppImage
+./Pepite-*-linux-x86_64.AppImage
 ```
 
 If it closes at once on a recent Ubuntu (a security setting for AppImages), start it with
@@ -64,7 +64,7 @@ If it closes at once on a recent Ubuntu (a security setting for AppImages), star
 - **One app at a time**: opening it again brings the open window to the front. The window
   keeps its size and position.
 - **Updates**: the app tells you when a new version is published and opens its download page.
-- **Links to other websites** open in your usual browser; the app window only shows LeadCommons.
+- **Links to other websites** open in your usual browser; the app window only shows Pépite.
 
 ## First start
 
@@ -76,11 +76,11 @@ monthly update.
 ## Good to know
 
 - The app and the command-line install share the same data folder, so you can use both.
-- Logs are in `.leadcommons/desktop.log` (**Help > Open the log file**), useful when you report a
+- Logs are in `.pepite/desktop.log` (**Help > Open the log file**), useful when you report a
   problem.
 - To uninstall: Windows, **Settings > Apps**. macOS, drag the app to the Bin. Linux,
-  `sudo apt remove leadcommons-desktop` or delete the AppImage. Your data folder stays; delete
-  `.leadcommons` too to remove everything.
+  `sudo apt remove pepite-desktop` or delete the AppImage. Your data folder stays; delete
+  `.pepite` too to remove everything.
 - Dictation: use your computer's own dictation in the message box (Windows key + H on
   Windows, Fn twice on a Mac).
 - Signing: the Windows and macOS builds are not signed with a paid certificate yet, which is
@@ -91,7 +91,7 @@ monthly update.
 
 `.github/workflows/desktop.yml`, on Windows, macOS and Linux machines:
 
-1. freezes the Python engine with PyInstaller (`packaging/desktop/leadcommons.spec`) and checks
+1. freezes the Python engine with PyInstaller (`packaging/desktop/pepite.spec`) and checks
    that it serves its pages (`packaging/desktop/smoke.sh`);
 2. builds the Electron app around it with electron-builder (`desktop/electron/`);
 3. starts the real app (the installed one on Windows, the one inside the DMG on macOS, the
@@ -99,6 +99,6 @@ monthly update.
    of what the window shows, and quits;
 4. attaches the installers to the release.
 
-To work on the shell: build the engine once (`pyinstaller packaging/desktop/leadcommons.spec`),
-then in `desktop/electron` run `npm ci` and `npm start` (set `LEADCOMMONS_BACKEND` to use another
+To work on the shell: build the engine once (`pyinstaller packaging/desktop/pepite.spec`),
+then in `desktop/electron` run `npm ci` and `npm start` (set `PEPITE_BACKEND` to use another
 engine binary).

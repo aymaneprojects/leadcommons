@@ -1,0 +1,182 @@
+{% extends "shell_settings_base.html" %}
+{% from "_macros.html" import icon %}
+{% from "_shell_macros.html" import sicon, tic %}
+{% block title %}Email setup &amp; health · Pépite{% endblock %}
+{% set state_chip = {'ok': ['ok', 'Passed'], 'warn': ['amber', 'Review'], 'fail': ['red', 'Missing'], 'error': ['plain', 'Not checked'], 'unknown': ['plain', 'Not found']} %}
+{% set state_row = {'ok': 'ok', 'warn': 'amber', 'fail': 'red', 'error': 'plain', 'unknown': 'plain'} %}
+{% set day_names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}
+
+{% macro add_menu(cls="btn primary") -%}
+<details class="dd eh-add">
+  <summary class="{{ cls }}">{{ tic("plus", "sm") }}<span>Add email &amp; domain</span>{{ tic("chevron-down", "sm") }}</summary>
+  <div class="menu eh-menu">
+    <a class="menu-item" href="/settings/mailboxes/new">{{ tic("mail") }} Connect a mailbox</a>
+    <a class="menu-item" href="/settings/email-health?tab=overview#check-domain">{{ tic("globe") }} Check any domain's DNS</a>
+  </div>
+</details>
+{%- endmacro %}
+
+{% macro ai_row() -%}
+<div class="eh-ai">
+  <span class="eh-ai-ic">{{ tic("wand-sparkles", "sm") }}</span>
+  <div class="eh-ai-t"><b>Let the Assistant walk you through it</b>
+    <span class="muted">It explains how to link a mailbox, pick a sending domain and publish its DNS records, one step at a time.</span>
+    {% if ai_reason %}<span class="hint">{{ ai_reason }}</span>{% endif %}</div>
+  {% if ai_reason %}<button class="btn eh-ai-btn" type="button" disabled aria-disabled="true" title="{{ ai_reason }}">{{ tic("sparkles", "sm") }} Set up with AI</button>
+  {% else %}<a class="btn eh-ai-btn" href="/assistant?prompt={{ setup_prompt|urlencode }}">{{ tic("sparkles", "sm") }} Set up with AI</a>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro check_chips(checks) -%}
+<div class="eh-checks">
+  {% for key, lab in [('mx', 'MX'), ('spf', 'SPF'), ('dkim', 'DKIM'), ('dmarc', 'DMARC')] %}
+  {% set c = checks|selectattr('key', 'equalto', key)|first %}
+  {% if c %}<span class="chip {{ state_chip[c.state][0] }}" title="{{ c.summary }}">{{ lab }} · {{ state_chip[c.state][1] }}</span>
+  {% else %}<span class="chip plain" title="Not checked yet">{{ lab }} · Not checked</span>{% endif %}
+  {% endfor %}
+</div>
+{%- endmacro %}
+
+{% block settings_body %}
+<div class="set-head eh-head">
+  <h1 class="set-h1">Email setup and health</h1>
+  <span class="eh-pill eh-{{ verdict.key }}" title="{{ verdict.tip }}" data-verdict="{{ verdict.key }}">{{ sicon("shield-check", "sm") }} Deliverability: {{ verdict.label }}</span>
+  <span class="grow"></span>
+  <div class="eh-actions">
+    <form method="post" action="/settings/email-health/run" class="eg-inline">
+      {% if domain_rows %}<button class="btn" type="submit" title="Look up MX, SPF, DKIM and DMARC again for every sending domain">{{ tic("refresh-cw", "sm") }} Run a check</button>
+      {% else %}<button class="btn" type="button" disabled aria-disabled="true" title="Connect a mailbox first. Its domain is what gets checked. To look at any other domain, use the check form on the Overview tab.">{{ tic("refresh-cw", "sm") }} Run a check</button>{% endif %}
+    </form>
+    {{ add_menu() }}
+  </div>
+</div>
+<nav class="tabs" role="tablist" aria-label="Email setup and health">
+  <a class="tab" role="tab" href="/settings/email-health?tab=overview"{% if tab == "overview" %} aria-selected="true"{% endif %}>Overview</a>
+  <a class="tab" role="tab" href="/settings/email-health?tab=domains"{% if tab == "domains" %} aria-selected="true"{% endif %}>Domains &amp; mailboxes{% if mailboxes %}<span class="tab-n">{{ mailboxes|length }}</span>{% endif %}</a>
+  <a class="tab" role="tab" href="/settings/email-health?tab=policies"{% if tab == "policies" %} aria-selected="true"{% endif %}>Sending policies</a>
+</nav>
+
+{% if tab == "overview" %}
+{% set total = namespace(n=0, ok=0) %}
+{% for r in domain_rows %}{% for c in r.checks if c.state != 'unknown' %}{% set total.n = total.n + 1 %}{% if c.state == 'ok' %}{% set total.ok = total.ok + 1 %}{% endif %}{% endfor %}{% endfor %}
+<div class="eh-tiles">
+  <a class="eh-tile" href="/settings/email-health?tab=domains"><span class="muted">Mailboxes</span><b>{{ mailboxes|length }}</b><span class="muted">{{ "connected" if mailboxes else "none connected yet" }}</span></a>
+  <a class="eh-tile" href="/settings/email-health?tab=domains"><span class="muted">Sending domains</span><b>{{ domain_rows|length }}</b><span class="muted">{{ "taken from your mailboxes" if domain_rows else "appear once a mailbox is connected" }}</span></a>
+  <a class="eh-tile" href="/settings/email-health?tab=domains"><span class="muted">DNS checks passing</span><b>{% if total.n %}{{ total.ok }} of {{ total.n }}{% else %}-{% endif %}</b><span class="muted">{{ "from the last run" if total.n else "press Run a check" }}</span></a>
+</div>
+{% if domain_rows %}
+<div class="eh-doms">
+  {% for r in domain_rows %}
+  <article class="eh-dom">
+    <div class="eh-dom-top"><b class="mono">{{ r.domain }}</b><span class="muted">{% if r.checked_at %}Checked {{ ago(r.checked_at) }}{% else %}Not checked yet{% endif %}</span></div>
+    {{ check_chips(r.checks) }}
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<div class="eh-note">{{ tic("info", "sm") }}<span>Your sending domains show up here once you connect a mailbox. Until then you can still look up any domain below.</span></div>
+{% endif %}
+
+<section class="card" id="check-domain">
+  <h2>Check a domain</h2>
+  <p class="muted">Enter a domain to look up its public DNS records: where mail is delivered (MX), who may send for it (SPF) and what receivers do with failures (DMARC). Add a DKIM selector to check the signing key too.</p>
+  <form method="get" action="/settings/email-health" class="set-inline" id="dns-form">
+    <div class="field" style="flex:2;min-width:220px"><label for="dns-domain">Domain</label><input id="dns-domain" type="text" name="domain" value="{{ raw_domain }}" placeholder="example.com" autocomplete="off" required></div>
+    <div class="field" style="flex:1;min-width:160px"><label for="dns-selector">DKIM selector <span class="muted">(optional)</span></label><input id="dns-selector" type="text" name="selector" value="{{ selector }}" placeholder="e.g. selector1" autocomplete="off"></div>
+    <button class="btn primary" type="submit">{{ sicon("shield-check") }} Check domain</button>
+  </form>
+  {% if error %}<div class="notice error mt" role="alert">{{ error }}</div>{% endif %}
+</section>
+
+{% if checks %}
+<section class="dns-results" aria-label="Results for {{ domain }}">
+  <div class="dns-sum">
+    <h2><span class="mono">{{ domain }}</span></h2>
+    <span class="chips">
+      {% if summary.ok %}<span class="chip ok">{{ summary.ok }} passed</span>{% endif %}
+      {% if summary.warn %}<span class="chip amber">{{ summary.warn }} to review</span>{% endif %}
+      {% if summary.fail %}<span class="chip red">{{ summary.fail }} missing</span>{% endif %}
+      {% if summary.error %}<span class="chip plain">{{ summary.error }} could not be checked</span>{% endif %}
+    </span>
+  </div>
+  {% for c in checks %}
+  <article class="dns-row {{ c.state }}">
+    <span class="dns-ic {{ c.state }}" aria-hidden="true">{% if c.state == "ok" %}{{ icon("circle-check") }}{% elif c.state == "warn" %}{{ sicon("triangle-alert") }}{% else %}{{ icon("circle-alert") }}{% endif %}</span>
+    <div class="dns-body">
+      <div class="dns-title"><b>{{ c.label }}</b>
+        <span class="chip {{ {'ok': 'ok', 'warn': 'amber', 'fail': 'red', 'error': 'plain'}[c.state] }}">{{ {'ok': 'Passed', 'warn': 'Review', 'fail': 'Missing', 'error': 'Not checked'}[c.state] }}</span></div>
+      <div class="muted">{{ c.what }}</div>
+      <div class="dns-sumline">{{ c.summary }}</div>
+      {% if c.hint %}<div class="hint">{{ c.hint }}</div>{% endif %}
+      {% if c.records %}<ul class="dns-rec">{% for r in c.records %}<li class="mono">{{ r }}</li>{% endfor %}</ul>{% endif %}
+    </div>
+  </article>
+  {% endfor %}
+  <p class="hint">DNS answers can be cached for a while after a change. DKIM is only checked when you give a selector, because it cannot be discovered from the domain alone.</p>
+</section>
+{% endif %}
+
+{% elif tab == "domains" %}
+{% if not mailboxes %}
+<section class="eh-empty">
+  <div class="eh-empty-top">
+    <span class="eh-art" aria-hidden="true"><span class="b1">{{ tic("mail") }}</span><span class="b2">{{ tic("shield-check") }}</span><span class="b3">{{ tic("globe") }}</span></span>
+    <div>
+      <h2>Nothing connected here so far</h2>
+      <p class="muted">Connect a mailbox and its domain is listed here with its sending status and its MX, SPF, DKIM and DMARC records.</p>
+      {{ add_menu() }}
+    </div>
+  </div>
+  <div class="eh-skel" aria-hidden="true"><i></i><i></i><i></i></div>
+</section>
+{{ ai_row() }}
+<p class="eh-next"><b>What happens next:</b> once a mailbox is connected we test the sign-in (nothing is sent) and list it here. Press Run a check to look up its domain. Read the <a href="https://github.com/aymaneprojects/pepite/blob/main/docs/engage.md" target="_blank" rel="noopener noreferrer">guide to mailboxes and domains</a>.</p>
+{% else %}
+<div class="eh-doms">
+  {% for r in domain_rows %}
+  <article class="eh-dom" id="dom-{{ r.domain|replace('.', '-') }}">
+    <div class="eh-dom-top">
+      <b class="mono">{{ r.domain }}</b>
+      <span class="muted">{% if r.checked_at %}Checked {{ ago(r.checked_at) }}{% else %}Not checked yet{% endif %}</span>
+      <span class="grow"></span>
+      <form method="post" action="/settings/email-health/run" class="eh-recheck">
+        <input type="hidden" name="domain" value="{{ r.domain }}">
+        <label class="sr-only" for="sel-{{ loop.index }}">DKIM selector for {{ r.domain }}</label>
+        <input id="sel-{{ loop.index }}" type="text" name="selector" value="{{ r.selector }}" placeholder="DKIM selector (optional)" autocomplete="off">
+        <button class="btn sm" type="submit">{{ tic("refresh-cw", "sm") }} Check again</button>
+      </form>
+    </div>
+    {{ check_chips(r.checks) }}
+    {% for c in r.checks if c.state in ('fail', 'warn') %}<p class="eh-fix"><b>{{ c.label }}:</b> {{ c.summary }}</p>{% endfor %}
+    <ul class="eh-boxes">
+      {% for m in r.boxes %}
+      <li><span class="mono">{{ m.from_email }}</span>
+        {% if m.status == "ok" %}<span class="chip ok">Ready</span>{% elif m.status == "error" %}<span class="chip red" title="{{ m.last_error }}">Cannot send</span>{% else %}<span class="chip amber">Not tested</span>{% endif %}
+        <span class="muted">{{ m.daily_limit }} a day</span><span class="grow"></span>
+        <a class="btn sm ghost" href="/settings/mailboxes/{{ m.id }}">Edit</a></li>
+      {% endfor %}
+    </ul>
+  </article>
+  {% endfor %}
+</div>
+<p class="hint">Mailboxes are managed on the <a href="/settings/mailboxes">Mailboxes page</a>. Domains are taken from the sender address of each mailbox.</p>
+{% endif %}
+
+{% else %}
+<section class="card eh-pol">
+  <h2>Sending policies</h2>
+  <p class="muted">The limits that protect your reputation while you send. Change them on the sending rules page.</p>
+  <dl class="eh-dl">
+    <div><dt>Emails per mailbox, per day</dt><dd>{% if mailboxes %}{% for m in mailboxes %}<span class="mono">{{ m.daily_limit }}</span> <span class="muted">{{ m.from_email }}</span>{% if not loop.last %}<br>{% endif %}{% endfor %}{% else %}<span class="muted">Set on each mailbox</span>{% endif %}</dd></div>
+    <div><dt>Sending window</dt><dd>{% if mailboxes %}{% for m in mailboxes %}<span class="mono">{{ "%02d"|format(m.window_start) }}:00 to {{ "%02d"|format(m.window_end) }}:00</span> <span class="muted">{% for d in m.days %}{{ day_names[d] }}{% if not loop.last %}, {% endif %}{% endfor %}</span>{% if not loop.last %}<br>{% endif %}{% endfor %}{% else %}<span class="muted">Set on each mailbox</span>{% endif %}</dd></div>
+    <div><dt>Pause between two emails</dt><dd><span class="mono">{{ policy.gap_minutes if policy else 1 }}</span> minute{{ "s" if (policy.gap_minutes if policy else 1) != 1 }}</dd></div>
+    <div><dt>Default wait between steps</dt><dd><span class="mono">{{ policy.default_delay_days if policy else 3 }}</span> days</dd></div>
+    <div><dt>When someone replies</dt><dd>{{ "Stop the sequence" if (policy.stop_on_reply if policy else True) else "Keep sending" }}</dd></div>
+    <div><dt>When an address bounces</dt><dd>{{ "Never email it again" if (policy.bounce_action if policy else "suppress") == "suppress" else "Stop that sequence only" }}</dd></div>
+    <div><dt>Unsubscribe link</dt><dd>Added to every email</dd></div>
+    <div><dt>Time zone</dt><dd class="mono">{{ policy.timezone if policy else "UTC" }}</dd></div>
+  </dl>
+  <div class="actions"><a class="btn primary" href="/settings/sending">Edit sending rules</a><a class="btn" href="/settings/privacy">Unsubscribes and opt-out</a></div>
+</section>
+{% endif %}
+{% endblock %}

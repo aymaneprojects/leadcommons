@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from leadcommons.enrich.crawl import Page
-from leadcommons.insights import techrules, techs
+from pepite.enrich.crawl import Page
+from pepite.insights import techrules, techs
 
 FIXTURES = Path(__file__).parent / "fixtures" / "insights"
 

@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from leadcommons import workflows
-from leadcommons.config import Settings
-from leadcommons.store import Store
-from leadcommons.web.jobs import JobRunner
+from pepite import workflows
+from pepite.config import Settings
+from pepite.store import Store
+from pepite.web.jobs import JobRunner
 from tests.fakes import FakeSearch, sample_companies, sample_email, sample_person
 
 
@@ -30,7 +30,7 @@ def _runner(tmp_path: Path) -> tuple[JobRunner, Store]:
 
 
 def test_find_people_and_email_emit(tmp_path: Path, events, monkeypatch) -> None:
-    from leadcommons import enrich
+    from pepite import enrich
 
     company = sample_companies()[0]
     person = sample_person(company)

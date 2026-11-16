@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import pytest
 
-from leadcommons.enrich import guess_emails
-from leadcommons.enrich.names import (
+from pepite.enrich import guess_emails
+from pepite.enrich.names import (
     clean_name,
     country_hint,
     email_variants,
     name_key,
     name_variants,
 )
-from leadcommons.enrich.patterns import (
+from pepite.enrich.patterns import (
     PATTERNS,
     infer_patterns,
     is_role_mailbox,
@@ -21,7 +21,7 @@ from leadcommons.enrich.patterns import (
     render,
     shape_patterns,
 )
-from leadcommons.models import EmailStatus, Person, make_id
+from pepite.models import EmailStatus, Person, make_id
 
 
 def person(name: str, domain: str = "acme.example") -> Person:

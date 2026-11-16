@@ -6,7 +6,7 @@
 # Findings go to the volume `sitescan-data` (/data/findings/YYYY-MM/...), the shard for the packs
 # workflow to /data/shards/YYYY-MM/sitescan.parquet. Run it again after an interruption: finished
 # domains are skipped. Keep PROCS the same for the whole month.
-name: leadcommons-sitescan
+name: pepite-sitescan
 
 services:
   sitescan:
@@ -20,7 +20,7 @@ services:
       CONCURRENCY: ${CONCURRENCY:-60}  # sites in flight per process
       DELAY: ${DELAY:-1.0}  # seconds between two requests to one site
       MAX_PAGES: ${MAX_PAGES:-4}
-      HOSTS_REPO: ${HOSTS_REPO:-aymaneprojects/leadcommons}
+      HOSTS_REPO: ${HOSTS_REPO:-aymaneprojects/pepite}
       HOSTS_TAG: ${HOSTS_TAG:-}  # empty: the newest sitescan-hosts-* release
       LIMIT: ${LIMIT:-}  # per process, for a trial run
     volumes:

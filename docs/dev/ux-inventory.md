@@ -1,4 +1,4 @@
-# LeadCommons UX inventory (reference: observed prospecting-app screenshots)
+# Pépite UX inventory (reference: observed prospecting-app screenshots)
 
 Inventory of every visible UI control across the 36 reference screenshots, used as the verification checklist. Personal data seen in the screenshots is replaced by placeholders such as <person name> and <company name>. IDs: screenshots p0 use A1-A5, p1 use B1-B4, p2/p3/p4 use their file number (05-32; file 07 was not provided). Rows are numbered continuously per screenshot (e.g. 05-01). Controls repeated across screens are intentionally listed again. Controls hidden under overlays, clipped at the viewport edge, or only inferred are flagged 'best reading' or 'clipped'.
 
@@ -1400,12 +1400,12 @@ Inventory of every visible UI control across the 36 reference screenshots, used 
 
 ## Controls that need data or services we may not have
 
-| Group | Controls affected | Why it is hard and honest alternatives for LeadCommons |
+| Group | Controls affected | Why it is hard and honest alternatives for Pépite |
 |---|---|---|
 | Phone / mobile numbers | Access Mobile, Mobile credits, Phone numbers column, 'Find numbers', Emails & Phone Numbers enrichment, Start call session, phone icon next to Home, DNC banner, dialer settings | Needs a phone-number provider (paid data), call compliance (DNC lists) and telephony. Honest alternative: manual phone field per contact, optional click-to-call via tel: link, and no purchased mobile data. |
-| Credits / billing | 75 credits pill, Earn credits badges, Credit estimate, 1 credit per verified email, Credit usage, Upgrade plan / Upgrade to Professional, View plans, trial banner, Data requests | LeadCommons has no paid data to meter. Alternatives: remove credits entirely, or keep a local 'enrichment actions' counter if an external provider key (BYO) is used; omit plans/trial banners. |
+| Credits / billing | 75 credits pill, Earn credits badges, Credit estimate, 1 credit per verified email, Credit usage, Upgrade plan / Upgrade to Professional, View plans, trial banner, Data requests | Pépite has no paid data to meter. Alternatives: remove credits entirely, or keep a local 'enrichment actions' counter if an external provider key (BYO) is used; omit plans/trial banners. |
 | Email discovery & verification | Access email, Email Status filter (Verified/Unverified/Unavailable), catch-all handling, Waterfall enrichment, Data enrichment page, Verified emails % | Needs an email-finder/verifier service. Alternatives: user-supplied emails, optional BYO-key verification plugin, or syntax/MX check only. |
-| Prospect database | Total/Net New counts (2.5M), 60+ filters, People/Company Lookalikes, Technologies, Market Segments, SIC/NAICS, Headcount Growth, Time Zone, Education, Awards, Persona | Apollo owns a licensed contact database. LeadCommons only has the user's own data: offer filters on fields the user imports; omit database-wide counts and lookalikes. |
+| Prospect database | Total/Net New counts (2.5M), 60+ filters, People/Company Lookalikes, Technologies, Market Segments, SIC/NAICS, Headcount Growth, Time Zone, Education, Awards, Persona | Apollo owns a licensed contact database. Pépite only has the user's own data: offer filters on fields the user imports; omit database-wide counts and lookalikes. |
 | Buying intent | Buying Intent filter | Requires third-party intent data. Omit or replace with user-defined tags/scores. |
 | Website visitor tracking | Website Visitors filter, 'Website visitors' tab in Company insights | Needs a tracking pixel and IP-to-company resolution. Omit or provide a basic first-party script later. |
 | Funding / revenue / technologies / jobs / news | Funding, Revenue filters, Funding tab, Recent funding, Technologies tab, Job postings, News, Employee trends, Relevant Jobs/technology | Third-party firmographic feeds. Alternatives: free-text/manual fields, optional import from CSV. |
@@ -1416,4 +1416,4 @@ Inventory of every visible UI control across the 36 reference screenshots, used 
 | Dialer, recordings, conversations | Start call session, Call tasks, Calls, call recording rules, Conversations, Meetings | Needs telephony, transcription and storage. Alternatives: log calls manually; link out to calendar for meetings. |
 | Chrome extension | Install extension | Needs a separate browser extension. Alternative: bookmarklet or defer. |
 | Teams, permissions, territories, SSO, system activity | Teams, Permission profiles, Territories, Security, System activity log, Users, License, Support access | Multi-tenant admin features; may be simplified to roles for a self-hosted single workspace. |
-| Marketing content / academy | Learn with Apollo Academy, Watch a webinar, help docs, Help widget, onboarding earn-credits | Needs own docs. Alternative: link to LeadCommons docs only. |
+| Marketing content / academy | Learn with Apollo Academy, Watch a webinar, help docs, Help widget, onboarding earn-credits | Needs own docs. Alternative: link to Pépite docs only. |

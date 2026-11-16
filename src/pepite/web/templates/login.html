@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  {% include "_head.html" %}
+  <title>Sign in · Pépite</title>
+</head>
+<body>
+<main class="solo">
+  <div class="card">
+    <div class="brand"><span class="logo lg" aria-hidden="true"></span></div>
+    <h1 style="font-size:22px;text-align:center;margin-bottom:4px">Sign in to Pépite</h1>
+    <p class="muted" style="text-align:center;margin-bottom:16px">Local-first prospecting. Your data stays with you.</p>
+    <form method="post" action="/login">
+      {% if error %}<div class="notice error" role="alert">{{ error }}</div>{% endif %}
+      <input type="hidden" name="next" value="{{ next or '/' }}">
+      <div class="field"><label for="pw">Password</label><input id="pw" type="password" name="password" required autofocus autocomplete="current-password"></div>
+      <button class="btn primary" type="submit">Sign in</button>
+    </form>
+  </div>
+</main>
+</body>
+</html>

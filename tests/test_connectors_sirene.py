@@ -10,10 +10,10 @@ import httpx
 import pytest
 import respx
 
-from leadcommons.connectors import USER_AGENT, SireneConnector
-from leadcommons.connectors.sirene import ENDPOINT, TRANCHE_TO_SIZE, parse_result, size_from_tranche
-from leadcommons.models import SIZE_RANGES, make_id
-from leadcommons.packs.isic import naf_section
+from pepite.connectors import USER_AGENT, SireneConnector
+from pepite.connectors.sirene import ENDPOINT, TRANCHE_TO_SIZE, parse_result, size_from_tranche
+from pepite.models import SIZE_RANGES, make_id
+from pepite.packs.isic import naf_section
 
 DATA = Path(__file__).parent / "fixtures" / "data"
 

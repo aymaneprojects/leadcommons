@@ -10,17 +10,17 @@ import httpx
 import respx
 from fastapi.testclient import TestClient
 
-from leadcommons.config import Settings
-from leadcommons.packs import (
+from pepite.config import Settings
+from pepite.packs import (
     DOWNLOADS_FILE,
     SAMPLE_PACK_DIR,
     download_pack,
     has_own_pack,
     install_latest_pack,
 )
-from leadcommons.store import Store
-from leadcommons.web.app import create_app
-from leadcommons.web.jobs import JobRunner
+from pepite.store import Store
+from pepite.web.app import create_app
+from pepite.web.jobs import JobRunner
 from tests.fakes import FakeJobs, FakeSearch
 
 SAMPLE = next(Path(SAMPLE_PACK_DIR).glob("*.parquet")).read_bytes()
@@ -56,7 +56,7 @@ def test_install_latest_pack_replaces_only_earlier_downloads(tmp_path: Path) -> 
         return_value=httpx.Response(
             200,
             json=[
-                _release("v0.1.0", "leadcommons-0.1.0.tar.gz"),  # app releases are ignored
+                _release("v0.1.0", "pepite-0.1.0.tar.gz"),  # app releases are ignored
                 _release("packs-2026-11", "companies-20261101.parquet"),
                 _release("packs-2026-10", "companies-20261001.parquet"),
             ],
@@ -103,7 +103,7 @@ def test_download_job_switches_search_everywhere(tmp_path: Path, monkeypatch) ->
         dest.write_bytes(SAMPLE)
         return dest
 
-    monkeypatch.setattr("leadcommons.packs.install_latest_pack", fake_install)
+    monkeypatch.setattr("pepite.packs.install_latest_pack", fake_install)
     store = Store(settings.database_url)
     runner = JobRunner(
         store,

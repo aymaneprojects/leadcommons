@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, status_dot %}
+{% from "_shell_macros.html" import sicon %}
+{% block title %}{{ info.name }} · Pépite{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Breadcrumb"><a href="/lists">Lists</a>{{ icon("chevron-right", "sm") }}<span aria-current="page">{{ info.name }}</span></nav>
+<div class="page-head list-head">
+  <div>
+    <h1>{{ info.name }} <span class="chip">{{ "People" if info.kind == "people" else "Companies" }}</span></h1>
+    <p><span class="mono">{{ fmt_int(members|length) }}</span> record{{ "s" if members|length != 1 }} · created {{ fmt_date(info.created_at) }}</p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/{{ info.kind }}">{{ icon("plus") }} Add {{ info.kind }}</a>
+    <a class="btn primary" href="/lists/{{ info.id }}/export.csv">{{ icon("download") }} Export CSV</a>
+  </div>
+</div>
+{% if members %}
+<form id="bulk" method="post" action="/lists/{{ info.id }}/remove">
+  <div class="bulk" aria-live="polite">
+    <span class="count">0 selected</span>
+    <button class="btn sm btn-danger" type="submit">{{ icon("trash-2", "sm") }} Remove from list</button>
+  </div>
+</form>
+<div class="toolbar">
+  <div class="grow"><label class="sr-only" for="list-filter">Filter this list</label>{{ icon("search") }}<input id="list-filter" type="search" placeholder="Filter this list" data-table-filter="#list-table" autocomplete="off"></div>
+</div>
+<div class="table-wrap"><table class="data" id="list-table">
+  <thead><tr>
+    <th class="cb"><input type="checkbox" class="allcb" aria-label="Select all"></th>
+    {% if info.kind == "people" %}<th scope="col">Name</th><th scope="col">Title</th><th scope="col">Company</th><th scope="col">Email</th>
+    {% else %}<th scope="col">Company</th><th scope="col">Location</th><th scope="col">Industry</th><th scope="col">Employees</th>{% endif %}
+    <th scope="col"><span class="sr-only">Actions</span></th>
+  </tr></thead>
+  <tbody>
+  {% for m in members %}
+    <tr>
+      <td class="cb"><input type="checkbox" class="rowcb" name="ids" value="{{ m.id }}" form="bulk" aria-label="Select {{ m.full_name if info.kind == 'people' else m.name }}"></td>
+      {% if info.kind == "people" %}
+        {% set e = emails.get(m.id) %}
+        <td><a class="co-name" href="/people/{{ m.id }}">{{ m.full_name }}</a></td>
+        <td>{{ m.title or "" }}</td>
+        <td class="mono">{{ m.company_domain or "" }}</td>
+        <td>{% if e %}<span class="email">{% if e.address in suppressed %}{{ status_dot("suppressed") }} suppressed{% else %}{{ status_dot(e.status) }}{{ e.address }}{% endif %}</span>{% endif %}</td>
+      {% else %}
+        <td><a class="co-name" href="/companies/{{ m.id }}">{{ m.name }}</a>{% if m.domain %}<span class="sub">{{ m.domain }}</span>{% endif %}</td>
+        <td>{% if m.city %}{{ m.city }}, {% endif %}{{ country_name(m.country) }}</td>
+        <td>{{ m.industry_label or m.industry or "" }}</td>
+        <td class="mono">{{ m.size_range or "" }}</td>
+      {% endif %}
+      <td><div class="cell-actions"><button class="btn sm ghost btn-danger" type="submit" form="rm-{{ m.id }}" aria-label="Remove {{ m.full_name if info.kind == 'people' else m.name }} from this list" title="Remove from list">{{ icon("trash-2", "sm") }}</button></div></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% for m in members %}<form id="rm-{{ m.id }}" method="post" action="/lists/{{ info.id }}/remove" hidden><input type="hidden" name="ids" value="{{ m.id }}"></form>{% endfor %}
+<p class="hint" data-filter-none hidden>No record in this list matches the filter.</p>
+{% else %}
+<div class="empty-state">
+  <h2>No records yet</h2>
+  <p>No saved {{ info.kind }} in this list. Add some to get started.</p>
+  <div class="empty-cards">
+    {% if info.kind == "people" %}
+    <a class="opt-card" href="/people"><span class="ic">{{ icon("users", "lg") }}</span><b>Find people</b><span class="muted">Browse the people you have found and save them here.</span></a>
+    <a class="opt-card" href="/companies"><span class="ic">{{ icon("building-2", "lg") }}</span><b>Find people at a company</b><span class="muted">Open a company and look for the people who work there.</span></a>
+    <a class="opt-card" href="/enrich"><span class="ic">{{ icon("file-up", "lg") }}</span><b>Enrich a CSV</b><span class="muted">Turn a file of names and companies into verified emails.</span></a>
+    {% else %}
+    <a class="opt-card" href="/companies"><span class="ic">{{ icon("building-2", "lg") }}</span><b>Find companies</b><span class="muted">Filter open company data, then choose Save to list.</span></a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

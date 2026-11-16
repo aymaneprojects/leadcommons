@@ -5,8 +5,8 @@ and merges them with the people on the company's own website. It runs on your ma
 click Find people (or run a workflow); results go to your local database only. Packs never contain
 people.
 
-Code: `src/leadcommons/connectors/people/` (one module per source), merge in
-`src/leadcommons/enrich/people.py`.
+Code: `src/pepite/connectors/people/` (one module per source), merge in
+`src/pepite/enrich/people.py`.
 
 ## Which source is asked
 
@@ -15,8 +15,8 @@ The company's registry ids decide. A source that does not apply is not called.
 | Source | Asked when the company has | Licence | Needs |
 | --- | --- | --- | --- |
 | Wikidata | a Wikidata id, or LEI, SIREN, UK number, CIK, Norwegian org number, or a website that matches exactly one organisation item | CC0 1.0 | nothing |
-| SEC EDGAR insider filings | a CIK (US filer) | public domain | `LEADCOMMONS_CONTACT_EMAIL` |
-| Companies House officers | registry `GB-CH` and a company number | OGL v3.0 | free API key in `LEADCOMMONS_COMPANIES_HOUSE_KEY` |
+| SEC EDGAR insider filings | a CIK (US filer) | public domain | `PEPITE_CONTACT_EMAIL` |
+| Companies House officers | registry `GB-CH` and a company number | OGL v3.0 | free API key in `PEPITE_COMPANIES_HOUSE_KEY` |
 | Brønnøysund roles | registry `NO-BRREG` and an organisation number | NLOD 2.0 | nothing |
 | Company website | a domain | n/a (robots.txt respected) | nothing |
 
@@ -82,7 +82,7 @@ Impressum), as before.
 
 The registers publish this data so that people can know who runs a company; the licences above
 allow reuse. Using it to contact someone for B2B prospecting is still processing personal data
-under GDPR/UK GDPR, and **you are the controller**. LeadCommons gives you the tools; it is not
+under GDPR/UK GDPR, and **you are the controller**. Pépite gives you the tools; it is not
 legal advice (have a lawyer review before large campaigns).
 
 - **Legitimate interest** (Art. 6(1)(f)) is the usual basis for contacting a business role
@@ -93,7 +93,7 @@ legal advice (have a lawyer review before large campaigns).
   Engage can carry that line; the unsubscribe link must work.
 - **Opt-out**: add the address or the domain to the suppression list (person or company page,
   Settings, Privacy); it is honoured by Find people, Find email and Engage.
-- Do not use these sources for personal addresses, only for business roles. LeadCommons does not
+- Do not use these sources for personal addresses, only for business roles. Pépite does not
   collect personal phone numbers or home addresses and drops them from register responses.
 - Keep it on your machine: people are stored in your local database, never in a pack.
 

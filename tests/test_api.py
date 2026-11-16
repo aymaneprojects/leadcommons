@@ -8,11 +8,11 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from leadcommons import enrich
-from leadcommons.config import Settings
-from leadcommons.web import api
-from leadcommons.web.auth import install_auth
-from leadcommons.web.jobs import JobRunner
+from pepite import enrich
+from pepite.config import Settings
+from pepite.web import api
+from pepite.web.auth import install_auth
+from pepite.web.jobs import JobRunner
 from tests.fakes import (
     FakeJobs,
     FakeSearch,

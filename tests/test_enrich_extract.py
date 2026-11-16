@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from leadcommons.enrich.crawl import Page
-from leadcommons.enrich.emails import extract_emails
-from leadcommons.enrich.people import extract_people, is_plausible_name
-from leadcommons.enrich.titles import guess_department, map_seniority
-from leadcommons.models import Person, Seniority, make_id
+from pepite.enrich.crawl import Page
+from pepite.enrich.emails import extract_emails
+from pepite.enrich.people import extract_people, is_plausible_name
+from pepite.enrich.titles import guess_department, map_seniority
+from pepite.models import Person, Seniority, make_id
 
 FIXTURES = Path(__file__).parent / "fixtures" / "enrich"
 

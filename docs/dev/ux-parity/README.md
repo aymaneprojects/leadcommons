@@ -2,7 +2,7 @@
 
 The founder's 36 reference screenshots are listed control by control in
 [`../ux-inventory.md`](../ux-inventory.md) (1,216 controls, ids `A1-01` … `32-xx`). These
-files record what each control does in LeadCommons.
+files record what each control does in Pépite.
 
 | Area | Screens | File |
 | --- | --- | --- |
@@ -33,8 +33,8 @@ Rows are often grouped (`A4-01..32`), so counts below are rows, not single contr
 ## How to check it yourself
 
 ```bash
-LEADCOMMONS_HOME=/tmp/lc-audit python tools/ux_audit/seed.py
-LEADCOMMONS_HOME=/tmp/lc-audit leadcommons serve --port 8170 &
+PEPITE_HOME=/tmp/lc-audit python tools/ux_audit/seed.py
+PEPITE_HOME=/tmp/lc-audit pepite serve --port 8170 &
 node tools/ux_audit/audit.cjs --base http://127.0.0.1:8170 --out /tmp/lc-audit/report
 ```
 

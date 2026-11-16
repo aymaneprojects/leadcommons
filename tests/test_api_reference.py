@@ -6,10 +6,10 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from leadcommons.config import Settings
-from leadcommons.store import Store
-from leadcommons.web.app import create_app
-from leadcommons.web.pages_apiref import build_reference, type_label
+from pepite.config import Settings
+from pepite.store import Store
+from pepite.web.app import create_app
+from pepite.web.pages_apiref import build_reference, type_label
 from tests.fakes import FakeJobs, FakeSearch
 
 

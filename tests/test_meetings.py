@@ -9,8 +9,8 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 from fastapi.testclient import TestClient
 
-from leadcommons.store.pipeline import Meeting, Pipeline
-from leadcommons.web.pages_pipeline import (
+from pepite.store.pipeline import Meeting, Pipeline
+from pepite.web.pages_pipeline import (
     build_ics,
     google_calendar_url,
     outlook_calendar_url,
@@ -44,7 +44,7 @@ def test_ics_content() -> None:
     ics = build_ics(sample())
     assert ics.startswith("BEGIN:VCALENDAR\r\n") and ics.endswith("END:VCALENDAR\r\n")
     assert "\r\n" in ics and "\n" not in ics.replace("\r\n", "")  # CRLF line ends only
-    assert "UID:mt_abc123@leadcommons.local" in ics
+    assert "UID:mt_abc123@pepite.local" in ics
     assert "DTSTART:20261203T143000" in ics and "DTEND:20261203T151500" in ics  # 45 minutes
     assert "SUMMARY:Intro\\, kickoff\\; budget" in ics  # commas and semicolons escaped
     assert "LOCATION:Rue de la Paix 1\\, Lyon" in ics

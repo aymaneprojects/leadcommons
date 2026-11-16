@@ -1,11 +1,11 @@
 # Win deals: deals, meetings, calls, conversations, activity
 
-Code: `src/leadcommons/web/pages_pipeline.py` (routes), `src/leadcommons/store/pipeline.py`
+Code: `src/pepite/web/pages_pipeline.py` (routes), `src/pepite/store/pipeline.py`
 (tables and repositories), templates `pipeline_*.html` / `_pipeline_*.html`, `static/css/pipeline.css`,
 `static/js/pipeline.js`, icons in `static/icons/pipeline-sprite.svg` (Lucide, ISC licence).
 
 Everything works without JavaScript (plain forms and redirects). HTMX and `pipeline.js` add dialogs,
-the typeahead, drag and drop and in-place refreshes. In demo mode (`LEADCOMMONS_MODE=demo`) all of it
+the typeahead, drag and drop and in-place refreshes. In demo mode (`PEPITE_MODE=demo`) all of it
 works on the temporary database and nothing external is called.
 
 ## Data
@@ -84,9 +84,9 @@ stored, shown and copied.
 There is no telephony provider: numbers are `tel:` links the browser hands to the user's phone or softphone.
 The calling list shows saved people with a number, taken in this order: `person.phone` if the model ever
 has one, a number typed by hand, the number of the last logged call, then the company's business phone from
-`leadcommons.insights.get(store, company_id)` (read defensively: `NotImplementedError`, `None` and several
+`pepite.insights.get(store, company_id)` (read defensively: `NotImplementedError`, `None` and several
 record shapes are handled). Logging a call writes a `calls` row and a `call` activity; the optional follow-up
-task is created through `leadcommons.engage.create_task(kind="call")` and the call is still logged if that fails.
+task is created through `pepite.engage.create_task(kind="call")` and the call is still logged if that fails.
 
 ## Conversations
 

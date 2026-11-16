@@ -1,9 +1,9 @@
 # UX parity: search filters (People and Companies)
 
 Status of every filter control listed in `docs/dev/ux-inventory.md` for screens A4, A5, 05, 06,
-08, 09, 10 and the filter rows of B1, in LeadCommons. **works** = does the job for real;
+08, 09, 10 and the filter rows of B1, in Pépite. **works** = does the job for real;
 **disabled** = visible, `aria-disabled`, with a tooltip saying why (and how to turn it on when
-that is possible); **n/a** = not part of LeadCommons, with the reason.
+that is possible); **n/a** = not part of Pépite, with the reason.
 
 Rows that belong to other parity files are listed once per screen as a range:
 
@@ -12,7 +12,7 @@ Rows that belong to other parity files are listed once per screen as a range:
 - page title, Import, Default view, Hide filters, search box, Research with AI, Create
   workflow, Save as new search, sort, Search settings, the results table and pagination: see
   `results-and-records.md`;
-- upgrade buttons, credit pills and upsell strips: n/a everywhere (rule 3: LeadCommons is free,
+- upgrade buttons, credit pills and upsell strips: n/a everywhere (rule 3: Pépite is free,
   no plans, no credits).
 
 Code: `web/search_filters.py` (parsing, matching, groups, chips, quick filters, suggestions),
@@ -28,7 +28,7 @@ The landing replaces the table while there is no filter, no search text, the Tot
 default sort. "Show all people" (`/people?all=1`) and the Total tab open the full table. A store
 with no people keeps its own empty state ("No people yet", with a link to Companies).
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | A4-01..32 | Sidebar, top bar, help | Shell | see shell parity |
 | A4-21, A4-29 | Upgrade button, credits pill | No plans, no credits | n/a (rule 3) |
@@ -44,7 +44,7 @@ with no people keeps its own empty state ("No people yet", with a link to Compan
 | A4-51 | Industry & keywords | See 08 | works |
 | A4-52 | Clear all | Goes back to the landing; disabled with a tooltip while nothing is applied | works |
 | A4-53 | View 60+ filters | "View all filters" opens the All filters window (see 09) | works |
-| A4-54 | AI prompt | "Describe the people you want to reach": plain words become filters (`POST /api/ai/parse`), built-in rules offline, your own model with `LEADCOMMONS_LLM_URL` + `LEADCOMMONS_LLM_MODEL` (the note under the box says how); rules only in the public demo | works |
+| A4-54 | AI prompt | "Describe the people you want to reach": plain words become filters (`POST /api/ai/parse`), built-in rules offline, your own model with `PEPITE_LLM_URL` + `PEPITE_LLM_MODEL` (the note under the box says how); rules only in the public demo | works |
 | A4-55..56 | Locations chips | The most common countries of your people's companies, with counts | works |
 | A4-57..59 | Email status chips | Valid, Catch-all, Unknown (our verification statuses) | works |
 | A4-60..62 | Job titles chips | The three most common titles among your people, with counts (Founder, Sales Manager, Marketing Director when no title is known) | works |
@@ -53,7 +53,7 @@ with no people keeps its own empty state ("No people yet", with a link to Compan
 
 ## A5 - Find companies landing (`/companies` with nothing asked)
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | A5-01..32 | Sidebar, top bar, help | Shell | see shell parity |
 | A5-21, A5-29 | Upgrade button, credits pill | No plans, no credits | n/a (rule 3) |
@@ -75,7 +75,7 @@ with no people keeps its own empty state ("No people yet", with a link to Compan
 
 ## B1 - Find people results: filter rows (`/people?title=...`)
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | B1-34..36 | Total / Net new / Saved tabs | Counts follow the filters | works |
 | B1-37 | Job titles header, badge "1" with x | Count of active values; x clears the whole group | works |
@@ -89,7 +89,7 @@ with no people keeps its own empty state ("No people yet", with a link to Compan
 
 ## 05 - Job titles filter open
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | 05-01..06 | Rail, top bar | Shell | see shell parity |
 | 05-03 | Credits pill | No credits | n/a (rule 3) |
@@ -104,7 +104,7 @@ with no people keeps its own empty state ("No people yet", with a link to Compan
 | 05-25 | Similar titles checkbox | "Also match similar titles": CEO also finds chief executive officer, founder also finds co-founder | works |
 | 05-26 | Info icon | Tooltip with examples | works |
 | 05-27 | Exclude box | Same box, values shown in red | works |
-| 05-28 | Past job titles | LeadCommons keeps only the current title of each person | disabled (tooltip) |
+| 05-28 | Past job titles | Pépite keeps only the current title of each person | disabled (tooltip) |
 | 05-29 | Management level dropdown | Checkbox list of seniority levels (owner, founder, C-suite, partner, VP, head, director, manager, senior, entry, intern) | works |
 | 05-30 | Departments & job function dropdown | "Departments": the stored department of a person, else read from the job title with the keyword table `search_filters.DEPARTMENTS` (leadership, engineering, IT and security, data, product, design, sales, marketing, customer success, finance, people and HR, operations, legal, research) | works |
 | 05-31 | Save as new persona | Shown while Job titles is open: a window names the current titles, level and departments (`POST /personas`); the persona then appears in the Persona filter (09-15), where it can be ticked or deleted. Disabled with a tooltip until a title, level or department is set | works |
@@ -115,14 +115,14 @@ with no people keeps its own empty state ("No people yet", with a link to Compan
 
 ## 06 - Location filter open
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | 06-01..15 | Rail, top bar, toolbar | Shell / toolbar | see shell and results parity |
 | 06-16..18 | Total / Net new / Saved tabs | As B1 | works |
 | 06-19..20 | Job titles header and chip row | As B1-37/38 | works |
 | 06-21..22 | People lookalikes, Company | As A4 | works |
 | 06-23 | Location header | Collapses the group | works |
-| 06-24 | Contact tab | People records keep no personal location; LeadCommons only knows where each person's company is based | disabled (tooltip) |
+| 06-24 | Contact tab | People records keep no personal location; Pépite only knows where each person's company is based | disabled (tooltip) |
 | 06-25 | Account HQ tab | "Company HQ": the location of the person's company (selected) | works |
 | 06-26 | Select region radio | "Region" (selected) | works |
 | 06-27 | City / State / Country / ZIP box | "City, region or country": suggestions from the packs (countries by English name or code, regions and cities with their country and company count); a typed country name becomes that country, any other text matches a region or a city. Places are alternatives (any of them matches). Postal codes: the packs hold none | works (postal codes n/a: no postal codes in the open packs) |
@@ -134,7 +134,7 @@ with no people keeps its own empty state ("No people yet", with a link to Compan
 
 ## 08 - Industry & keywords filter open
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | 08-01..15 | Rail, top bar, toolbar | Shell / toolbar | see shell and results parity |
 | 08-16..18 | Total / Net new / Saved tabs | As B1 | works |
@@ -157,7 +157,7 @@ with no people keeps its own empty state ("No people yet", with a link to Compan
 
 Four columns: Pinned filters, Person info, Company info, Engagement. All four fit in the window.
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | 09-01 | Filters title | "Filters" | works |
 | 09-02 | Close x | Closes the window (Esc and a click outside too) | works |
@@ -174,7 +174,7 @@ Four columns: Pinned filters, Person info, Company info, Engagement. All four fi
 | 09-17 | Name | Name or job title | works |
 | 09-18 | Education | Not in any open dataset we can use lawfully | disabled (No open data) |
 | 09-19 | Awards & certifications | No open dataset lists them | disabled (No open data) |
-| 09-20 | Enrichment type | Every person comes from a public page you asked LeadCommons to read or from your own import; there is no enrichment type to choose | n/a |
+| 09-20 | Enrichment type | Every person comes from a public page you asked Pépite to read or from your own import; there is no enrichment type to choose | n/a |
 | 09-21 | Work URLs | Profile links are not collected | disabled (Not collected) |
 | 09-22 | Time zone | People have no time zone on record; filter by country instead | disabled (No data) |
 | 09-23 | Company lookalikes | As A5-47 | works |
@@ -187,7 +187,7 @@ Four columns: Pinned filters, Person info, Company info, Engagement. All four fi
 | 09-30 | Headcount growth | Employee trends are not stored in a searchable way yet | disabled (Soon) |
 | 09-31 | Sequence | People enrolled in the ticked sequences, or "In no sequence" | works |
 | 09-32 | Workflow | Filtering by workflow runs is not built yet; each workflow lists its runs | disabled (Soon) |
-| 09-33 | Email opened | LeadCommons never adds a tracking pixel, so opens are not recorded | disabled (Not tracked) |
+| 09-33 | Email opened | Pépite never adds a tracking pixel, so opens are not recorded | disabled (Not tracked) |
 | 09-34 | Last activity | Notes, calls, emails, tasks and meetings logged for the person: last 7 / 30 / 90 days, or none yet | works |
 | 09-35 | Email sent | Emailed / never emailed (sent messages) | works |
 | 09-36 | Email clicked | "Link clicked": links are sent as written, so clicks are not recorded | disabled (Not tracked) |
@@ -202,7 +202,7 @@ On the Companies screen the person and engagement filters are shown disabled wit
 
 ## 10 - All filters window with # Employees open
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | 10-01..05 | Title, close, search, type, count, Apply | As 09 | works |
 | 10-06 | Pinned rows with drag handle, pin, chevron | As 09-08..13 | works |

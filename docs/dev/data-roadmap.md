@@ -6,7 +6,7 @@ numbers, opt-outs honoured everywhere, packs that contain companies only.
 
 ## Where we are (15 November 2026) and where we go
 
-| Dimension | Apollo (public claims) | LeadCommons today | Target | How |
+| Dimension | Apollo (public claims) | Pépite today | Target | How |
 | --- | --- | --- | --- | --- |
 | Companies | tens of millions | **21.85M** in 227 countries (packs-2026-11; was 13,625) | 30M+ active companies | bulk official registers, monthly |
 | Company website / domain | most companies | ~285k (1.3%): the biggest gap | 5M+ linked domains | registry ID bridges (Wikidata, GLEIF), OSM, web matching, registry numbers printed on sites |
@@ -18,7 +18,7 @@ numbers, opt-outs honoured everywhere, packs that contain companies only.
 | Technographics | yes | homepage, on demand | precomputed for linked domains | CI crawl of homepages |
 | Funding, jobs | yes | jobs on demand | US Form D funding, ATS job feeds | SEC Form D, public ATS APIs |
 | Intent, visitors | yes | no | **no** (needs tracking or paid feeds) | n/a |
-| Quality measurement | marketing claims | none | QUALITY.md per pack, email precision report | `leadcommons pack quality`, `leadcommons eval emails` |
+| Quality measurement | marketing claims | none | QUALITY.md per pack, email precision report | `pepite pack quality`, `pepite eval emails` |
 
 ## Rules for every source
 
@@ -72,7 +72,7 @@ companies have a website, which is the next phase's first job.
 ## Closing the people and email gap: an opt-in community network
 
 Apollo's people coverage comes largely from its users: its browser extension and mailbox
-connections feed a shared "data network". The lawful version for LeadCommons, off by default:
+connections feed a shared "data network". The lawful version for Pépite, off by default:
 
 - **Shared domain intelligence (no personal data):** with the user's consent, the app sends only
   domain-level facts it learned: `example.com uses {first}.{last}`, `example.com is catch-all`,
@@ -105,5 +105,5 @@ identification, intent data from paid networks.
 ## Legal note
 
 Prospecting people in the EU relies on legitimate interest, an Article 14 information duty and an
-easy opt-out. LeadCommons gives users the tools (sources shown, opt-out list, suppression), but the
+easy opt-out. Pépite gives users the tools (sources shown, opt-out list, suppression), but the
 user is the data controller. Have a lawyer review before large campaigns.

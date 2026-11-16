@@ -19,8 +19,8 @@ import httpx
 import pytest
 from typer.testing import CliRunner
 
-from leadcommons.cli import app
-from leadcommons.connectors.bulk import (
+from pepite.cli import app
+from pepite.connectors.bulk import (
     SOURCES,
     BuildOptions,
     _rules,
@@ -30,10 +30,10 @@ from leadcommons.connectors.bulk import (
     load_all,
     wikidata_orgs,
 )
-from leadcommons.models import make_id
-from leadcommons.packs import bulk
-from leadcommons.packs.normalize import size_bucket
-from leadcommons.search import PACK_COLUMNS
+from pepite.models import make_id
+from pepite.packs import bulk
+from pepite.packs.normalize import size_bucket
+from pepite.search import PACK_COLUMNS
 
 FIX = Path(__file__).parent / "fixtures" / "bulk"
 
@@ -146,7 +146,7 @@ def test_domains_skip_profile_pages_on_shared_hosts(url, domain, website) -> Non
 
 def test_user_agent_declares_the_contact() -> None:
     assert _rules.user_agent("ops@example.org").endswith("; contact: ops@example.org)")
-    assert _rules.user_agent().startswith("LeadCommons/")
+    assert _rules.user_agent().startswith("Pepite/")
 
 
 # --------------------------------------------------------------------------- Brønnøysund

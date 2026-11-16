@@ -7,7 +7,7 @@ Legend: **works**, **disabled (reason)**, **not applicable (reason)**.
 
 ## A1 - AI Assistant full-page welcome (onboarding chat with option cards, dark theme)
 
-| Row | Control | Status in LeadCommons |
+| Row | Control | Status in Pépite |
 |---|---|---|
 | A1-01 | Explore Apollo (arrow) | works (button 'Back to the app', goes Home) |
 | A1-02 | Assistant message text (long, scrollable) | works |
@@ -34,7 +34,7 @@ Legend: **works**, **disabled (reason)**, **not applicable (reason)**.
 
 ## A2 - Home 'Get started with Apollo' with collapsed icon rail
 
-| Row | Control | Status in LeadCommons |
+| Row | Control | Status in Pépite |
 |---|---|---|
 | A2-01 | Expand sidebar chevron '>>' (top) | works |
 | A2-02 | Brand logo (top) | works |
@@ -44,15 +44,15 @@ Legend: **works**, **disabled (reason)**, **not applicable (reason)**.
 | A2-06 | Engage (paper-plane icon) | works |
 | A2-07 | Win deals (dollar icon) | works |
 | A2-08 | Lightbulb-style icon (4th group, unlabeled) | works (Tools and automation group) |
-| A2-09 | Arrow-into-door icon (5th group, unlabeled) | not applicable (LeadCommons has four groups; there is no Inbound or Team group) |
-| A2-10 | People-group icon (6th group, unlabeled) | not applicable (LeadCommons has four groups; there is no Inbound or Team group) |
+| A2-09 | Arrow-into-door icon (5th group, unlabeled) | not applicable (Pépite has four groups; there is no Inbound or Team group) |
+| A2-10 | People-group icon (6th group, unlabeled) | not applicable (Pépite has four groups; there is no Inbound or Team group) |
 | A2-11 | Onboarding hub icon (list/document, bottom) | works |
 | A2-12 | Email setup and health icon (diamond/nodes, bottom) | works |
 | A2-13 | Admin Settings (gear, bottom) | works (Admin settings row opens the quick settings flyout) |
 | A2-14 | Help button (circled ? + 'Help', bottom right) | works (Help menu: docs, shortcuts, Assistant, report a problem) |
 | A2-15 | Global search box 'Search or ask a question in Apollo' | works |
 | A2-16 | Keyboard hint badge 'Cmd K' (shortcut) | works |
-| A2-17 | '75 credits' pill | not applicable (no credits in LeadCommons; the top bar shows the background jobs pill instead) |
+| A2-17 | '75 credits' pill | not applicable (no credits in Pépite; the top bar shows the background jobs pill instead) |
 | A2-18 | AI Assistant button (icon only, white tile) | works |
 | A2-19 | Notification bell (with red dot when unread) | works |
 | A2-20 | User avatar with initials | works |
@@ -76,7 +76,7 @@ Legend: **works**, **disabled (reason)**, **not applicable (reason)**.
 
 ## A3 - Home 'Get started with Apollo' with expanded labelled sidebar
 
-| Row | Control | Status in LeadCommons |
+| Row | Control | Status in Pépite |
 |---|---|---|
 | A3-01 | Collapse sidebar chevron '<<' | works |
 | A3-02 | Brand logo (top-left) | works |
@@ -105,7 +105,7 @@ Legend: **works**, **disabled (reason)**, **not applicable (reason)**.
 | A3-25 | Help button (circled ? + 'Help') | works |
 | A3-26 | Global search box 'Search or ask a question in Apollo' | works |
 | A3-27 | Keyboard hint badge 'Cmd K' (shortcut) | works |
-| A3-28 | '75 credits' pill | not applicable (no credits in LeadCommons; the top bar shows the background jobs pill instead) |
+| A3-28 | '75 credits' pill | not applicable (no credits in Pépite; the top bar shows the background jobs pill instead) |
 | A3-29 | 'AI Assistant' button (logo icon + label) | works |
 | A3-30 | Notification bell (with red dot when unread) | works |
 | A3-31 | User avatar with initials | works |
@@ -129,7 +129,7 @@ Legend: **works**, **disabled (reason)**, **not applicable (reason)**.
 
 ## 24 - Command palette opened with Cmd/Ctrl+K over the Tasks page
 
-| Row | Control | Status in LeadCommons |
+| Row | Control | Status in Pépite |
 |---|---|---|
 | 24-01 | Search input 'Search or ask a question in Apollo' | works |
 | 24-02 | 'AI suggestions' label | works |
@@ -143,7 +143,7 @@ Legend: **works**, **disabled (reason)**, **not applicable (reason)**.
 
 ## 25 - Notifications panel (Activities / Notifications tabs)
 
-| Row | Control | Status in LeadCommons |
+| Row | Control | Status in Pépite |
 |---|---|---|
 | 25-01 | Tab: Activities | works |
 | 25-02 | Tab: Notifications (selected) | works |
@@ -157,7 +157,7 @@ Legend: **works**, **disabled (reason)**, **not applicable (reason)**.
 
 ## 26 - Admin Settings quick flyout (Team & Workspace setup)
 
-| Row | Control | Status in LeadCommons |
+| Row | Control | Status in Pépite |
 |---|---|---|
 | 26-01 | 'Team & Workspace setup' title with '0% Completed' progress | works |
 | 26-02 | Users and teams | not applicable (single user; the Invite teammates button explains sharing) |
@@ -171,7 +171,7 @@ Legend: **works**, **disabled (reason)**, **not applicable (reason)**.
 
 ## 27 - Settings overview (Workspace settings)
 
-| Row | Control | Status in LeadCommons |
+| Row | Control | Status in Pépite |
 |---|---|---|
 | 27-01 | Back (arrow) | works |
 | 27-02 | Collapse '<<' | works |
@@ -179,7 +179,7 @@ Legend: **works**, **disabled (reason)**, **not applicable (reason)**.
 | 27-04 | Settings overview (selected) | works |
 | 27-05 | Personal (chevron) | works |
 | 27-06 | Plan & billing (chevron) | not applicable (free and open source, no plans or upgrades) |
-| 27-07 | Credits & activity (chevron) | not applicable (no credits in LeadCommons; the top bar shows the background jobs pill instead) |
+| 27-07 | Credits & activity (chevron) | not applicable (no credits in Pépite; the top bar shows the background jobs pill instead) |
 | 27-08 | Users & teams (chevron) | not applicable (single user; see Invite teammates) |
 | 27-09 | Integrations (chevron) | works |
 | 27-10 | Outbound (chevron) | works |
@@ -215,7 +215,7 @@ Legend: **works**, **disabled (reason)**, **not applicable (reason)**.
 
 ## 28 - Settings overview with 'Outbound' group expanded
 
-| Row | Control | Status in LeadCommons |
+| Row | Control | Status in Pépite |
 |---|---|---|
 | 28-01 | Back, collapse '<<', Search settings, Settings overview, Personal, Plan & billing, Credits & activity, Users & teams, Integrations | works |
 | 28-02 | Outbound (chevron up, expanded) | works |
@@ -223,7 +223,7 @@ Legend: **works**, **disabled (reason)**, **not applicable (reason)**.
 | 28-04 | Domains & Mailboxes | works (Domains & mailboxes tab) |
 | 28-05 | Sending policies | works (Sending policies tab, read from the sending rules) |
 | 28-06 | Sequences | not applicable (sequence defaults live in Sending rules) |
-| 28-07 | Tracking | not applicable (LeadCommons does not track opens or clicks) |
+| 28-07 | Tracking | not applicable (Pépite does not track opens or clicks) |
 | 28-08 | Dialer | not applicable (no dialer, no telephony) |
 | 28-09 | Prospecting configuration | not applicable (saved searches cover prospecting defaults) |
 | 28-10 | Snippets | not applicable (no snippets feature yet) |
@@ -235,7 +235,7 @@ Legend: **works**, **disabled (reason)**, **not applicable (reason)**.
 
 ## 29 - Email setup and health > Domains & Mailboxes (empty)
 
-| Row | Control | Status in LeadCommons |
+| Row | Control | Status in Pépite |
 |---|---|---|
 | 29-01 | Same nav as 28 with 'Domains & Mailboxes' selected | works |
 | 29-02 | 'Email setup and health' title | works |
@@ -255,7 +255,7 @@ Legend: **works**, **disabled (reason)**, **not applicable (reason)**.
 
 ## 30 - Home onboarding hub (top, task list)
 
-| Row | Control | Status in LeadCommons |
+| Row | Control | Status in Pépite |
 |---|---|---|
 | 30-01 | Expand sidebar chevron '>>' (top) | works |
 | 30-02 | Brand logo (top) | works |
@@ -273,7 +273,7 @@ Legend: **works**, **disabled (reason)**, **not applicable (reason)**.
 | 30-14 | Help button (circled ? + 'Help', bottom right) | works |
 | 30-15 | Global search box 'Search or ask a question in Apollo' | works |
 | 30-16 | Keyboard hint badge 'Cmd K' (shortcut) | works |
-| 30-17 | '75 credits' pill | not applicable (no credits in LeadCommons; the top bar shows the background jobs pill instead) |
+| 30-17 | '75 credits' pill | not applicable (no credits in Pépite; the top bar shows the background jobs pill instead) |
 | 30-18 | AI Assistant button (icon only, white tile) | works |
 | 30-19 | Notification bell (with red dot when unread) | works |
 | 30-20 | User avatar with initials | works |
@@ -287,12 +287,12 @@ Legend: **works**, **disabled (reason)**, **not applicable (reason)**.
 | 30-28 | Create a list - Create a list | works |
 | 30-29 | Save target companies - Save a company | works |
 | 30-30 | Save your search - Set up alert | works |
-| 30-31 | Download the Chrome extension - Install extension | not applicable (no browser extension; LeadCommons reads public pages itself) |
+| 30-31 | Download the Chrome extension - Install extension | not applicable (no browser extension; Pépite reads public pages itself) |
 | 30-32 | Section 'Get your inbox ready to send' with 'Earn 150 credits' badge and '0 of 3 completed' caret | works (accordion header) |
 
 ## 31 - Home onboarding hub (scrolled, remaining sections and resources)
 
-| Row | Control | Status in LeadCommons |
+| Row | Control | Status in Pépite |
 |---|---|---|
 | 31-01 | Expand sidebar chevron '>>' (top) | works |
 | 31-02 | Brand logo (top) | works |
@@ -310,7 +310,7 @@ Legend: **works**, **disabled (reason)**, **not applicable (reason)**.
 | 31-14 | Help button (circled ? + 'Help', bottom right) | works |
 | 31-15 | Global search box 'Search or ask a question in Apollo' | works |
 | 31-16 | Keyboard hint badge 'Cmd K' (shortcut) | works |
-| 31-17 | '75 credits' pill | not applicable (no credits in LeadCommons; the top bar shows the background jobs pill instead) |
+| 31-17 | '75 credits' pill | not applicable (no credits in Pépite; the top bar shows the background jobs pill instead) |
 | 31-18 | AI Assistant button (icon only, white tile) | works |
 | 31-19 | Notification bell (with red dot when unread) | works |
 | 31-20 | User avatar with initials | works |
@@ -326,7 +326,7 @@ Legend: **works**, **disabled (reason)**, **not applicable (reason)**.
 
 ## 32 - AI Assistant side panel (empty state) opened beside Home
 
-| Row | Control | Status in LeadCommons |
+| Row | Control | Status in Pépite |
 |---|---|---|
 | 32-01 | Expand sidebar chevron '>>' (top) | works |
 | 32-02 | Brand logo (top) | works |

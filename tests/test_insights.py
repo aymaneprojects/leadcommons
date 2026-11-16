@@ -12,13 +12,13 @@ import pytest
 import respx
 from fastapi.testclient import TestClient
 
-from leadcommons import insights
-from leadcommons.config import Settings
-from leadcommons.insights import boards, dnsinfo, fetch, trends
-from leadcommons.models import Company, utcnow
-from leadcommons.store import Store
-from leadcommons.web.app import create_app
-from leadcommons.web.jobs import JobRunner
+from pepite import insights
+from pepite.config import Settings
+from pepite.insights import boards, dnsinfo, fetch, trends
+from pepite.models import Company, utcnow
+from pepite.store import Store
+from pepite.web.app import create_app
+from pepite.web.jobs import JobRunner
 from tests.fakes import FakeJobs, FakeSearch, sample_companies
 from tests.insights_samples import sample_insights
 
@@ -107,7 +107,7 @@ def test_snapshot_reads_company_pages_but_not_team_pages() -> None:
     assert snap.cookies == ["PHPSESSID", "_ga"]
     assert "https://boards.greenhouse.io/nordwind" in snap.links
     ua = routes["home"].calls.last.request.headers["user-agent"]
-    assert ua.startswith("LeadCommons/")
+    assert ua.startswith("Pepite/")
 
 
 @respx.mock
@@ -244,7 +244,7 @@ def make_client(tmp_path: Path, store: Store, settings: Settings, jobs=None) -> 
 def test_demo_api_refresh_refused_but_cached_insights_display(
     tmp_path: Path, store: Store, company: Company
 ) -> None:
-    from leadcommons.store.insights import InsightsRepo
+    from pepite.store.insights import InsightsRepo
 
     InsightsRepo(store.engine).save(sample_insights(company.id))
     jobs = FakeJobs()
@@ -275,7 +275,7 @@ def test_demo_job_runner_refuses(tmp_path: Path, store: Store, company: Company)
 
 
 def test_api_get_insights(tmp_path: Path, store: Store, company: Company) -> None:
-    from leadcommons.store.insights import InsightsRepo
+    from pepite.store.insights import InsightsRepo
 
     client = make_client(tmp_path, store, local_settings(tmp_path))
     r = client.get(f"/api/companies/{company.id}/insights")
@@ -342,7 +342,7 @@ def test_job_kind_company_insights_runs_refresh(
 
 @pytest.fixture
 def seeded(tmp_path: Path, store: Store, company: Company):
-    from leadcommons.store.insights import InsightsRepo
+    from pepite.store.insights import InsightsRepo
 
     InsightsRepo(store.engine).save(sample_insights(company.id))
     return make_client(tmp_path, store, local_settings(tmp_path)), company
@@ -402,7 +402,7 @@ def test_partial_jobs(seeded) -> None:
 def test_partial_jobs_escapes_titles_and_handles_empties(
     tmp_path: Path, store: Store, company: Company
 ) -> None:
-    from leadcommons.store.insights import InsightsRepo
+    from pepite.store.insights import InsightsRepo
 
     ins = sample_insights(company.id)
     ins.jobs.postings[0].title = "<script>alert(1)</script>"
@@ -431,8 +431,8 @@ def test_partial_funding(seeded) -> None:
 def test_partial_funding_without_data_says_so(
     tmp_path: Path, store: Store, company: Company
 ) -> None:
-    from leadcommons.insights.model import CompanyInsights
-    from leadcommons.store.insights import InsightsRepo
+    from pepite.insights.model import CompanyInsights
+    from pepite.store.insights import InsightsRepo
 
     InsightsRepo(store.engine).save(CompanyInsights(company_id=company.id, domain=company.domain))
     client = make_client(tmp_path, store, local_settings(tmp_path))
@@ -497,7 +497,7 @@ def test_partial_without_domain_disables_refresh(tmp_path: Path, store: Store) -
 
 
 def test_ago_filter() -> None:
-    from leadcommons.web.pages_insights import ins_ago, ins_money
+    from pepite.web.pages_insights import ins_ago, ins_money
 
     assert ins_ago(None) == ""
     assert ins_ago(utcnow()) == "just now"

@@ -15,10 +15,10 @@ from fastapi.testclient import TestClient
 from markupsafe import escape
 from starlette.datastructures import QueryParams
 
-from leadcommons.models import Company, Person, Seniority
-from leadcommons.packs import DuckDBCompanySearch
-from leadcommons.search import KEYWORD_FIELDS, CompanyFilters
-from leadcommons.web import search_filters as sf
+from pepite.models import Company, Person, Seniority
+from pepite.packs import DuckDBCompanySearch
+from pepite.search import KEYWORD_FIELDS, CompanyFilters
+from pepite.web import search_filters as sf
 from tests.fakes import FakeSearch, sample_email, sample_person
 from tests.test_pages import make_app
 
@@ -233,7 +233,7 @@ class KeywordSearch(FakeSearch):
 
 @pytest.fixture
 def app(tmp_path: Path) -> FastAPI:
-    from leadcommons.store import Store
+    from pepite.store import Store
 
     app = make_app(tmp_path)
     app.state.search = KeywordSearch()
@@ -277,7 +277,7 @@ def test_landing_replaces_the_table_until_something_is_asked(client: TestClient)
     assert 'href="/people?all=1"' in html and "Show all people" in html
     assert 'href="/people?status=valid"' in html and 'href="/people?country=FR"' in html
     assert re.search(r'href="/people\?title=[^"]+"', html)
-    assert "LEADCOMMONS_LLM_URL" in html  # how to use your own model
+    assert "PEPITE_LLM_URL" in html  # how to use your own model
     full = client.get("/people?all=1").text
     assert "<table" in full and "Quick filters" not in full and all(n in full for n in PEOPLE)
     assert 'name="all" value="1"' in full  # sorting or paging keeps the results view
@@ -470,8 +470,8 @@ def test_suggest_titles_places_and_industries(client: TestClient) -> None:
 
 
 def test_engagement_filters(app: FastAPI, client: TestClient) -> None:
-    from leadcommons.store.engage import repo_for
-    from leadcommons.store.pipeline import ActivityRepo, Pipeline
+    from pepite.store.engage import repo_for
+    from pepite.store.pipeline import ActivityRepo, Pipeline
 
     store, search = app.state.store, app.state.search
     ann = sample_person(search.companies[0], "Ann One").id
@@ -508,7 +508,7 @@ def test_engagement_context_survives_missing_tables() -> None:
 
 
 def test_pages_load_the_filter_assets() -> None:
-    from leadcommons.web.deps import STATIC_DIR
+    from pepite.web.deps import STATIC_DIR
 
     js = (STATIC_DIR / "js" / "search-filters.js").read_text()
     assert '"lc-pins-" + kind()' in js and "/search/suggest" not in js  # urls come from markup

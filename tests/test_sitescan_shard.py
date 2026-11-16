@@ -7,9 +7,9 @@ from pathlib import Path
 
 import duckdb
 
-from leadcommons.search import PACK_COLUMNS
-from leadcommons.sitescan.fetch import _write_batch
-from leadcommons.sitescan.shard import build_shard
+from pepite.search import PACK_COLUMNS
+from pepite.sitescan.fetch import _write_batch
+from pepite.sitescan.shard import build_shard
 
 
 def row(
@@ -144,12 +144,12 @@ def test_shard_has_no_person_columns_and_merges_by_register_key(tmp_path: Path):
     build_shard(findings / "findings-00001.parquet", tmp_path / "out")  # a single file works too
     (r,) = shard_rows(tmp_path / "out")
     # the stable id is the same as for the register row of that SIREN
-    from leadcommons.packs.bulk import stable_company_id
+    from pepite.packs.bulk import stable_company_id
 
     assert r["id"] == stable_company_id("FR-SIREN", "552081317")
 
     # end to end: the real shard attaches its website and phone to the register company
-    from leadcommons.packs.merge import merge_shards
+    from pepite.packs.merge import merge_shards
     from tests.test_pack_merge import BUILT, fr, rows, write_shard
 
     write_shard(tmp_path / "out", "sirene_stock", [fr("552081317", "ACME SAS")])
@@ -162,8 +162,8 @@ def test_shard_has_no_person_columns_and_merges_by_register_key(tmp_path: Path):
 def test_cli_run_part_and_shard_read_part_directories(tmp_path: Path, monkeypatch):
     from typer.testing import CliRunner
 
-    from leadcommons import cli
-    from leadcommons.sitescan import fetch
+    from pepite import cli
+    from pepite.sitescan import fetch
 
     domains = tmp_path / "d.txt"
     domains.write_text("\n".join(f"site{i}.fr" for i in range(8)) + "\n")

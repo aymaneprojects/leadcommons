@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from leadcommons.insights.model import (
+from pepite.insights.model import (
     CompanyInsights,
     Contact,
     EmployeePoint,
@@ -17,7 +17,7 @@ from leadcommons.insights.model import (
     Technology,
     Trends,
 )
-from leadcommons.models import utcnow
+from pepite.models import utcnow
 
 
 def sample_insights(company_id: str, domain: str = "nordwind.example") -> CompanyInsights:

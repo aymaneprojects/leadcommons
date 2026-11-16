@@ -1,6 +1,6 @@
 name: Build data packs
 
-# Monthly: every bulk register source (`leadcommons pack sources`) builds one shard in its own
+# Monthly: every bulk register source (`pepite pack sources`) builds one shard in its own
 # job, then one job merges the shards into per-country packs and publishes a packs-YYYY-MM
 # release. Pushing to a data/** branch runs the same pipeline in test mode (5,000 rows per
 # source, quality report and sample rows in the log, nothing published); data/full* runs the
@@ -61,8 +61,8 @@ jobs:
           INPUT_LIMIT: ${{ inputs.limit }}
           INPUT_PUBLISH: ${{ inputs.publish }}
         run: |
-          uv run leadcommons pack sources
-          registered=$(uv run leadcommons pack sources --json | jq -c '[.[].name]')
+          uv run pepite pack sources
+          registered=$(uv run pepite pack sources --json | jq -c '[.[].name]')
           sources="$registered"
           if [ -n "$INPUT_SOURCES" ]; then
             # shellcheck disable=SC2086 # split the space-separated list on purpose
@@ -125,9 +125,9 @@ jobs:
           # SEC asks for a reachable contact. Set it as the repository *secret* EDGAR_CONTACT_EMAIL
           # (GitHub masks secrets in the public logs); the no-reply address is only a fallback and
           # SEC refuses it.
-          LEADCOMMONS_CONTACT_EMAIL: ${{ secrets.EDGAR_CONTACT_EMAIL || vars.EDGAR_CONTACT_EMAIL || '181950936+aymaneprojects@users.noreply.github.com' }}
+          PEPITE_CONTACT_EMAIL: ${{ secrets.EDGAR_CONTACT_EMAIL || vars.EDGAR_CONTACT_EMAIL || '181950936+aymaneprojects@users.noreply.github.com' }}
           # 16 GB runners: leave room for Python and the page cache; DuckDB spills to the work dir.
-          LEADCOMMONS_DUCKDB_MEMORY: 10GB
+          PEPITE_DUCKDB_MEMORY: 10GB
         run: |
           # Raw downloads go to the runner's large scratch disk when there is one.
           work="$RUNNER_TEMP/bulk-work"
@@ -139,7 +139,7 @@ jobs:
           if [ -n "$LIMIT" ]; then
             args+=(--limit "$LIMIT")
           fi
-          uv run leadcommons pack fetch-source "$SOURCE" "${args[@]}"
+          uv run pepite pack fetch-source "$SOURCE" "${args[@]}"
           sudo rm -rf "$work" # /mnt belongs to root on hosted runners
           ls -l shards
       - name: Shard summary
@@ -222,10 +222,10 @@ jobs:
           # Test runs use 5,000-row samples: a GLEIF row whose company is not in the register's
           # sample would be dropped as "not in register", so keep those rows when testing.
           if [ "$PUBLISH" != "true" ]; then extra+=(--keep-unregistered); fi
-          uv run leadcommons pack merge shards --out packs-out --release "$RELEASE" "${extra[@]}"
+          uv run pepite pack merge shards --out packs-out --release "$RELEASE" "${extra[@]}"
           ls -l packs-out
       - name: Quality report
-        run: uv run leadcommons pack quality packs-out
+        run: uv run pepite pack quality packs-out
       - name: Sample rows
         if: needs.plan.outputs.publish != 'true'
         run: |

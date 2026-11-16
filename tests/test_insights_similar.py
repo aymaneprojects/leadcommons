@@ -5,12 +5,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from leadcommons import insights
-from leadcommons.insights.similar import rank_lookalikes, similar_people
-from leadcommons.models import Company, Person, Seniority
-from leadcommons.packs import DuckDBCompanySearch
-from leadcommons.packs.builder import write_parquet
-from leadcommons.search import PACK_COLUMNS
+from pepite import insights
+from pepite.insights.similar import rank_lookalikes, similar_people
+from pepite.models import Company, Person, Seniority
+from pepite.packs import DuckDBCompanySearch
+from pepite.packs.builder import write_parquet
+from pepite.search import PACK_COLUMNS
 from tests.fakes import FakeSearch
 
 

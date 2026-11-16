@@ -15,10 +15,10 @@ import pytest
 import respx
 from typer.testing import CliRunner
 
-from leadcommons.cli import app
-from leadcommons.enrich import crawl, verify
-from leadcommons.enrich import eval as ev
-from leadcommons.enrich.crawl import Page
+from pepite.cli import app
+from pepite.enrich import crawl, verify
+from pepite.enrich import eval as ev
+from pepite.enrich.crawl import Page
 
 GOLD = Path(__file__).parent / "fixtures" / "email_gold"
 FIXTURES = Path(__file__).parent / "fixtures" / "enrich"
@@ -27,7 +27,7 @@ runner = CliRunner()
 
 @pytest.fixture(autouse=True)
 def _local_mode(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("LEADCOMMONS_MODE", "local")
+    monkeypatch.setenv("PEPITE_MODE", "local")
     monkeypatch.setattr(crawl, "CRAWL_DELAY", 0.0)
     crawl.clear_cache()
     yield

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% from "_macros.html" import ic, hxf, pager, avatar %}
+{% from "_search_macros.html" import row_actions %}
+{% block title %}Find companies · Pépite{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/css/search-filters.css">
+<div class="page-head">
+  <h1>Find companies</h1>
+  {% include "_search_import.html" %}
+</div>
+
+<div id="workspace" data-kind="companies">
+<form id="f" method="get" action="/companies" {{ hxf("/companies") }} hx-trigger="submit, change[target.form && target.form.id=='f'], input[target.id=='q'] delay:400ms">
+  {% include "_search_toolbar.html" %}
+  <div class="ws">
+    {% include "_search_panel.html" %}
+
+    <section class="results" aria-label="Results">
+      {% if landing %}
+      {% include "_search_landing.html" %}
+      {% elif items %}
+      <div class="table-wrap tbl">
+        <table class="data" data-cols="companies">
+          <thead><tr>
+            <th class="cb"><input type="checkbox" class="allcb" form="bulk" aria-label="Select all on this page"></th>
+            {% for col in s.columns %}<th scope="col" data-col="{{ col.key }}"{% if not col.default %} hidden{% endif %}>{{ col.label }}</th>{% endfor %}
+            <th class="addcol"><button type="button" class="btn sm" data-open-panel="col-chooser">{{ ic("plus", "sm") }}<span>Add column</span></button></th>
+          </tr></thead>
+          <tbody>
+          {% for c in items %}
+            <tr data-id="{{ c.id }}">
+              <td class="cb"><input type="checkbox" class="rowcb" name="ids" value="{{ c.id }}" form="bulk" aria-label="Select {{ c.name }}"></td>
+              {% for col in s.columns %}
+              <td data-col="{{ col.key }}"{% if not col.default %} hidden{% endif %}>
+                {%- if col.key == "name" -%}
+                  <span class="namecell">{{ avatar(c.name, "co") }}<a class="co-name" href="/companies/{{ c.id }}" hx-get="/companies/{{ c.id }}" hx-target="#drawer" hx-select="unset" hx-swap="innerHTML" hx-push-url="false">{{ c.name }}</a>{% if c.id in saved_ids %}<span class="chip ok">Saved</span>{% endif %}</span>
+                {%- elif col.key == "domain" -%}{% if c.domain %}<span class="mono dim">{{ c.domain }}</span>{% endif %}
+                {%- elif col.key == "location" -%}{% if c.city %}{{ c.city }}, {% endif %}{{ country_name(c.country) }}
+                {%- elif col.key == "industry" -%}{{ c.industry_label or isic.get(c.industry) or c.industry or "" }}
+                {%- elif col.key == "size" -%}<span class="mono">{{ c.size_range or "" }}</span>
+                {%- elif col.key == "sources" -%}<span class="chips">{% for src in (c.sources | map(attribute="source") | unique) %}<span class="chip src">{{ src }}</span>{% endfor %}</span>
+                {%- elif col.key == "phone" -%}{% set ph = phones.get(c.id) %}{% if ph %}<a class="mono phone" href="{{ ph|tel }}" title="Business line from the company website">{{ ph }}</a>{% endif %}
+                {%- elif col.key == "country" -%}{{ country_name(c.country) }}
+                {%- elif col.key == "city" -%}{{ c.city or "" }}
+                {%- elif col.key == "region" -%}{{ c.region or "" }}
+                {%- elif col.key == "legal_name" -%}{{ c.legal_name or "" }}
+                {%- elif col.key == "founded" -%}<span class="mono">{{ c.founded_year or "" }}</span>
+                {%- elif col.key == "lei" -%}<span class="mono dim">{{ c.registry_ids.get("lei") or "" }}</span>
+                {%- elif col.key == "wikidata" -%}<span class="mono dim">{{ c.registry_ids.get("wikidata") or "" }}</span>
+                {%- endif -%}
+              </td>
+              {% endfor %}
+              <td class="ract">{{ row_actions("companies", c.id, c.name, none, phones.get(c.id), s.demo, c.domain is not none) }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {{ pager(pg) }}
+      {% else %}
+      <div class="table-wrap"><div class="empty">
+        {% if has_filters or p.tab != 'all' %}
+          <h3>No companies match</h3><p>Try removing a filter or searching by a different name.</p>
+          <a class="btn" href="/companies" {{ hxf("/companies") }}>Clear all filters</a>
+        {% else %}
+          <h3>No company data yet</h3><p>Download a data pack to search companies locally.</p>
+          <p><code>pepite pack download latest</code></p>
+        {% endif %}
+      </div></div>
+      {% endif %}
+    </section>
+  </div>
+</form>
+{% include "_search_dialogs.html" %}
+</div>
+{% endblock %}
+{% block dialogs %}<script src="/static/js/search-filters.js" defer></script>{% endblock %}

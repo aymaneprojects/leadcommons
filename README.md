@@ -1,140 +1,156 @@
-# LeadCommons
+<p align="center">
+  <img src="docs/brand/banner.png" width="860" alt="Pépite: free, open-source B2B prospecting built only from public, lawful data">
+</p>
 
-**Free, open-source, local-first prospecting.** LeadCommons helps you find companies, the people who work there, and their likely work email addresses, using only public, lawful data. It is an open-source alternative to tools like Apollo, built for people who cannot pay for sales tools: freelancers, students, small associations, early founders.
+<p align="center">
+  <a href="https://github.com/aymaneprojects/pepite/releases/latest"><img src="https://img.shields.io/github/v/release/aymaneprojects/pepite?filter=v*&style=flat-square&color=FF6B1A&label=download" alt="Download"></a>
+  <a href="https://github.com/aymaneprojects/pepite/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/aymaneprojects/pepite/ci.yml?branch=main&style=flat-square&label=tests" alt="Tests"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-AGPL--3.0-1A1816?style=flat-square" alt="AGPL-3.0"></a>
+  <img src="https://img.shields.io/badge/companies-21.8M-1A1816?style=flat-square" alt="21.8 million companies">
+  <img src="https://img.shields.io/badge/python-3.12+-1A1816?style=flat-square" alt="Python 3.12+">
+</p>
 
-You run it on your own computer (or your own server). Your leads never leave your machine.
+<p align="center">
+  <a href="https://github.com/aymaneprojects/pepite/releases/latest"><b>Download the app</b></a> ·
+  <a href="https://leadcommons.vercel.app"><b>Live demo</b></a> ·
+  <a href="docs/install.md">Install guide</a> ·
+  <a href="docs/data-sources.md">Data sources</a>
+</p>
+
+---
+
+**Pépite** (French for *nugget*) finds the companies you want to sell to, the people who run them
+and their likely work email, then helps you contact them. It is a free, open-source alternative to
+tools like Apollo, for people who cannot pay for sales software: freelancers, students,
+associations, early founders.
+
+It runs on **your** computer. Your leads never leave it.
+
+<p align="center">
+  <img src="docs/screenshots/companies.png" width="860" alt="Searching 21.8 million companies by industry, place and size">
+</p>
+
+## Why Pépite
+
+- **Real data, from official registers.** 21.8 million active companies in 227 countries, rebuilt
+  every month from government registers (France, UK, Norway, Australia, Canada…) and open
+  datasets. Every record shows where each fact comes from.
+- **Yours, not a vendor's.** People, emails and lists stay in a database on your machine. Nothing
+  is uploaded or synced.
+- **Lawful by design.** No LinkedIn scraping, no bought data, no personal mobile numbers, a public
+  opt-out page and a suppression list that is checked everywhere.
+- **The whole workflow.** Search, find people, verify emails, run email sequences, track deals. No
+  credits, no seats, no limits.
 
 ## What it does
 
-- **Company search** over open data packs (Wikidata, GLEIF, and the French SIRENE registry): include/exclude filters for country, industry, size and keywords, column chooser, saved views.
-- **AI search**: type who you want in plain words (English or French), e.g. "French fintech startups" or "CTOs at German SaaS companies, 50-200", and it fills the filters. Works offline with rules; can use a local model (Ollama) if you set `LEADCOMMONS_LLM_URL`.
-- **People finder**: reads a company's public pages (team, about, legal notice, contact) and lists the people it finds with their job titles.
-- **Email finder and checker**: learns each company's address format from its public addresses, then checks syntax, MX records, the mail provider and catch-all behaviour. An optional live SMTP probe is off by default. "Valid" means mailbox-level evidence and at least 90% measured precision; the 0-100 score is calibrated ([how we measure it](docs/email-quality.md)).
-- **Lists and saved searches**, stored in a local database.
-- **CSV enrichment**: upload a CSV, get one back with domains, contacts and emails.
-- **Opt-out and suppression list**: a public `/opt-out` page and a list that is checked before anything is returned.
-- **Command line** and **web interface**, in local (no login) or server (password) mode.
+| | |
+| --- | --- |
+| **Company search** | Filters for place, industry, size and keywords; lookalikes, saved views and lists. |
+| **AI search** | Type who you want ("French fintech startups, 50-200 people") and the filters fill in. Works offline; can use your own model. |
+| **People finder** | Reads a company's public pages and official officer registers (UK, Norway, SEC filings, Wikidata). |
+| **Email finder** | Learns each company's address format, then checks MX, the mail provider and catch-all behaviour. Scores are calibrated against measured precision ([how](docs/email-quality.md)). |
+| **Sequences** | Multi-step email campaigns sent from your own mailbox, with sending windows, reply detection and an unsubscribe link in every email. |
+| **Deals and tasks** | Pipeline, meetings, calls, tasks, workflows and webhooks. |
+| **CSV enrichment** | Upload a CSV, get it back with domains, people and emails. |
+| **AI assistants** | A built-in MCP server lets Claude, ChatGPT and other assistants search and build lists for you. |
 
-| Search | Company profile | AI search |
-| --- | --- | --- |
-| ![Search](docs/screenshots/search.png) | ![Company](docs/screenshots/company.png) | ![AI search](docs/screenshots/ai-search.png) |
+| Company profile | Email sequences |
+| --- | --- |
+| ![Company profile](docs/screenshots/company.png) | ![Sequences](docs/screenshots/sequences.png) |
 
 ## Install
 
-Pick one. Details in [docs/install.md](docs/install.md).
+**Desktop app (easiest):** download it for Windows, macOS (Apple Silicon) or Linux from the
+[latest release](https://github.com/aymaneprojects/pepite/releases/latest) and open it like any
+other app. It downloads your country's companies on first start. See [docs/desktop.md](docs/desktop.md).
 
-### Desktop app (easiest)
-
-Download the app for Windows, Mac (Apple Silicon) or Linux (.deb or AppImage) from the
-[latest release](https://github.com/aymaneprojects/leadcommons/releases/latest), install it and
-open it like any other application: own window, menus, notifications. No terminal needed.
-See [docs/desktop.md](docs/desktop.md).
-
-### 1. One-line installer (Linux, macOS, Windows)
+**One-line install** (Linux, macOS):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/aymaneprojects/leadcommons/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/aymaneprojects/pepite/main/scripts/install.sh | sh
 ```
 
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/aymaneprojects/leadcommons/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/aymaneprojects/pepite/main/scripts/install.ps1 | iex
 ```
 
-Then run `leadcommons serve` and open <http://127.0.0.1:8000>.
+Then run `pepite serve` and open <http://127.0.0.1:8000>.
 
-### 2. Docker
+<details>
+<summary><b>Docker, your own server, from source, Vercel</b></summary>
+
+**Docker**
 
 ```sh
-git clone https://github.com/aymaneprojects/leadcommons.git
-cd leadcommons
+git clone https://github.com/aymaneprojects/pepite.git && cd pepite
 docker compose up --build
 ```
 
-Open <http://127.0.0.1:8000>. Your data is kept in `./data`.
+**Your own server** with Postgres, automatic HTTPS and a login: [docs/server.md](docs/server.md),
+or deploy from GitHub Actions: [docs/deploy-with-actions.md](docs/deploy-with-actions.md).
 
-### 3. Your own server (Docker Compose + Caddy + HTTPS)
-
-Postgres, automatic HTTPS and a login, on any small VPS. Step by step in [docs/server.md](docs/server.md).
-
-### 4. Deploy from GitHub Actions to your VPS
-
-Fork the repository, add a few secrets, click "Run workflow". See [docs/deploy-with-actions.md](docs/deploy-with-actions.md).
-
-### 5. From source
+**From source**
 
 ```sh
-git clone https://github.com/aymaneprojects/leadcommons.git
-cd leadcommons
+git clone https://github.com/aymaneprojects/pepite.git && cd pepite
 uv sync --extra dev
-uv run leadcommons serve
+uv run pepite serve
 ```
 
-### Public demo on Vercel
+**Vercel** runs the app in demo mode: company search works, finding people and emails is off, so
+a public URL is never used to crawl. See [docs/vercel.md](docs/vercel.md).
 
-The repository deploys to Vercel as is (`vercel_app.py`, `vercel.json`). On Vercel the app runs in
-**demo mode**: anyone can search the company data, but finding people and emails is turned off, so
-a public URL is never used to crawl websites or check addresses. Saved lists are temporary there
-(serverless hosts have no permanent disk). For real use, install it locally or on your own server.
-Details in [docs/vercel.md](docs/vercel.md).
+</details>
 
 ## Quick start
 
 ```sh
-leadcommons pack download --country FR  # real company data for a country (a sample is bundled)
-leadcommons pack countries              # the countries you can download
-leadcommons serve                       # web app on http://127.0.0.1:8000
-leadcommons find-people example.com     # people on a company's public pages
-leadcommons find-email "Ada Lovelace" example.com
-leadcommons enrich companies.csv enriched.csv
-leadcommons optout someone@example.com  # never contact this address
-leadcommons --help
+pepite pack download --country FR   # companies of a country (a small sample is bundled)
+pepite serve                        # web app on http://127.0.0.1:8000
+pepite find-people example.com      # people on a company's public pages
+pepite find-email "Ada Lovelace" example.com
+pepite enrich companies.csv enriched.csv
+pepite optout someone@example.com   # never contact this address
 ```
 
-## Use it from Claude or ChatGPT
+Use it from Claude Code with `claude mcp add pepite -- pepite mcp` ([more](docs/mcp.md)).
 
-LeadCommons includes an MCP server, so an AI assistant can search companies, find people and emails, build lists and export CSV for you.
+## Where the data comes from
 
-```sh
-claude mcp add leadcommons -- leadcommons mcp        # Claude Code
-```
-
-For Claude Desktop, add `{"command": "leadcommons", "args": ["mcp"]}` to `claude_desktop_config.json`. For ChatGPT and other remote clients, run `leadcommons mcp --http` behind your HTTPS server with a bearer token. Details and security notes: [docs/mcp.md](docs/mcp.md).
-
-## Data sources and licences
-
-| Source | Licence | Used for |
+| Source | Countries | Licence |
 | --- | --- | --- |
-| [Wikidata](https://www.wikidata.org) | CC0 | company names, websites, countries, industries |
-| [GLEIF](https://www.gleif.org) | CC0 | legal entity records |
-| OpenStreetMap (planned) | ODbL | local businesses; needs attribution and share-alike |
+| [INSEE SIRENE](https://www.sirene.fr) | France | Licence Ouverte 2.0 |
+| [Companies House](https://www.gov.uk/government/organisations/companies-house) | United Kingdom | OGL 3.0 |
+| [Brønnøysund Register Centre](https://www.brreg.no) | Norway | NLOD 2.0 |
+| [Australian Business Register](https://abr.gov.au) | Australia | CC BY 4.0 |
+| [Corporations Canada](https://ised-isde.canada.ca/site/corporations-canada/en) | Canada | OGL Canada 2.0 |
+| [GLEIF](https://www.gleif.org) | worldwide (legal entities) | CC0 |
+| [Wikidata](https://www.wikidata.org) | worldwide | CC0 |
+| [SEC EDGAR](https://www.sec.gov/edgar) | United States (next build) | public domain |
 
-Company packs are built monthly and published as GitHub Releases with an `ATTRIBUTION.md`. See [docs/data-sources.md](docs/data-sources.md).
+Packs are published monthly as [GitHub releases](https://github.com/aymaneprojects/pepite/releases)
+with a quality report and an `ATTRIBUTION.md`. They hold companies only; people are found on
+demand, on your machine. Next: company websites linked from the register numbers printed on their
+own legal pages ([docs/sitescan.md](docs/sitescan.md)) and more countries
+([roadmap](docs/dev/data-roadmap.md)).
 
-## Privacy
+## Privacy and ethics
 
-- **Local-first.** People and emails are stored only in your own database (SQLite on your machine, or your own Postgres). Nothing is uploaded or synced.
-- **Company data is shared, personal data is not.** Packs contain companies only.
-- **Public `/opt-out` page** and a **suppression list** (stored as hashes) let anyone ask not to be contacted.
-
-More in [docs/privacy.md](docs/privacy.md).
-
-## Ethics
-
-- No scraping behind logins, no bypassing paywalls or captchas.
-- Polite crawling: robots.txt is respected, requests are rate-limited, and the crawler identifies itself.
-- Meant for B2B outreach to professional contacts. You are responsible for following the law that applies to you (GDPR, CAN-SPAM, ePrivacy...) and for honouring opt-outs.
-
-## Roadmap
-
-- **v0.2**: OpenStreetMap connector, better title and seniority detection, CSV export of lists, more countries' company registers.
-- **v0.3**: shared community packs for people-free signals (technology, hiring), email sequences export, plug-in connector registry.
+- Polite crawling: robots.txt respected, rate-limited, a bot name that links to its documentation.
+- No scraping behind logins, no paywall or captcha bypassing, no tracking pixels.
+- A public `/opt-out` page and a hashed suppression list honoured everywhere.
+- Meant for B2B outreach. You stay responsible for the law that applies to you (GDPR, ePrivacy,
+  CAN-SPAM) and for honouring opt-outs. More in [docs/privacy.md](docs/privacy.md).
 
 ## Contributing
 
-Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). Report security problems as described in [SECURITY.md](SECURITY.md).
+Issues and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Report security
+problems as described in [SECURITY.md](SECURITY.md).
 
 ## Licence
 
-[GNU AGPL v3 or later](LICENSE). If you run a modified version as a network service, you must offer its source to its users.
+[GNU AGPL v3 or later](LICENSE). If you run a modified version as a network service, offer its
+source to its users.

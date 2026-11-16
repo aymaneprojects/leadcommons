@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from leadcommons.packs import SAMPLE_PACK_DIR, DuckDBCompanySearch
-from leadcommons.packs.builder import write_parquet
-from leadcommons.search import PACK_COLUMNS, CompanyFilters
+from pepite.packs import SAMPLE_PACK_DIR, DuckDBCompanySearch
+from pepite.packs.builder import write_parquet
+from pepite.search import PACK_COLUMNS, CompanyFilters
 
 
 def row(i, name, **kw) -> dict:

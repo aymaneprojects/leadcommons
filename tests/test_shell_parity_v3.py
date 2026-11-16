@@ -10,11 +10,11 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from leadcommons.config import Settings
-from leadcommons.store import Store
-from leadcommons.store.engage import repo_for as engage_repo
-from leadcommons.web import pages_extra
-from leadcommons.web.app import create_app
+from pepite.config import Settings
+from pepite.store import Store
+from pepite.store.engage import repo_for as engage_repo
+from pepite.web import pages_extra
+from pepite.web.app import create_app
 from tests.fakes import FakeJobs, FakeSearch
 
 
@@ -39,8 +39,8 @@ def client(app: FastAPI) -> TestClient:
 
 @pytest.fixture(autouse=True)
 def no_llm(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("LEADCOMMONS_LLM_URL", raising=False)
-    monkeypatch.delenv("LEADCOMMONS_LLM_MODEL", raising=False)
+    monkeypatch.delenv("PEPITE_LLM_URL", raising=False)
+    monkeypatch.delenv("PEPITE_LLM_MODEL", raising=False)
 
 
 def add_mailbox(app: FastAPI, email: str = "me@acme.example", status: str = "ok") -> None:
@@ -108,7 +108,7 @@ def test_invite_teammates_server_mode_explains_sharing(tmp_path: Path) -> None:
     c.post("/login", data={"password": "pw"})
     html = c.get("/settings").text
     assert 'id="invite-dlg"' in html and 'data-open-dialog="invite-dlg"' in html
-    assert "/settings/api" in html and "LEADCOMMONS_PASSWORD" in html and "http" in html
+    assert "/settings/api" in html and "PEPITE_PASSWORD" in html and "http" in html
 
 
 # ------------------------------------------------------------------ email setup and health
@@ -124,21 +124,21 @@ def test_health_tabs_and_empty_state(client: TestClient) -> None:
     assert "Set up with AI" in html
     # no language model: disabled and explained
     assert re.search(r'<button[^>]*eh-ai-btn[^>]*aria-disabled="true"', html)
-    assert "LEADCOMMONS_LLM_URL" in html
+    assert "PEPITE_LLM_URL" in html
 
 
 def test_set_up_with_ai_opens_assistant_when_llm_configured(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("LEADCOMMONS_LLM_URL", "http://llm.test/v1")
-    monkeypatch.setenv("LEADCOMMONS_LLM_MODEL", "m")
+    monkeypatch.setenv("PEPITE_LLM_URL", "http://llm.test/v1")
+    monkeypatch.setenv("PEPITE_LLM_MODEL", "m")
     html = client.get("/settings/email-health?tab=domains").text
     assert re.search(r'<a class="btn eh-ai-btn" href="/assistant\?prompt=[^"]+set%20up', html)
 
 
 def test_set_up_with_ai_is_off_in_demo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("LEADCOMMONS_LLM_URL", "http://llm.test/v1")
-    monkeypatch.setenv("LEADCOMMONS_LLM_MODEL", "m")
+    monkeypatch.setenv("PEPITE_LLM_URL", "http://llm.test/v1")
+    monkeypatch.setenv("PEPITE_LLM_MODEL", "m")
     html = (
         TestClient(make_app(tmp_path, mode="demo")).get("/settings/email-health?tab=domains").text
     )

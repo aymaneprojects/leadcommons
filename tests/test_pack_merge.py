@@ -2,7 +2,7 @@
 
 The shards here are synthetic but follow the contract of connectors/bulk (exactly PACK_COLUMNS,
 one provenance entry per row). `test_merge_at_scale` is the scale check; it is skipped unless
-LEADCOMMONS_SCALE_ROWS is set (see its docstring for the measured numbers).
+PEPITE_SCALE_ROWS is set (see its docstring for the measured numbers).
 """
 
 from __future__ import annotations
@@ -19,14 +19,14 @@ import pyarrow.parquet as pq
 import pytest
 from typer.testing import CliRunner
 
-from leadcommons.connectors import bulk
-from leadcommons.models import make_id
-from leadcommons.packs.builder import pack_schema
-from leadcommons.packs.duck import DuckDBCompanySearch
-from leadcommons.packs.linking import install_macros
-from leadcommons.packs.merge import merge_shards
-from leadcommons.packs.quality import compute_quality
-from leadcommons.search import PACK_COLUMNS
+from pepite.connectors import bulk
+from pepite.models import make_id
+from pepite.packs.builder import pack_schema
+from pepite.packs.duck import DuckDBCompanySearch
+from pepite.packs.linking import install_macros
+from pepite.packs.merge import merge_shards
+from pepite.packs.quality import compute_quality
+from pepite.search import PACK_COLUMNS
 
 BUILT = datetime(2026, 12, 1, 3, 40, tzinfo=UTC)
 LICENCES = {
@@ -390,7 +390,7 @@ def test_attribution_uses_source_licences(tmp_path: Path, abr_registered) -> Non
 
 
 def test_attribution_without_registered_sources() -> None:
-    from leadcommons.packs.merge import CountryResult, attribution_markdown
+    from pepite.packs.merge import CountryResult, attribution_markdown
 
     au = CountryResult("AU", "companies-AU-20261201.parquet", 2, 1, "x", ["abr", "wikidata"], 0,
                        {"rows_by_source": {"abr": 2, "wikidata": 1}})  # fmt: skip
@@ -448,7 +448,7 @@ def test_quality_flags_a_tampered_pack(tmp_path: Path, merged: Path) -> None:
 
 
 def test_cli_merge_and_quality(tmp_path: Path) -> None:
-    from leadcommons.cli import app
+    from pepite.cli import app
 
     shards = make_shards(tmp_path / "shards")
     out = tmp_path / "out"
@@ -652,30 +652,30 @@ def lit(text: str) -> str:
     return "'" + text.replace("'", "''") + "'"
 
 
-@pytest.mark.skipif(not os.environ.get("LEADCOMMONS_SCALE_ROWS"),
-                    reason="scale check: set LEADCOMMONS_SCALE_ROWS (e.g. 30000000)")  # fmt: skip
+@pytest.mark.skipif(not os.environ.get("PEPITE_SCALE_ROWS"),
+                    reason="scale check: set PEPITE_SCALE_ROWS (e.g. 30000000)")  # fmt: skip
 def test_merge_at_scale(tmp_path: Path) -> None:
     """Scale check (not run in CI). Run in a subprocess to measure peak memory:
 
-        LEADCOMMONS_SCALE_ROWS=30000000 .venv/bin/pytest -q -s tests/test_pack_merge.py -k scale
+        PEPITE_SCALE_ROWS=30000000 .venv/bin/pytest -q -s tests/test_pack_merge.py -k scale
 
-    Measured on a 4-core / 15 GB sandbox with LEADCOMMONS_SCALE_ROWS=30000000 (30.0M input rows,
+    Measured on a 4-core / 15 GB sandbox with PEPITE_SCALE_ROWS=30000000 (30.0M input rows,
     France 15M): 393 s wall and 9.8 GiB peak RSS with the default memory limit, 403 s and
-    4.2 GiB with LEADCOMMONS_MERGE_MEMORY=4GB (details in the packs/merge.py docstring).
+    4.2 GiB with PEPITE_MERGE_MEMORY=4GB (details in the packs/merge.py docstring).
     """
     import resource
     import subprocess
     import sys
     import time
 
-    total = int(os.environ["LEADCOMMONS_SCALE_ROWS"])
-    base = Path(os.environ.get("LEADCOMMONS_SCALE_DIR") or tmp_path)
+    total = int(os.environ["PEPITE_SCALE_ROWS"])
+    base = Path(os.environ.get("PEPITE_SCALE_DIR") or tmp_path)
     t0 = time.monotonic()
     counts = generate_scale_shards(base / "shards", total)
     gen = time.monotonic() - t0
     t0 = time.monotonic()
     out = base / "out"
-    cmd = [sys.executable, "-m", "leadcommons", "pack", "merge", str(base / "shards"),
+    cmd = [sys.executable, "-m", "pepite", "pack", "merge", str(base / "shards"),
            "--out", str(out)]  # fmt: skip
     subprocess.run(cmd, check=True)  # its own process: peak memory is the merge's alone
     took = time.monotonic() - t0
