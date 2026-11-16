@@ -84,7 +84,12 @@ REGISTRY_ALIASES: dict[str, str] = {
 # by source name prefix (gleif_golden, edgar_bulk, wikidata...). Every other source is a
 # national register (sirene_stock, companies_house, Brønnøysund, ABR, Corporations Canada, and
 # any register added later).
-SOURCE_TIERS: dict[str, str] = {"gleif": "lei", "wikidata": "wiki", "edgar": "filings"}
+SOURCE_TIERS: dict[str, str] = {
+    "gleif": "lei",
+    "wikidata": "wiki",
+    "edgar": "filings",
+    "sitescan": "web",
+}
 TIERS: tuple[str, ...] = ("register", "filings", "lei", "wiki")
 # Order used to pick a cluster's representative row (country, legal facts).
 LEGAL_ORDER: tuple[str, ...] = ("register", "filings", "lei", "wiki")

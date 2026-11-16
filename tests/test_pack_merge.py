@@ -38,6 +38,7 @@ LICENCES = {
     "brreg": "NLOD-2.0",
     "abr": "CC-BY-4.0",
     "canada_corps": "OGL-Canada-2.0",
+    "sitescan": "n/a",
 }
 ABR_ATTRIBUTION = "Contains ABR data, Commonwealth of Australia, licensed under CC BY 4.0."
 
@@ -714,3 +715,33 @@ def test_files_hold_only_their_country_and_former_countries_are_dropped(tmp_path
         sql = f"SELECT count(*) FROM read_parquet('{out / f}') WHERE country IS DISTINCT FROM ?"
         assert con.execute(sql, [cc]).fetchone()[0] == 0
     assert compute_quality(out)["status"] != "fail"
+
+
+def test_site_scan_adds_websites_but_never_makes_a_company(tmp_path: Path) -> None:
+    shards = tmp_path / "shards"
+    shards.mkdir()
+    write_shard(shards, "sirene_stock", [fr(S_A, "Alpha SAS"), fr(S_B, "Beta SARL")])
+    nordic = {"name": "Nordic AS", "country": "NO", "registry": "NO-BRREG",
+              "company_number": "923609016", "status": "active",
+              "domain": "nordic.no", "website": "https://nordic.no"}  # fmt: skip
+    write_shard(shards, "brreg", [nordic])
+    web = [
+        # proof on alpha.fr's legal notice: SIREN of Alpha -> attaches the website and phone
+        {"country": "FR", "registry": "FR-SIREN", "company_number": S_A, "siren": S_A,
+         "domain": "alpha.fr", "website": "https://alpha.fr", "phone": "+33140000000"},
+        # a SIREN that is in no register shard: never becomes a company on its own
+        {"country": "FR", "registry": "FR-SIREN", "company_number": "333333334",
+         "siren": "333333334", "domain": "ghost.fr", "website": "https://ghost.fr"},
+        # the register's own website wins over a scanned one
+        {"country": "NO", "registry": "NO-BRREG", "company_number": "923609016",
+         "domain": "other.no", "website": "https://other.no"},
+    ]  # fmt: skip
+    write_shard(shards, "sitescan", web)
+    out = tmp_path / "out"
+    merge_shards(shards, out, built_at=BUILT, keep_unregistered=True)
+    fr_rows = {r["company_number"]: r for r in rows(out, "FR").values()}
+    assert fr_rows[S_A]["domain"] == "alpha.fr" and fr_rows[S_A]["phone"] == "+33140000000"
+    assert fr_rows[S_A]["name"] == "Alpha SAS"
+    assert "333333334" not in fr_rows and fr_rows[S_B]["domain"] is None
+    no_row = next(iter(rows(out, "NO").values()))
+    assert no_row["domain"] == "nordic.no"

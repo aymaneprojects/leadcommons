@@ -1,0 +1,169 @@
+name: Sitescan hosts
+
+# Candidate domains for the site scan (docs/sitescan.md): for each country TLD, the registered
+# domains Common Crawl fetched successfully in its newest crawl, read from the public columnar URL
+# index (https://data.commoncrawl.org/cc-index/table/cc-main/warc/) with DuckDB. One job per TLD
+# writes domains-<tld>.txt.gz (+ a small .json with the crawl id and counts); the publish job
+# attaches them to a sitescan-hosts-YYYY-MM release (not marked latest). Manual dispatch can limit
+# the TLDs and the number of index files. Pushing to a data/hosts* branch is a test run: one TLD,
+# three index files, counts and sample domains in the log, nothing published.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tlds:
+        description: "Space-separated TLDs (empty = fr uk de no au ca nl be dk ch it es)"
+        required: false
+        default: ""
+      max_files:
+        description: "Read only the first N index files per TLD (empty = all, about 300)"
+        required: false
+        default: ""
+      crawl:
+        description: "Common Crawl id, e.g. CC-MAIN-2026-33 (empty = the newest crawl)"
+        required: false
+        default: ""
+      publish:
+        description: "Publish the sitescan-hosts-YYYY-MM release"
+        type: boolean
+        required: false
+        default: true
+  push:
+    branches:
+      - "data/hosts*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sitescan-hosts-${{ github.event_name == 'push' && github.ref || 'release' }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      tlds: ${{ steps.plan.outputs.tlds }}
+      max_files: ${{ steps.plan.outputs.max_files }}
+      crawl: ${{ steps.plan.outputs.crawl }}
+      publish: ${{ steps.plan.outputs.publish }}
+      release: ${{ steps.plan.outputs.release }}
+    steps:
+      - name: Plan the run
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_TLDS: ${{ inputs.tlds }}
+          INPUT_MAX_FILES: ${{ inputs.max_files }}
+          INPUT_CRAWL: ${{ inputs.crawl }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
+        run: |
+          all="fr uk de no au ca nl be dk ch it es"
+          tlds="${INPUT_TLDS:-$all}"
+          max_files="$INPUT_MAX_FILES"
+          crawl="$INPUT_CRAWL"
+          publish=true
+          if [ "$EVENT" = "push" ]; then
+            # Test mode: Norway is the smallest TLD, three index files are enough to see counts.
+            tlds="no"; max_files=3; crawl=""; publish=false
+          elif [ "$EVENT" = "workflow_dispatch" ]; then
+            publish="$INPUT_PUBLISH"
+          fi
+          for t in $tlds; do
+            case " $all " in
+              *" $t "*) ;;
+              *) echo "::error::unknown TLD: $t (known: $all)"; exit 1 ;;
+            esac
+          done
+          json=$(printf '%s\n' $tlds | jq -R . | jq -cs .)
+          {
+            echo "tlds=$json"
+            echo "max_files=$max_files"
+            echo "crawl=$crawl"
+            echo "publish=$publish"
+            echo "release=sitescan-hosts-$(date -u +%Y-%m)"
+          } >> "$GITHUB_OUTPUT"
+          echo "tlds=$json max_files=${max_files:-all} crawl=${crawl:-newest} publish=$publish"
+
+  hosts:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        tld: ${{ fromJSON(needs.plan.outputs.tlds) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install
+        run: uv sync --python 3.13 --extra build
+      - name: List .${{ matrix.tld }} domains
+        env:
+          TLD: ${{ matrix.tld }}
+          MAX_FILES: ${{ needs.plan.outputs.max_files }}
+          CRAWL: ${{ needs.plan.outputs.crawl }}
+        run: |
+          args=(--tld "$TLD" --out hosts-out --workers 4)
+          if [ -n "$MAX_FILES" ]; then args+=(--max-files "$MAX_FILES"); fi
+          if [ -n "$CRAWL" ]; then args+=(--crawl "$CRAWL"); fi
+          # Stop with SIGINT shortly before the job timeout: the command still writes the file
+          # from the index files it has read (marked partial in the .json).
+          rc=0
+          timeout -s INT 330m uv run leadcommons sitescan hosts "${args[@]}" || rc=$?
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 124 ]; then exit "$rc"; fi
+          ls -l hosts-out
+          test -s "hosts-out/domains-$TLD.txt.gz"
+      - name: Counts and sample
+        env:
+          TLD: ${{ matrix.tld }}
+        run: |
+          cat "hosts-out/domains-$TLD.json"
+          echo "domains: $(zcat "hosts-out/domains-$TLD.txt.gz" | wc -l)"
+          # A test run reads only a few index files (sorted by host), so it may hold few or no
+          # domains of this TLD; that is expected. It checks listing, httpfs and extraction.
+          zcat "hosts-out/domains-$TLD.txt.gz" | head -n 10 || true
+      - name: Keep only the result files
+        run: rm -rf hosts-out/parts-*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hosts-${{ matrix.tld }}
+          path: hosts-out/*
+          retention-days: 14
+
+  publish:
+    needs: [plan, hosts]
+    if: ${{ !cancelled() && needs.plan.outputs.publish == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: hosts-*
+          path: release-files
+          merge-multiple: true
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE: ${{ needs.plan.outputs.release }}
+        run: |
+          ls -l release-files
+          if ! compgen -G "release-files/domains-*.txt.gz" >/dev/null; then
+            echo "::error::no domain list was built; nothing to publish"
+            exit 1
+          fi
+          files=(release-files/*)
+          if gh release view "$RELEASE" >/dev/null 2>&1; then
+            gh release upload "$RELEASE" "${files[@]}" --clobber
+          else
+            gh release create "$RELEASE" "${files[@]}" \
+              --latest=false \
+              --title "Site scan hosts $RELEASE" \
+              --notes "Candidate domains per country TLD (one domain per line, gzip), from Common Crawl's URL index: registered domains fetched successfully in the crawl named in each domains-<tld>.json. Input of 'leadcommons sitescan run'; see docs/sitescan.md."
+          fi

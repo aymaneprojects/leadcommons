@@ -23,6 +23,11 @@ pack_app = typer.Typer(help="Build, download and inspect company data packs.", n
 app.add_typer(pack_app, name="pack")
 eval_app = typer.Typer(help="Measure data quality against a gold set.", no_args_is_help=True)
 app.add_typer(eval_app, name="eval")
+sitescan_app = typer.Typer(
+    help="Link company websites by reading the register numbers on their public pages.",
+    no_args_is_help=True,
+)
+app.add_typer(sitescan_app, name="sitescan")
 
 DEFAULT_PACKS_REPO = "aymaneprojects/leadcommons"
 
@@ -409,6 +414,133 @@ def pack_quality(
     typer.echo(json.dumps(report, indent=2) if as_json else summary_text(report))
     if report["status"] == "fail":
         raise typer.Exit(code=1)
+
+
+@sitescan_app.command("hosts")
+def sitescan_hosts(
+    out: Annotated[Path, typer.Option(help="Directory for domains-<tld>.txt.gz.")],
+    tld: Annotated[
+        list[str] | None,
+        typer.Option("--tld", help="Top-level domain, e.g. fr (repeatable; default: all packs)."),
+    ] = None,
+    crawl: Annotated[
+        str | None, typer.Option(help="Common Crawl id (default: the newest crawl).")
+    ] = None,
+    max_files: Annotated[
+        int | None, typer.Option(help="Read only the first N index files (test runs).")
+    ] = None,
+    workers: Annotated[int, typer.Option(help="Index files read in parallel.")] = 4,
+    packs: Annotated[
+        Path | None,
+        typer.Option(help="Instead of Common Crawl: list the domains of this packs directory."),
+    ] = None,
+) -> None:
+    """List candidate domains: Common Crawl's URL index per TLD, or the domains already in packs."""
+    from leadcommons.sitescan import hosts
+
+    _log_progress_to_stderr()
+    out.mkdir(parents=True, exist_ok=True)
+    if packs is not None:
+        import gzip
+
+        target = out / "domains-packs.txt.gz"
+        n = 0
+        with gzip.open(target, "wt", encoding="utf-8") as fh:
+            for domain, _ in _guard("reading the packs", lambda: list(hosts.packs_domains(packs))):
+                fh.write(domain + "\n")
+                n += 1
+        typer.echo(f"{target}: {n} domains from the packs")
+        return
+    failed = 0
+    for one in tld or list(hosts.DEFAULT_TLDS):
+        stats = _guard(
+            f"listing .{one}",
+            lambda one=one: hosts.build_domains(
+                one, out, crawl=crawl, max_files=max_files, workers=workers
+            ),
+        )
+        typer.echo(
+            f".{one}: {stats['domains']} domains from {stats['files_done']}/{stats['files']} "
+            f"files of {stats['crawl']}" + (" (partial)" if stats["partial"] else "")
+        )
+        failed += stats["files_done"] == 0
+    if failed:
+        raise typer.Exit(1)
+
+
+@sitescan_app.command("run")
+def sitescan_run(
+    domains: Annotated[
+        Path,
+        typer.Option(
+            exists=True, dir_okay=False, help="Text file (.txt or .gz), one domain per line."
+        ),
+    ],
+    out: Annotated[Path, typer.Option(help="Findings directory (findings-*.parquet, resumable).")],
+    country: Annotated[
+        str | None, typer.Option(help="Country of every domain (default: from the TLD).")
+    ] = None,
+    concurrency: Annotated[int, typer.Option(help="Sites read at the same time.")] = 100,
+    delay: Annotated[float, typer.Option(help="Seconds between two requests to one site.")] = 1.0,
+    max_pages: Annotated[int, typer.Option(help="Pages read per site (at most).")] = 4,
+    limit: Annotated[int | None, typer.Option(help="Scan only the first N domains.")] = None,
+    part: Annotated[
+        str | None,
+        typer.Option(
+            help="K/N: scan slice K of N (0-based) into <out>/part-K. One Python process uses "
+            "one core, so run N processes on N cores."
+        ),
+    ] = None,
+) -> None:
+    """Read the home and legal pages of each domain and keep the register numbers found."""
+    import itertools
+    import json
+    import zlib
+
+    from leadcommons.sitescan import fetch, hosts
+
+    _log_progress_to_stderr()
+    code = country.strip().upper() if country else None
+    feed = hosts.read_domains_file(domains, code)
+    if part:
+        try:
+            k, n = (int(x) for x in part.split("/"))
+            if not 0 <= k < n:
+                raise ValueError
+        except ValueError:
+            raise _fail("--part must look like 0/4 (slice K of N, K < N)") from None
+        feed = (d for d in feed if zlib.crc32(d[0].encode()) % n == k)
+        out = out / f"part-{k}"
+    if limit:
+        feed = itertools.islice(feed, limit)
+    stats = _guard(
+        "scanning",
+        lambda: fetch.run_scan(
+            feed,
+            out,
+            concurrency=concurrency,
+            per_host_delay=delay,
+            max_pages=max_pages,
+        ),
+    )
+    typer.echo(json.dumps(stats, indent=2))
+
+
+@sitescan_app.command("shard")
+def sitescan_shard(
+    findings: Annotated[
+        Path, typer.Argument(exists=True, help="Findings directory written by `sitescan run`.")
+    ],
+    out: Annotated[Path, typer.Option(help="Shards directory (sitescan.parquet is written here).")],
+) -> None:
+    """Turn findings into a bulk-source shard for `pack merge` (domain, website, phone)."""
+    import json
+
+    from leadcommons.sitescan.shard import build_shard
+
+    _log_progress_to_stderr()
+    stats = _guard("building the shard", lambda: build_shard(findings, out))
+    typer.echo(json.dumps(stats, indent=2))
 
 
 @app.command("find-people")

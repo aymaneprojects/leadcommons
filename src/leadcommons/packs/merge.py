@@ -110,6 +110,8 @@ log = logging.getLogger(__name__)
 SCHEMA = 3
 
 REG, FIL, LEI, WIKI = "register", "filings", "lei", "wiki"
+# Facts read on the company's own website (sitescan): only its website and switchboard phone.
+WEB = "web"
 FIELD_PRIORITY: dict[str, tuple[str, ...]] = {
     "name": (WIKI, REG, LEI, FIL),
     "legal_name": (REG, LEI, FIL, WIKI),
@@ -124,12 +126,12 @@ FIELD_PRIORITY: dict[str, tuple[str, ...]] = {
     "lei": (LEI, WIKI, REG, FIL),
     "cik": (FIL, WIKI, LEI, REG),
     "wikidata_id": (WIKI, LEI, REG, FIL),
-    "website": (REG, WIKI, FIL, LEI),  # domain and website together
+    "website": (REG, WEB, WIKI, FIL, LEI),  # domain and website together
     "industry": (REG, FIL, WIKI, LEI),  # industry and industry_label together
     "size_range": (REG, FIL, WIKI, LEI),
     "employees": (REG, FIL, WIKI, LEI),
     "revenue": (REG, FIL, WIKI, LEI),  # revenue, currency and year together
-    "phone": (REG, FIL, WIKI, LEI),
+    "phone": (REG, FIL, WEB, WIKI, LEI),
 }
 # (group, output columns, priority profile). Columns of one group come from the same row.
 FIELD_GROUPS: tuple[tuple[str, tuple[str, ...], str], ...] = (
@@ -326,7 +328,8 @@ def _single_sql() -> str:
         CASE WHEN wikidata_id_v IS NOT NULL THEN tier END AS wd_tier,
         CASE WHEN domain_v IS NOT NULL OR website_v IS NOT NULL THEN src END AS web_src,
         CASE WHEN domain_v IS NOT NULL OR website_v IS NOT NULL THEN tier END AS web_tier,
-        tier IN ('register', 'filings') AS has_reg
+        tier IN ('register', 'filings') AS has_reg,
+        tier <> 'web' AS has_core
       FROM c WHERE NOT multi
     """
 
@@ -352,6 +355,7 @@ def _multi_sql(national: str | None) -> str:
     )
     aggs.append("list(DISTINCT src ORDER BY src) AS srcs")
     aggs.append("bool_or(tier IN ('register', 'filings')) AS has_reg")
+    aggs.append("bool_or(tier <> 'web') AS has_core")
     unpack = []
     for name, outs, _ in FIELD_GROUPS + TRACKED_GROUPS:
         unpack += [f"g_{name}.{c} AS {c}" for c in outs]
@@ -374,7 +378,7 @@ def _multi_sql(national: str | None) -> str:
         g_reg.r AS registry, g_reg.d AS company_number, g_reg.n AS reg_key,
         prov.sources_json, srcs,
         g_lei.t AS lei_tier, g_cik.t AS cik_tier, g_wikidata_id.t AS wd_tier,
-        g_web.s AS web_src, g_web.t AS web_tier, has_reg
+        g_web.s AS web_src, g_web.t AS web_tier, has_reg, has_core
       FROM agg JOIN prov USING (cid)
     """
 
@@ -438,6 +442,8 @@ def _merge_country(
         ).fetchone()[0]
     )
     keep = f"NOT coalesce({unregistered_sql}, false)" if drop_unregistered else "true"
+    # A website finding alone never makes a company: it only adds to one from a register.
+    keep = f"has_core AND ({keep})"
     con.execute(f"""
       CREATE OR REPLACE TEMP TABLE out2 AS
       SELECT *,
