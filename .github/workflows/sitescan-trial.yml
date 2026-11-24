@@ -72,6 +72,7 @@ jobs:
       - name: Scan and report
         run: |
           procs=$(nproc)
+          mkdir -p findings
           for tld in $TLDS; do
             case "$tld" in
               uk) cc=GB ;;
