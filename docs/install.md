@@ -25,6 +25,7 @@ It installs the latest release (or `main` if there is none), then tries to downl
 
 - `PEPITE_REPO`: `owner/name` of a fork.
 - `PEPITE_VERSION`: a tag, branch or commit to install.
+- `PEPITE_SKIP_PACK`: set to `1` to skip the company data download at the end (the bundled sample is used; later run `pepite pack download latest`).
 
 Start the app:
 

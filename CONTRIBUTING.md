@@ -39,6 +39,15 @@ Connectors turn one open data source into `Company` records. See `src/pepite/con
 4. Add tests with recorded or hand-written fixtures (no live calls).
 5. Document the source and licence in `docs/data-sources.md` and the pack attribution.
 
+## Releasing
+
+1. Set the new version in `pyproject.toml`, `src/pepite/__init__.py`, `desktop/electron/package.json` and `desktop/electron/package-lock.json` (both `version` fields at the top).
+2. In `CHANGELOG.md`, rename `## Unreleased` to `## X.Y.Z (date)`.
+3. Merge to `main` once CI is green.
+4. Actions, **Release**, Run workflow on `main`: enter `version` (for example `0.2.0`, no `v`). Tick `dry_run` first to check, test and build without publishing.
+
+The run checks that the four files and the changelog agree, runs the tests, builds the wheel and sdist, creates the tag `vX.Y.Z` and a GitHub release (notes from the changelog), pushes the Docker image, and starts the **Desktop apps** build, which attaches the Windows, macOS and Linux installers to that release.
+
 ## Pull requests
 
 Small, focused changes with tests. Fill in the PR template. By contributing you agree your work is licensed under AGPL-3.0-or-later.

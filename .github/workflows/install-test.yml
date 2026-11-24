@@ -113,7 +113,8 @@ jobs:
           [ "$(code $U/login)" = 200 ] || { echo "login page"; exit 1; }
           [ "$(code "$U/companies?all=1")" != 200 ] || { echo "open without login"; exit 1; }
           [ "$(code -d password=wrong $U/login)" = 401 ] || { echo "wrong password accepted"; exit 1; }
-          [ "$(code -c "$jar" -d "password=$PW" $U/login)" = 303 ] || { echo "login refused"; exit 1; }
+          rc=$(code -c "$jar" -d "password=$PW" $U/login)
+          [ "$rc" = 303 ] || { echo "login refused (HTTP $rc)"; grep -c . .env; docker compose exec -T app sh -c 'echo "${PEPITE_PASSWORD_HASH%%\$*} len=${#PEPITE_PASSWORD_HASH}"'; exit 1; }
           curl -ksf -b "$jar" "$U/companies?all=1" | grep -q co-name
           curl -ksf -b "$jar" -H 'content-type: application/json' \
             -d '{"name":"CI list","kind":"companies"}' $U/api/lists
