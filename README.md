@@ -18,6 +18,8 @@
   <a href="docs/data-sources.md">Data sources</a>
 </p>
 
+<p align="center"><a href="README.fr.md">Français</a></p>
+
 ---
 
 **Pépite** (French for *nugget*) finds the companies you want to sell to, the people who run them

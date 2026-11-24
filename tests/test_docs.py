@@ -11,7 +11,7 @@ import typer.main
 from pepite.cli import app
 
 ROOT = Path(__file__).resolve().parents[1]
-DOCS = sorted([ROOT / "README.md", *ROOT.glob("docs/**/*.md")])
+DOCS = sorted([ROOT / "README.md", ROOT / "README.fr.md", *ROOT.glob("docs/**/*.md")])
 TEXTS = [*DOCS, ROOT / "CONTRIBUTING.md", ROOT / "SECURITY.md", ROOT / "deploy" / ".env.example"]
 
 # Names the docs mention that are not read by src/ on purpose.
