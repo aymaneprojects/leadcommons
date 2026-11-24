@@ -98,7 +98,7 @@ jobs:
           cp deploy/.env.example "$dir/.env"
           cd "$dir"
           hash=$(printf '%s\n%s\n' "$PW" "$PW" \
-            | docker run --rm -i ghcr.io/aymaneprojects/leadcommons:latest pepite hash-password | tail -n 1)
+            | docker run --rm -i ghcr.io/aymaneprojects/leadcommons:latest pepite hash-password 2>/dev/null | grep -o 'scrypt[$][0-9a-f$]*')
           # "localhost": Caddy serves it over HTTPS with its own local certificate.
           sed -i -e "s|^DOMAIN=.*|DOMAIN=localhost|" \
             -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -hex 24)|" \
@@ -114,7 +114,7 @@ jobs:
           [ "$(code "$U/companies?all=1")" != 200 ] || { echo "open without login"; exit 1; }
           [ "$(code -d password=wrong $U/login)" = 401 ] || { echo "wrong password accepted"; exit 1; }
           rc=$(code -c "$jar" -d "password=$PW" $U/login)
-          [ "$rc" = 303 ] || { echo "login refused (HTTP $rc)"; grep -c . .env; docker compose exec -T app sh -c 'echo "${PEPITE_PASSWORD_HASH%%\$*} len=${#PEPITE_PASSWORD_HASH}"'; exit 1; }
+          [ "$rc" = 303 ] || { echo "login refused (HTTP $rc)"; exit 1; }
           curl -ksf -b "$jar" "$U/companies?all=1" | grep -q co-name
           curl -ksf -b "$jar" -H 'content-type: application/json' \
             -d '{"name":"CI list","kind":"companies"}' $U/api/lists
