@@ -5,10 +5,19 @@ name: Install test
 on:
   workflow_dispatch:
   push:
-    branches: ["install/**"]
+    branches: ["install/**", main]
+    paths:
+      - "scripts/install.*"
+      - "scripts/check-install.sh"
+      - "pyproject.toml"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "deploy/**"
+      - ".github/workflows/install-test.yml"
   pull_request:
     paths:
       - "scripts/install.*"
+      - "scripts/check-install.sh"
       - "pyproject.toml"
       - "Dockerfile"
       - "docker-compose.yml"
