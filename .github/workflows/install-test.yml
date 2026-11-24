@@ -28,13 +28,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            verify: bash -l {0}
-          - os: macos-latest
-            verify: zsh -l {0}
-          - os: windows-latest
-            verify: bash {0}
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     env:
@@ -58,38 +52,24 @@ jobs:
             Where-Object { $_ } | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
 
       # A new login shell, as after opening a terminal: only what the installer set up is on PATH.
-      - name: Check the installed app
-        shell: ${{ matrix.verify }}
+      - name: Check the installed app (Linux)
+        if: runner.os == 'Linux'
+        shell: bash -l {0}
         env:
           PEPITE_HOME: ${{ runner.temp }}/pepite-home
-        run: |
-          set -eu
-          PORT=18765
-          BASE="http://127.0.0.1:$PORT"
-          command -v pepite
-          pepite version
-          pepite --help >/dev/null
-          pepite serve --port "$PORT" >"$RUNNER_TEMP/serve.log" 2>&1 &
-          trap 'kill $! 2>/dev/null || true' EXIT
-          up=0
-          for _ in $(seq 1 90); do
-            if curl -fsS "$BASE/healthz" >/dev/null 2>&1; then up=1; break; fi
-            sleep 1
-          done
-          if [ "$up" != 1 ]; then echo "The app did not start."; cat "$RUNNER_TEMP/serve.log"; exit 1; fi
-          fail=0
-          check() {
-            code=$(curl -s -o "$RUNNER_TEMP/body" -w '%{http_code}' "$BASE$1" || true)
-            if [ "$code" = 200 ] && grep -q -- "$2" "$RUNNER_TEMP/body"; then echo "ok   $1"
-            else echo "FAIL $1 (HTTP $code, looked for: $2)"; fail=1; fi
-          }
-          check /healthz '"ok"'
-          check / 'Pépite'
-          check '/companies?all=1' 'co-name'
-          check /people 'Pépite'
-          check /settings/data-packs 'Data packs'
-          check /static/css/app.css '--orange'
-          if [ "$fail" != 0 ]; then cat "$RUNNER_TEMP/serve.log"; exit 1; fi
+        run: sh scripts/check-install.sh
+      - name: Check the installed app (macOS)
+        if: runner.os == 'macOS'
+        shell: zsh -l {0}
+        env:
+          PEPITE_HOME: ${{ runner.temp }}/pepite-home
+        run: sh scripts/check-install.sh
+      - name: Check the installed app (Windows)
+        if: runner.os == 'Windows'
+        shell: bash {0}
+        env:
+          PEPITE_HOME: ${{ runner.temp }}/pepite-home
+        run: sh scripts/check-install.sh
 
   docker:
     name: docker (local mode and self-hosted server)
