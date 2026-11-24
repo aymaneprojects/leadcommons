@@ -108,6 +108,26 @@ async def test_page_budget_is_respected(router):
 
 
 @pytest.mark.asyncio
+async def test_guessed_paths_are_skipped_when_the_home_links_a_legal_notice(router):
+    # The linked notice has no number: guessing /mentions, /informations-legales... is wasted
+    # requests (the trial measured 7 per domain, 2 of them useful).
+    mount(router, "acme.fr", {"/": html(HOME), "/mentions-legales": html(CONTACT)})
+    await scan(router, "acme.fr")
+    paths = {c.request.url.path for c in router.calls}
+    assert "/mentions-legales" in paths and "/mentions" not in paths
+    assert "/informations-legales" not in paths
+
+
+@pytest.mark.asyncio
+async def test_guessed_paths_are_tried_when_the_home_links_nothing(router):
+    mount(
+        router, "acme.fr", {"/": html("<html><body>Hello</body></html>"), "/mentions": html(LEGAL)}
+    )
+    finding = await scan(router, "acme.fr")
+    assert [i.number for i in finding.ids] == ["552081317"]
+
+
+@pytest.mark.asyncio
 async def test_robots_disallow_for_our_agent(router):
     mount(
         router,

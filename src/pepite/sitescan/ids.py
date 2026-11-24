@@ -190,6 +190,44 @@ _GB_LABELS = re.compile(
 )
 _GB_STRONG = re.compile(r"companies\s+house|registered\s+in\s+(?:england|scotland)", re.I)
 
+# A legal notice also names the company that hosts or built the site, with its own number. That
+# number says nothing about who owns the domain (the trial found one hosting company on a tenth of
+# French sites). A number is skipped when the nearest role word before it names a host or a web
+# agency rather than the publisher.
+_HOST_ROLE = re.compile(
+    r"h[ée]berg\w*|hosted\s+(?:by|on|at|with)|web\s?hosting|hosting\s*(?:provider|:)"
+    r"|r[ée]alis[ée]\s+par|r[ée]alisation\s+(?:du\s+site|web|:)|conception\s+(?:du\s+site|web|graphique)"
+    r"|(?:con[çc]u|cr[ée][ée]|d[ée]velopp[ée]|propuls[ée]|g[ée]r[ée])\s+(?:et\s+\w+\s+)?par"
+    r"|(?:designed|developed|built|created|powered)\s+(?:and\s+\w+\s+)?by|(?:web)?site\s+by"
+    r"|webmaster|web\s?design(?:er)?|agence\s+(?:web|de\s+communication)",
+    re.I,
+)
+_OWNER_ROLE = re.compile(
+    r"[ée]diteur|[ée]dit[ée]\s+par|publisher|propri[ée]taire|\bowner\b"
+    r"|(?:directeur|responsable)\s+(?:de\s+la\s+)?publication|operated\s+by|exploit[ée]\s+par",
+    re.I,
+)
+_ROLE_WINDOW = 250
+# SIREN of hosting and site-builder companies seen as "the owner" on thousands of unrelated sites.
+_PROVIDER_IDS = frozenset(
+    {
+        ("FR-SIREN", "424761419"),  # OVH
+        ("FR-SIREN", "510909807"),  # o2switch
+        ("FR-SIREN", "431303775"),  # IONOS (1&1)
+        ("FR-SIREN", "503594525"),  # Wizishop
+        ("FR-SIREN", "423093459"),  # Gandi
+        ("FR-SIREN", "433115904"),  # Scaleway (Online)
+    }
+)
+
+
+def _is_host_context(text: str, start: int) -> bool:
+    before = text[max(0, start - _ROLE_WINDOW) : start]
+    host = max((m.start() for m in _HOST_ROLE.finditer(before)), default=-1)
+    owner = max((m.start() for m in _OWNER_ROLE.finditer(before)), default=-1)
+    return host > owner
+
+
 # ---- formats ---------------------------------------------------------------------------------
 
 _FR_BARE = _Spec(9, "FR-SIREN", "siren", _luhn_ok, _FR_LABELS, window=40)
@@ -241,6 +279,8 @@ def _find_gb(text: str) -> list[_Hit]:
         if not _GB_LABELS.search(before):
             continue
         raw = m.group(0)
+        if raw.isdigit() and len(raw) < 6:
+            continue  # "company no. 3": real numbers are written with at least 6 digits
         number = raw.zfill(8) if raw.isdigit() else raw
         certain = _GB_STRONG.search(before) is not None
         hits.append(_Hit(m.start(), m.end(), "GB-CH", number, raw, "company-number", certain))
@@ -327,6 +367,8 @@ def find_ids(text: str, country: str | None = None) -> list[RegistryId]:
     for position, (code, finder) in enumerate(_RULES):
         for hit in finder(text):
             if hint and code != hint and not hit.certain:
+                continue
+            if (hit.registry, hit.number) in _PROVIDER_IDS or _is_host_context(text, hit.start):
                 continue
             # the hint country sorts first among equally certain hits
             candidates.append((0 if code == hint else position + 1, hit))

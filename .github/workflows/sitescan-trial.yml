@@ -83,9 +83,12 @@ jobs:
             start=$(date +%s)
             pids=()
             for ((k = 0; k < procs; k++)); do
-              uv run pepite sitescan run --domains "dl/sample-$tld.txt" --country "$cc" \
-                --out "findings/$tld" --concurrency 60 --part "$k/$procs" \
-                > "findings/$tld.part-$k.stats.json" &
+              (
+                TIMEFORMAT="process $k: wall %R s, cpu user %U s, sys %S s"
+                time uv run pepite sitescan run --domains "dl/sample-$tld.txt" --country "$cc" \
+                  --out "findings/$tld" --concurrency 60 --part "$k/$procs" \
+                  > "findings/$tld.part-$k.stats.json"
+              ) &
               pids+=("$!")
             done
             for pid in "${pids[@]}"; do wait "$pid" || echo "::warning::a scan process failed"; done

@@ -72,6 +72,10 @@ _LEGAL_PATH = re.compile(
     r"mention|legal|impressum|imprint|aviso|legali|colofon|juridisk|rechtlich|cgu|cgv|terms",
     re.IGNORECASE,
 )
+# A link to a real legal notice (not just terms of sale): then guessing other paths is pointless.
+_NOTICE_PATH = re.compile(
+    r"mention|legal|impressum|imprint|aviso|legali|colofon|juridisk|rechtlich", re.I
+)
 _META_CHARSET = re.compile(rb"<meta[^>]+charset=[\"']?([a-zA-Z0-9_-]+)", re.IGNORECASE)
 _HTML_TYPES = {"text/html", "application/xhtml+xml"}
 
@@ -411,9 +415,9 @@ async def scan_with_stats(
             finding.title = page_title(html)
             done = read(home_url, html)
             seen = {_url_key(home_url)}
-            candidates = rank_links(html, home_url, norm, limit=max_pages * 2) + [
-                urljoin(home_url, p) for p in guess_paths(country)
-            ]
+            candidates = rank_links(html, home_url, norm, limit=max_pages * 2)
+            if not any(_NOTICE_PATH.search(urlsplit(u).path) for u in candidates):
+                candidates += [urljoin(home_url, p) for p in guess_paths(country)]
             attempts = 0
             failures = 0
             for url in candidates:

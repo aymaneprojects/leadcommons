@@ -200,6 +200,7 @@ INVALID: list[str] = [
     f"TVA FR 04 {SIREN_A[:3]} {SIREN_A[3:6]} {SIREN_A[6:]}",
     # GB: 11 digits is too long; a bare number with no label
     "Company number 12345678901",
+    "Company no. 3",  # too short to be a real number (found on "company no 3 of the series")
     "Registration no 00445790",
     # NO: check digit wrong; first digit not 8 or 9
     "Org.nr. 923 609 017",
@@ -325,3 +326,22 @@ def test_bare_siret_needs_a_valid_siren_inside_or_a_label() -> None:
     number = _bare_number_not_a_siret()
     assert find_ids(f"Commande {number} expédiée") == []
     assert [i.kind for i in find_ids(f"SIRET : {number}")] == ["siret"]
+
+
+# ---- the host or web agency named in a legal notice is not the owner ----------------------
+
+
+def test_the_hosting_company_number_is_not_the_site_owner():
+    host_first = (
+        f"Hébergement : Hostco SAS, SIREN {SIREN_B}.\nÉditeur du site : Acme, SIREN {SIREN_A}."
+    )
+    owner_first = f"Éditeur : Acme SAS, SIREN {SIREN_A}.\nHébergeur : Hostco SAS, SIREN {SIREN_B}."
+    for text in (host_first, owner_first):
+        assert as_tuples(text, "FR") == [("FR-SIREN", SIREN_A, "siren")]
+    assert as_tuples(f"Site réalisé par Agence Web, SIRET {siret(SIREN_B, '0001')}", "FR") == []
+    assert as_tuples("Website designed by Agency Ltd, company number 00445790", "GB") == []
+
+
+def test_known_hosting_providers_are_never_the_owner():
+    assert luhn_complete("42476141") == "424761419"  # OVH: a valid SIREN, dropped on purpose
+    assert as_tuples("Société Acme. SIREN 424 761 419", "FR") == []

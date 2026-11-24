@@ -166,6 +166,27 @@ def precision(con, country: str, pack: Path) -> None:
         f"registers (not checkable): {other}"
     )
     print(f"pair exists in the register pack: {hit} = {_pct(hit, n)}")
+    # The pack holds active companies only: a missing number may be a closed company.
+    print(
+        "exists by kind:",
+        {
+            k: f"{h}/{t}"
+            for k, t, h in _rows(
+                con,
+                "SELECT f.kind, count(*), count(p.company_number) FROM found f LEFT JOIN p "
+                "ON p.registry = f.registry AND p.company_number = f.number "
+                f"WHERE f.registry IN ({in_regs}) GROUP BY 1 ORDER BY 2 DESC",
+            )
+        },
+    )
+    print("not in the pack (registry number kind evidence-path):")
+    for r, num, k, u in _rows(
+        con,
+        "SELECT f.registry, f.number, f.kind, f.evidence_url FROM found f ANTI JOIN p "
+        f"ON p.registry = f.registry AND p.company_number = f.number WHERE f.registry IN "
+        f"({in_regs}) ORDER BY md5(f.domain || f.number) LIMIT 12",
+    ):
+        print(f"  {r} {num} {k} {urlsplit(u or '').path or '/'}")
     both = _rows(con, "SELECT count(*) FROM j WHERE in_pack AND pdomain IS NOT NULL")[0][0]
     agree = _rows(con, "SELECT count(*) FROM j WHERE in_pack AND pdomain = domain")[0][0]
     print(
