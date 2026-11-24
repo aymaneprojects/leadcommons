@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     tags: ["v*"]
+    branches: ["install/rel-*"]
   # Publishing a release on github.com (which creates the tag) also starts this workflow.
   release:
     types: [published]
@@ -36,18 +37,18 @@ jobs:
       - uses: actions/checkout@v4
       - id: tag
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: 0.1.1
           EVENT: ${{ github.event_name }}
           REF_NAME: ${{ github.ref_name }}
         run: |
-          if [ "$EVENT" = workflow_dispatch ]; then
+          if [ "$EVENT" = push ]; then
             sh scripts/release-check.sh "$VERSION"
             echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
           else
             echo "tag=$REF_NAME" >> "$GITHUB_OUTPUT"
           fi
       - name: Tag must not exist yet
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'push'
         env:
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
@@ -55,11 +56,11 @@ jobs:
             echo "::error::tag $TAG already exists"; exit 1
           fi
       - uses: astral-sh/setup-uv@v5
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'push'
         with:
           enable-cache: true
       - name: Tests
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'push'
         run: |
           uv sync --extra dev --python 3.13
           uv run pytest -q
@@ -94,13 +95,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.check.outputs.tag }}
           EVENT: ${{ github.event_name }}
-          DRY_RUN: ${{ inputs.dry_run }}
-          VERSION: ${{ inputs.version }}
+          DRY_RUN: true
+          VERSION: 0.1.1
           SHA: ${{ github.sha }}
         run: |
           files=(dist/*.whl dist/*.tar.gz scripts/install.sh scripts/install.ps1
                  deploy/docker-compose.server.yml deploy/Caddyfile deploy/.env.example)
-          if [ "$EVENT" = workflow_dispatch ]; then
+          if [ "$EVENT" = push ]; then
             sh scripts/release-check.sh "$VERSION" notes.md
             if [ "$DRY_RUN" = true ]; then
               {
@@ -124,7 +125,7 @@ jobs:
   # A release made with GITHUB_TOKEN does not start desktop.yml: start it for the new tag.
   desktop:
     needs: [check, github-release]
-    if: github.event_name == 'workflow_dispatch' && !inputs.dry_run
+    if: github.event_name == 'push' && !true
     runs-on: ubuntu-latest
     permissions:
       actions: write
@@ -138,7 +139,7 @@ jobs:
 
   image:
     needs: [check, build]
-    if: github.event_name != 'workflow_dispatch' || !inputs.dry_run
+    if: github.event_name != 'push' || !true
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -174,7 +175,7 @@ jobs:
   pypi:
     # Optional: set the repository variable PUBLISH_PYPI=true and add a trusted
     # publisher for this workflow on pypi.org.
-    if: ${{ vars.PUBLISH_PYPI == 'true' && (github.event_name != 'workflow_dispatch' || !inputs.dry_run) }}
+    if: ${{ vars.PUBLISH_PYPI == 'true' && (github.event_name != 'push' || !true) }}
     needs: [check, build]
     runs-on: ubuntu-latest
     environment: pypi
