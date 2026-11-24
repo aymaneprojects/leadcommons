@@ -61,8 +61,10 @@ def create_app(
         pages_tools,
     )
     from pepite.web.auth import install_auth
+    from pepite.web.i18n import LocaleMiddleware
 
     install_auth(app, settings)
+    app.add_middleware(LocaleMiddleware)  # outermost: the login page is translated too
     app.include_router(pages_apiref.router)
     app.include_router(api.router, prefix="/api")
     # First match wins: real feature pages before the shell's placeholders, and the shell

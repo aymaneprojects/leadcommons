@@ -21,6 +21,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from pepite.models import utcnow
 from pepite.search import CompanyFilters, PeopleFilters
+from pepite.web import i18n
 from pepite.web.deps import get_jobs, get_search, get_store, templates
 from pepite.web.pages import (
     clean_suppression,
@@ -289,6 +290,16 @@ def settings_privacy(request: Request) -> Response:
 @router.get("/settings/account", response_class=HTMLResponse)
 def settings_account(request: Request) -> Response:
     return settings_page(request, "shell_settings_account.html", "account")
+
+
+@router.post("/settings/language")
+async def settings_language(request: Request, _: None = Depends(csrf)) -> Response:
+    """Remember the interface language in a cookie (works in the demo too: no disk needed)."""
+    lang = str((await request.form()).get("lang") or "")
+    resp = RedirectResponse("/settings/account", status_code=303)
+    if lang in i18n.LANGUAGES:
+        resp.set_cookie(i18n.COOKIE, lang, max_age=365 * 86400, samesite="lax", httponly=True)
+    return resp
 
 
 @router.get("/settings/about", response_class=HTMLResponse)

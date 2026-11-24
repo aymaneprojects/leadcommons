@@ -6,13 +6,16 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import Request
-from fastapi.templating import Jinja2Templates
+
+from pepite.web.i18n import LocaleTemplates, install_filters
 
 WEB_DIR = Path(__file__).parent
 TEMPLATES_DIR = WEB_DIR / "templates"
 STATIC_DIR = WEB_DIR / "static"
 
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+# English, or the request's language (pepite.web.i18n).
+templates = LocaleTemplates(directory=str(TEMPLATES_DIR))
+install_filters(templates.env)
 
 
 def get_settings(request: Request) -> Any:

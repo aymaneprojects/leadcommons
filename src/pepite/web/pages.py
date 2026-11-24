@@ -30,7 +30,7 @@ from pepite.connectors.people import source_label
 from pepite.models import SIZE_RANGES, Company, EmailStatus, Person, Seniority, utcnow
 from pepite.search import CompanyFilters, PeopleFilters
 from pepite.store.personas import clean_filters, personas_for
-from pepite.web import results
+from pepite.web import i18n, results
 from pepite.web import search_filters as sf
 from pepite.web.deps import get_jobs, get_search, get_store, templates
 from pepite.web.search_filters import (
@@ -279,7 +279,7 @@ def render(
         "jobs_running": request.app.state.jobs.running_count(),
         "tasks": tasks,
         "tasks_done": sum(1 for t in tasks if t["done"]),
-        "notice": (request.query_params.get("notice") or "")[:240],
+        "notice": i18n.message((request.query_params.get("notice") or "")[:240]),
         "current_url": current_url(request),
     }
     return templates.TemplateResponse(request, name, {**base, **ctx}, status_code=status)
