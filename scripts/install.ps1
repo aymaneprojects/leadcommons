@@ -1,6 +1,7 @@
 # Pepite installer for Windows (PowerShell):
 #   irm https://raw.githubusercontent.com/aymaneprojects/leadcommons/main/scripts/install.ps1 | iex
-# Env overrides: PEPITE_REPO (owner/name), PEPITE_VERSION (tag, branch or commit).
+# Env overrides: PEPITE_REPO (owner/name), PEPITE_VERSION (tag, branch or commit),
+# PEPITE_SKIP_PACK=1 (do not download the company data pack; the bundled sample is used).
 $ErrorActionPreference = 'Stop'
 
 $Repo = if ($env:PEPITE_REPO) { $env:PEPITE_REPO } else { 'aymaneprojects/leadcommons' }
@@ -43,6 +44,9 @@ $toolBin = (uv tool dir --bin 2>$null)
 if ($toolBin) { $env:Path = "$toolBin;$env:Path" }
 
 # 4. Company data (not fatal)
+if ($env:PEPITE_SKIP_PACK) {
+    Write-Host 'Skipping the company data pack (PEPITE_SKIP_PACK). Later: pepite pack download latest'
+} else {
 Write-Host 'Downloading the latest company data pack ...'
 try {
     $env:PEPITE_PACKS_REPO = if ($env:PEPITE_PACKS_REPO) { $env:PEPITE_PACKS_REPO } else { $Repo }
@@ -50,6 +54,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'download failed' }
 } catch {
     Write-Warning 'Could not download a pack; the bundled sample will be used. Retry later with: pepite pack download latest'
+}
 }
 
 Write-Host ''

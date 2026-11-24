@@ -1,6 +1,7 @@
 #!/bin/sh
 # Pepite installer:  curl -fsSL https://raw.githubusercontent.com/aymaneprojects/leadcommons/main/scripts/install.sh | sh
-# Env overrides: PEPITE_REPO (owner/name), PEPITE_VERSION (tag, branch or commit).
+# Env overrides: PEPITE_REPO (owner/name), PEPITE_VERSION (tag, branch or commit),
+# PEPITE_SKIP_PACK=1 (do not download the company data pack; the bundled sample is used).
 set -eu
 
 REPO="${PEPITE_REPO:-aymaneprojects/leadcommons}"
@@ -45,9 +46,13 @@ PATH="$TOOL_BIN:$PATH"
 export PATH
 
 # 4. Company data (not fatal: the app ships with a small sample)
-say "Downloading the latest company data pack ..."
-PEPITE_PACKS_REPO="${PEPITE_PACKS_REPO:-$REPO}" pepite pack download latest \
-  || warn "could not download a pack; the bundled sample will be used. Retry later with: pepite pack download latest"
+if [ -n "${PEPITE_SKIP_PACK:-}" ]; then
+  say "Skipping the company data pack (PEPITE_SKIP_PACK). Later: pepite pack download latest"
+else
+  say "Downloading the latest company data pack ..."
+  PEPITE_PACKS_REPO="${PEPITE_PACKS_REPO:-$REPO}" pepite pack download latest \
+    || warn "could not download a pack; the bundled sample will be used. Retry later with: pepite pack download latest"
+fi
 
 say ""
 say "Pepite is installed."
