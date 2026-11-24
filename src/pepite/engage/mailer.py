@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import imaplib
 import smtplib
+import socket
 import ssl
 from dataclasses import dataclass
 from email.message import EmailMessage
@@ -74,6 +75,32 @@ def build_message(out: Outgoing) -> tuple[EmailMessage, str]:
     return msg, message_id
 
 
+def network_message(exc: BaseException, host: str, port: int) -> str:
+    """A cause the user can act on for a failed connection (never a bare class name)."""
+    where = f"{host}:{port}"
+    if isinstance(exc, ssl.SSLCertVerificationError):
+        return (
+            f"The certificate of {host} is not trusted ({exc.verify_message}). "
+            "Check the server name matches the certificate."
+        )
+    if isinstance(exc, socket.gaierror):
+        return f"Could not find the server {host}. Check the spelling."
+    if isinstance(exc, ConnectionRefusedError):
+        return f"Nothing is listening on {where}. Check the server name and port."
+    if isinstance(exc, TimeoutError):  # socket.timeout is TimeoutError since Python 3.10
+        return (
+            f"{where} did not answer in time. Check the port, and that this machine can reach it."
+        )
+    if isinstance(exc, ssl.SSLError | smtplib.SMTPServerDisconnected | EOFError) or isinstance(
+        exc, ConnectionError
+    ):
+        return (
+            f"{where} closed the connection or did not speak the expected protocol. "
+            "Check the Security setting: SSL/TLS for port 465 or 993, STARTTLS for 587 or 143."
+        )
+    return f"Could not reach {where} ({exc.__class__.__name__})."
+
+
 def _context() -> ssl.SSLContext:
     return ssl.create_default_context()
 
@@ -102,10 +129,17 @@ def smtp_connect(settings: Any, mailbox: Any) -> smtplib.SMTP:
         raise
     except smtplib.SMTPAuthenticationError as exc:
         raise MailboxError(f"Login refused by the server ({exc.smtp_code}).") from None
-    except smtplib.SMTPNotSupportedError:
-        raise MailboxError("The server does not support this security setting.") from None
+    except smtplib.SMTPNotSupportedError as exc:
+        if "STARTTLS" in str(exc).upper():
+            raise MailboxError(
+                "The server does not offer STARTTLS. Choose SSL/TLS or None as the Security."
+            ) from None
+        raise MailboxError(
+            "The server offers no sign-in on this connection. Check the Security setting, "
+            "or leave Username empty if the server needs no login."
+        ) from None
     except (smtplib.SMTPException, OSError) as exc:
-        raise MailboxError(f"Could not reach {host}:{port} ({exc.__class__.__name__}).") from None
+        raise MailboxError(network_message(exc, host, port)) from None
 
 
 def _quit(conn: Any) -> None:
@@ -125,6 +159,8 @@ def test_smtp(settings: Any, mailbox: Any) -> str:
         conn.noop()
     finally:
         _quit(conn)
+    if not mailbox.smtp_username:
+        return f"Connected to {mailbox.smtp_host} (no sign-in)."
     return f"Signed in to {mailbox.smtp_host}."
 
 
@@ -194,8 +230,8 @@ def imap_connect(settings: Any, mailbox: Any) -> imaplib.IMAP4:
         raise
     except IMAP_ERROR as exc:
         raise MailboxError(f"IMAP login refused ({_txt(exc)}).") from None
-    except OSError as exc:
-        raise MailboxError(f"Could not reach {host}:{port} ({exc.__class__.__name__}).") from None
+    except (OSError, EOFError, imaplib.IMAP4.abort) as exc:
+        raise MailboxError(network_message(exc, host, port)) from None
 
 
 def imap_logout(conn: Any) -> None:

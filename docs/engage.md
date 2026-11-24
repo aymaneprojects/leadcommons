@@ -6,15 +6,37 @@ Everything stays in your local database. Nothing is sent in the public demo.
 
 ## Mailboxes (Settings, Outbound email, Mailboxes)
 
-Connect any mailbox that speaks SMTP. Pick your provider to fill in the servers, then enter
-your password. Most providers want an **app password** (Gmail and iCloud need 2-step
-verification first; Microsoft 365 may need an administrator to allow SMTP sign-in).
+Connect any mailbox that speaks SMTP. Click **Connect mailbox**, pick your provider (this fills
+in the servers, ports and security), enter your name, your email address and the password, then
+press **Connect mailbox** at the bottom and **Test connection** on the mailbox card. Username
+is your email address when left empty. Pépite signs in with a password only (no OAuth, no "Sign
+in with Google/Microsoft"), so most providers need an **app password**.
+
+- **Gmail / Google Workspace.** Turn on 2-step verification for the Google account, then create
+  an app password (Google account, Security, App passwords) and paste it as the password. A
+  Workspace administrator may have to allow app passwords. Defaults: SMTP `smtp.gmail.com`
+  port 465 SSL/TLS, IMAP `imap.gmail.com` port 993 SSL/TLS. Gmail caps sending at about 500
+  emails a day (2000 on Workspace): keep the daily limit well below.
+- **Outlook / Microsoft 365.** Defaults: SMTP `smtp.office365.com` port 587 STARTTLS, IMAP
+  `outlook.office365.com` port 993 SSL/TLS. The account needs SMTP AUTH and IMAP sign-in with a
+  password allowed (a Microsoft 365 administrator switches this on per mailbox; with
+  two-step verification use an app password). Microsoft is retiring password sign-in for
+  many accounts. If **Test connection** says "Login refused" and the password is right, your
+  tenant blocks it and this app cannot connect that mailbox yet: use another provider.
+- **Another provider** (your own server, OVHcloud, Zoho, Fastmail, iCloud...). Choose the
+  provider, or "Another provider" and type the SMTP server, port and security from your
+  provider's help pages: port 465 is SSL/TLS, port 587 is STARTTLS, port 25 is None (avoid it).
+  Do the same for IMAP: 993 is SSL/TLS, 143 is STARTTLS. A server with a self-signed
+  certificate is refused ("certificate is not trusted"); install a real certificate.
+- If a test fails, the message says why: wrong password ("Login refused"), nothing listening
+  on that port, a Security setting that does not match the port, or an untrusted certificate.
 
 - **Encryption.** Passwords are encrypted with Fernet before they are saved. The key is a
   random file, `secret.key`, in `PEPITE_HOME`, created with mode 0600 the first time it is
   needed and never logged. Back it up with the database: without it, stored passwords cannot
   be read and must be typed again.
-- **Test connection** signs in and quits. It never sends an email.
+- **Test connection** signs in to SMTP (and IMAP if set) and quits. It never sends an email.
+  There is no "send a test email" button: to see a real email, run a one-person sequence.
 - **Daily limit** (default 50) caps what one mailbox sends per day, counted from midnight in
   the mailbox's time zone. Start with 30 to 50 a day on a new mailbox.
 - **Sending window**: the hours and weekdays automatic emails may go out, in the mailbox's
