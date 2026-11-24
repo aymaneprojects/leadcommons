@@ -31,3 +31,4 @@ exports/
 
 # Desktop shell (Electron)
 node_modules/
+.claude/worktrees/
