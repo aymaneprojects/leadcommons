@@ -28,6 +28,7 @@ on:
     branches:
       - "data/**"
       - "!data/hosts*" # sitescan-hosts.yml test branches
+      - "!data/scan*" # sitescan-trial.yml test branches
 
 permissions:
   contents: read

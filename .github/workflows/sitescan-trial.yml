@@ -1,0 +1,102 @@
+name: Sitescan trial
+
+# A bounded real-world trial of the site scan crawler (docs/sitescan.md): a deterministic sample of
+# the candidate domains of a few TLDs is scanned with the default politeness settings, then the
+# job prints a report (speed, statuses, hit rate, precision against the register packs) to the
+# log. Nothing is published. At most 10,000 domains per run. Pushing to a data/scan-trial* branch
+# runs it with the defaults.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tlds:
+        description: "Space-separated TLDs (fr uk no de au ca nl be dk ch it es)"
+        required: false
+        default: "no fr uk"
+      sample:
+        description: "Domains scanned per TLD (tlds x sample must stay <= 10000)"
+        required: false
+        default: "3000"
+  push:
+    branches:
+      - "data/scan-trial*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sitescan-trial-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  trial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TLDS: ${{ inputs.tlds || 'no fr uk' }}
+      SAMPLE: ${{ inputs.sample || '3000' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install
+        run: uv sync --python 3.13 --extra build
+      - name: Check the limits
+        run: |
+          [[ "$SAMPLE" =~ ^[0-9]+$ ]] || { echo "::error::sample must be a number"; exit 1; }
+          read -ra list <<< "$TLDS"
+          total=$(( ${#list[@]} * SAMPLE ))
+          if [ "$total" -gt 10000 ] || [ "$total" -eq 0 ]; then
+            echo "::error::${#list[@]} TLDs x $SAMPLE = $total domains (limit 10000)"; exit 1
+          fi
+          echo "trial of $total domains, $(nproc) processes per TLD"
+      - name: Download the domain lists and register packs
+        run: |
+          hosts=$(gh api "repos/$GH_REPO/releases" --jq '[.[] | select(.tag_name | startswith("sitescan-hosts-"))][0].tag_name')
+          echo "hosts release: $hosts"
+          mkdir -p dl
+          for tld in $TLDS; do
+            gh release download "$hosts" -p "domains-$tld.txt.gz" -D dl
+            case "$tld" in
+              uk) cc=GB ;;
+              *) cc=$(echo "$tld" | tr '[:lower:]' '[:upper:]') ;;
+            esac
+            # FR (439 MB) and GB (258 MB) download in under a minute on a runner.
+            gh release download packs-2026-11 -p "companies-$cc-*.parquet" -D dl \
+              || echo "no register pack for $cc"
+          done
+          ls -l dl
+      - name: Scan and report
+        run: |
+          procs=$(nproc)
+          for tld in $TLDS; do
+            case "$tld" in
+              uk) cc=GB ;;
+              *) cc=$(echo "$tld" | tr '[:lower:]' '[:upper:]') ;;
+            esac
+            uv run python tools/sitescan_trial.py sample --domains "dl/domains-$tld.txt.gz" \
+              --n "$SAMPLE" --out "dl/sample-$tld.txt"
+            start=$(date +%s)
+            pids=()
+            for ((k = 0; k < procs; k++)); do
+              uv run pepite sitescan run --domains "dl/sample-$tld.txt" --country "$cc" \
+                --out "findings/$tld" --concurrency 60 --part "$k/$procs" \
+                > "findings/$tld.part-$k.stats.json" &
+              pids+=("$!")
+            done
+            for pid in "${pids[@]}"; do wait "$pid" || echo "::warning::a scan process failed"; done
+            seconds=$(( $(date +%s) - start ))
+            packs=(dl/companies-"$cc"-*.parquet)
+            pack=""
+            if [ -e "${packs[0]}" ]; then pack="${packs[0]}"; fi
+            uv run python tools/sitescan_trial.py report --tld "$tld" --country "$cc" \
+              --findings "findings/$tld" --stats "findings/$tld.part-*.stats.json" \
+              --seconds "$seconds" ${pack:+--pack "$pack"}
+          done
+      - name: Shard
+        run: |
+          uv run pepite sitescan shard findings --out shards
+          ls -l shards
