@@ -45,7 +45,7 @@ docker compose up -d
 docker compose logs -f app
 ```
 
-On first start the app tries to download company data. A container has no system language to guess your country from, so this often does nothing and the app starts with its small bundled sample. Download the countries you need once:
+On first start the app downloads the companies of the country you set as `PEPITE_LOCALE` in `.env` (for example `PEPITE_LOCALE=fr_FR`). Without it the app starts with its small bundled sample. Download the countries you need once:
 
 ```sh
 docker compose exec app pepite pack download --country FR

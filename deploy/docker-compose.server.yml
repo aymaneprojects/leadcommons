@@ -11,13 +11,15 @@ services:
       PEPITE_COOKIE_SECURE: "1"
       PEPITE_PASSWORD_HASH: ${PEPITE_PASSWORD_HASH:?set PEPITE_PASSWORD_HASH in .env}
       PEPITE_SECRET_KEY: ${PEPITE_SECRET_KEY:?set PEPITE_SECRET_KEY in .env}
+      PEPITE_LOCALE: ${PEPITE_LOCALE:-}  # e.g. fr_FR: the country to download on first start
       PEPITE_DATABASE_URL: postgresql+psycopg://pepite:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/pepite
     volumes:
       - app-data:/data
     depends_on:
       db:
         condition: service_healthy
-    # Download the latest company pack on first start, then serve.
+    # On first start download the companies of the country in PEPITE_LOCALE (none: the small
+    # bundled sample is used and countries are added in Settings > Data packs), then serve.
     command:
       - sh
       - -c
