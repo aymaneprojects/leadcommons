@@ -21,8 +21,9 @@ if (-not $Version) {
     Write-Host "Looking for the latest release of $Repo ..."
     try {
         # Only app releases (tags v1.2.3); the monthly data packs are releases too (packs-YYYY-MM).
+        # v0.1.0 was published under the old name (leadcommons), so it cannot install 'pepite'.
         $Version = (Invoke-RestMethod "https://api.github.com/repos/$Repo/releases?per_page=30" |
-            Where-Object { $_.tag_name -match '^v[0-9]' -and -not $_.draft -and -not $_.prerelease } |
+            Where-Object { $_.tag_name -match '^v[0-9]' -and $_.tag_name -ne 'v0.1.0' -and -not $_.draft -and -not $_.prerelease } |
             Select-Object -First 1).tag_name
     } catch {
         $Version = $null

@@ -26,7 +26,8 @@ if [ -z "$VERSION" ]; then
   say "Looking for the latest release of $REPO ..."
   # Only app releases (tags v1.2.3); the monthly data packs are releases too (packs-YYYY-MM).
   VERSION=$(curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=30" 2>/dev/null \
-    | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\(v[0-9][^"]*\)".*/\1/p' | head -n 1 || true)
+    | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\(v[0-9][^"]*\)".*/\1/p' \
+    | grep -v '^v0\.1\.0$' | head -n 1 || true)  # v0.1.0 was published under the old name
   if [ -z "$VERSION" ]; then
     warn "no release found, using the main branch."
     VERSION=main
