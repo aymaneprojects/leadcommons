@@ -93,7 +93,7 @@
       <div class="top-right">
         <div class="jobs">
           <button class="btn jobs-btn" type="button" data-jobs-toggle aria-expanded="false" aria-controls="jobs-menu" aria-label="Background jobs">
-            <span id="jobs-pill" class="stat" hx-get="/partials/jobs-pill" hx-trigger="every 3s" hx-swap="innerHTML">{% with n = jobs_running %}{% include "_jobs_pill.html" %}{% endwith %}</span>
+            <span id="jobs-pill" class="stat"{% if request.app.state.settings.mode != "demo" %} hx-get="/partials/jobs-pill" hx-trigger="every 3s" hx-swap="innerHTML"{% endif %}>{% with n = jobs_running %}{% include "_jobs_pill.html" %}{% endwith %}</span>
           </button>
           <div class="menu" id="jobs-menu" hidden role="region" aria-label="Recent jobs" data-quiet
                hx-get="/partials/jobs" hx-trigger="load-jobs, every 3s [!document.getElementById('jobs-menu').hidden]" hx-swap="innerHTML"></div>

@@ -1025,6 +1025,10 @@ def test_demo_mode_disables_crawling_actions(tmp_path: Path) -> None:
         ).status_code
         == 403
     )
+    # No job can run in the demo, so pages do not poll the jobs pill (each poll is a paid call).
+    poll = 'hx-get="/partials/jobs-pill"'
+    assert poll not in client.get("/companies").text
+    assert poll in TestClient(make_app(tmp_path / "local")).get("/companies").text
 
 
 # ---- AI research
