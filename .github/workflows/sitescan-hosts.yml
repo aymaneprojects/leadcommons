@@ -76,7 +76,7 @@ jobs:
               *) echo "::error::unknown TLD: $t (known: $all)"; exit 1 ;;
             esac
           done
-          json=$(printf '%s\n' $tlds | jq -R . | jq -cs .)
+          json=$(jq -cn --arg t "$tlds" '$t | split(" ") | map(select(. != ""))')
           {
             echo "tlds=$json"
             echo "max_files=$max_files"
