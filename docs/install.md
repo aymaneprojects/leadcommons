@@ -41,11 +41,11 @@ Update by running the installer again. Uninstall with `uv tool uninstall pepite`
 ```sh
 git clone https://github.com/aymaneprojects/leadcommons.git pepite
 cd pepite
-mkdir -p data
 docker compose up --build
 ```
 
-The container runs as user id 10001. On Linux, give it write access to the data folder: `sudo chown 10001:10001 data`.
+Your data lives in the Docker volume `pepite-data` (kept when you stop or rebuild the container).
+To keep it in a folder instead, replace `pepite-data:/data` in `docker-compose.yml` with `./data:/data`; the container runs as user id 10001, so on Linux run `sudo chown 10001:10001 data`.
 
 The port is bound to `127.0.0.1` only. Download real data inside the container:
 
