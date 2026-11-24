@@ -21,7 +21,7 @@ Open ports 80 and 443 in your firewall (`sudo ufw allow 80,443/tcp`; also `443/u
 
 ```sh
 mkdir -p ~/pepite && cd ~/pepite
-BASE=https://raw.githubusercontent.com/aymaneprojects/pepite/main/deploy
+BASE=https://raw.githubusercontent.com/aymaneprojects/leadcommons/main/deploy
 curl -fsSLO $BASE/Caddyfile
 curl -fsSL $BASE/docker-compose.server.yml -o docker-compose.yml
 curl -fsSL $BASE/.env.example -o .env
@@ -33,7 +33,7 @@ chmod 600 .env
 ```sh
 openssl rand -hex 24   # POSTGRES_PASSWORD
 openssl rand -hex 32   # PEPITE_SECRET_KEY
-docker run --rm -it ghcr.io/aymaneprojects/pepite:latest pepite hash-password   # PEPITE_PASSWORD_HASH
+docker run --rm -it ghcr.io/aymaneprojects/leadcommons:latest pepite hash-password   # PEPITE_PASSWORD_HASH
 ```
 
 Edit `.env`: set `DOMAIN`, the three generated values, and keep the single quotes around the hash.

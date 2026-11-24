@@ -55,7 +55,7 @@ from pepite.sitescan.pages import (
 log = logging.getLogger(__name__)
 
 BOT_NAME = "PepiteBot"
-DOC_URL = "https://github.com/aymaneprojects/pepite/blob/main/docs/sitescan.md"
+DOC_URL = "https://github.com/aymaneprojects/leadcommons/blob/main/docs/sitescan.md"
 USER_AGENT = f"{BOT_NAME}/{__version__} (+{DOC_URL})"
 
 MAX_BYTES = 1_000_000  # per page

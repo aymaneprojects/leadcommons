@@ -29,7 +29,7 @@ sitescan_app = typer.Typer(
 )
 app.add_typer(sitescan_app, name="sitescan")
 
-DEFAULT_PACKS_REPO = "aymaneprojects/pepite"
+DEFAULT_PACKS_REPO = "aymaneprojects/leadcommons"
 
 
 def _fail(message: str, hint: str | None = None) -> typer.Exit:

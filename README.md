@@ -3,15 +3,15 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/aymaneprojects/pepite/releases/latest"><img src="https://img.shields.io/github/v/release/aymaneprojects/pepite?filter=v*&style=flat-square&color=FF6B1A&label=download" alt="Download"></a>
-  <a href="https://github.com/aymaneprojects/pepite/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/aymaneprojects/pepite/ci.yml?branch=main&style=flat-square&label=tests" alt="Tests"></a>
+  <a href="https://github.com/aymaneprojects/leadcommons/releases/latest"><img src="https://img.shields.io/github/v/release/aymaneprojects/leadcommons?filter=v*&style=flat-square&color=FF6B1A&label=download" alt="Download"></a>
+  <a href="https://github.com/aymaneprojects/leadcommons/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/aymaneprojects/leadcommons/ci.yml?branch=main&style=flat-square&label=tests" alt="Tests"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-AGPL--3.0-1A1816?style=flat-square" alt="AGPL-3.0"></a>
   <img src="https://img.shields.io/badge/companies-21.8M-1A1816?style=flat-square" alt="21.8 million companies">
   <img src="https://img.shields.io/badge/python-3.12+-1A1816?style=flat-square" alt="Python 3.12+">
 </p>
 
 <p align="center">
-  <a href="https://github.com/aymaneprojects/pepite/releases/latest"><b>Download the app</b></a> ·
+  <a href="https://github.com/aymaneprojects/leadcommons/releases/latest"><b>Download the app</b></a> ·
   <a href="https://leadcommons.vercel.app"><b>Live demo</b></a> ·
   <a href="docs/install.md">Install guide</a> ·
   <a href="docs/data-sources.md">Data sources</a>
@@ -62,19 +62,19 @@ It runs on **your** computer. Your leads never leave it.
 ## Install
 
 **Desktop app (easiest):** download it for Windows, macOS (Apple Silicon) or Linux from the
-[latest release](https://github.com/aymaneprojects/pepite/releases/latest) and open it like any
+[latest release](https://github.com/aymaneprojects/leadcommons/releases/latest) and open it like any
 other app. It downloads your country's companies on first start. See [docs/desktop.md](docs/desktop.md).
 
 **One-line install** (Linux, macOS):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/aymaneprojects/pepite/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/aymaneprojects/leadcommons/main/scripts/install.sh | sh
 ```
 
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/aymaneprojects/pepite/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/aymaneprojects/leadcommons/main/scripts/install.ps1 | iex
 ```
 
 Then run `pepite serve` and open <http://127.0.0.1:8000>.
@@ -85,7 +85,7 @@ Then run `pepite serve` and open <http://127.0.0.1:8000>.
 **Docker**
 
 ```sh
-git clone https://github.com/aymaneprojects/pepite.git && cd pepite
+git clone https://github.com/aymaneprojects/leadcommons.git pepite && cd pepite
 docker compose up --build
 ```
 
@@ -95,7 +95,7 @@ or deploy from GitHub Actions: [docs/deploy-with-actions.md](docs/deploy-with-ac
 **From source**
 
 ```sh
-git clone https://github.com/aymaneprojects/pepite.git && cd pepite
+git clone https://github.com/aymaneprojects/leadcommons.git pepite && cd pepite
 uv sync --extra dev
 uv run pepite serve
 ```
@@ -131,7 +131,7 @@ Use it from Claude Code with `claude mcp add pepite -- pepite mcp` ([more](docs/
 | [Wikidata](https://www.wikidata.org) | worldwide | CC0 |
 | [SEC EDGAR](https://www.sec.gov/edgar) | United States (next build) | public domain |
 
-Packs are published monthly as [GitHub releases](https://github.com/aymaneprojects/pepite/releases)
+Packs are published monthly as [GitHub releases](https://github.com/aymaneprojects/leadcommons/releases)
 with a quality report and an `ATTRIBUTION.md`. They hold companies only; people are found on
 demand, on your machine. Next: company websites linked from the register numbers printed on their
 own legal pages ([docs/sitescan.md](docs/sitescan.md)) and more countries

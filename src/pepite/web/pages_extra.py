@@ -35,7 +35,7 @@ from pepite.web.pages import (
 
 router = APIRouter()
 
-REPO_URL = "https://github.com/aymaneprojects/pepite"
+REPO_URL = "https://github.com/aymaneprojects/leadcommons"
 ROADMAP_URL = f"{REPO_URL}#roadmap"
 ISSUES_URL = f"{REPO_URL}/issues"
 DNS_TIMEOUT = 5.0

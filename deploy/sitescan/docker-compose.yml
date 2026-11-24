@@ -20,7 +20,7 @@ services:
       CONCURRENCY: ${CONCURRENCY:-60}  # sites in flight per process
       DELAY: ${DELAY:-1.0}  # seconds between two requests to one site
       MAX_PAGES: ${MAX_PAGES:-4}
-      HOSTS_REPO: ${HOSTS_REPO:-aymaneprojects/pepite}
+      HOSTS_REPO: ${HOSTS_REPO:-aymaneprojects/leadcommons}
       HOSTS_TAG: ${HOSTS_TAG:-}  # empty: the newest sitescan-hosts-* release
       LIMIT: ${LIMIT:-}  # per process, for a trial run
     volumes:

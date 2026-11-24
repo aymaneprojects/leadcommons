@@ -1,9 +1,9 @@
 #!/bin/sh
-# Pepite installer:  curl -fsSL https://raw.githubusercontent.com/aymaneprojects/pepite/main/scripts/install.sh | sh
+# Pepite installer:  curl -fsSL https://raw.githubusercontent.com/aymaneprojects/leadcommons/main/scripts/install.sh | sh
 # Env overrides: PEPITE_REPO (owner/name), PEPITE_VERSION (tag, branch or commit).
 set -eu
 
-REPO="${PEPITE_REPO:-aymaneprojects/pepite}"
+REPO="${PEPITE_REPO:-aymaneprojects/leadcommons}"
 VERSION="${PEPITE_VERSION:-}"
 
 say() { printf '%s\n' "$*"; }

@@ -39,7 +39,7 @@ from pepite.workflows import engine, stats, webhooks
 router = APIRouter()
 
 WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-MCP_DOC = "https://github.com/aymaneprojects/pepite/blob/main/docs/mcp.md"
+MCP_DOC = "https://github.com/aymaneprojects/leadcommons/blob/main/docs/mcp.md"
 API_DOCS = "/api/docs"
 
 

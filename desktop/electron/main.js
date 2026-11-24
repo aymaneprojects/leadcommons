@@ -13,7 +13,7 @@ const { spawn } = require("node:child_process");
 const L = require("./lib/logic");
 const { stringsFor } = require("./lib/strings");
 
-const REPO = "aymaneprojects/pepite";
+const REPO = "aymaneprojects/leadcommons";
 const DOCS_URL = `https://github.com/${REPO}/blob/main/docs/desktop.md`;
 const ISSUES_URL = `https://github.com/${REPO}/issues`;
 const BG = "#121110";

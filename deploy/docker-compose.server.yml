@@ -4,7 +4,7 @@ name: pepite
 
 services:
   app:
-    image: ghcr.io/aymaneprojects/pepite:latest
+    image: ghcr.io/aymaneprojects/leadcommons:latest
     restart: unless-stopped
     environment:
       PEPITE_MODE: server
@@ -30,7 +30,7 @@ services:
   # Sends due sequence emails, creates due tasks and checks for replies (pepite worker).
   # It shares app-data with the app: mailbox passwords are encrypted with the key kept there.
   worker:
-    image: ghcr.io/aymaneprojects/pepite:latest
+    image: ghcr.io/aymaneprojects/leadcommons:latest
     restart: unless-stopped
     environment:
       PEPITE_MODE: server

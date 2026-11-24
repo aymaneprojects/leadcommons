@@ -5,7 +5,7 @@ Thanks for helping. Pépite is built for people who cannot pay for sales tools, 
 ## Development setup
 
 ```sh
-git clone https://github.com/aymaneprojects/pepite.git
+git clone https://github.com/aymaneprojects/leadcommons.git pepite
 cd pepite
 uv sync --extra dev
 uv run pepite serve --reload

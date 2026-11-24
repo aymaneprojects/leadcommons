@@ -16,7 +16,7 @@
 <div class="eg-tip eg-tip-accent" id="eg-task-tip" role="note">
   <span class="eg-tip-box">{{ eic("phone") }}</span>
   <div><b>Calls and LinkedIn steps are always done by you.</b> Pépite never dials anyone or automates LinkedIn; it reminds you, and moves the sequence on when you complete the task.</div>
-  <a class="btn sm" href="{{ 'https://github.com/aymaneprojects/pepite/blob/main/docs/engage.md#tasks' }}" target="_blank" rel="noopener noreferrer">How tasks work</a>
+  <a class="btn sm" href="{{ 'https://github.com/aymaneprojects/leadcommons/blob/main/docs/engage.md#tasks' }}" target="_blank" rel="noopener noreferrer">How tasks work</a>
   <form method="post" action="/tasks/tip" hx-post="/tasks/tip" hx-target="#eg-task-tip" hx-swap="outerHTML">
     <button class="btn ghost icon-only" type="submit" aria-label="Dismiss">{{ eic("x") }}</button>
   </form>
@@ -138,7 +138,7 @@
     <div class="eg-mock-row"><i class="c"></i><i class="l"></i><i class="m"></i><i class="p"></i></div>
   </div>
   <h2>{% if not any_tasks %}No tasks on your list{% elif filtered %}No task matches these filters{% else %}Nothing here right now{% endif %}</h2>
-  <p class="eg-dim">{{ eic("circle-question-mark", "sm") }} <a href="https://github.com/aymaneprojects/pepite/blob/main/docs/engage.md#tasks" target="_blank" rel="noopener noreferrer">How tasks work</a></p>
+  <p class="eg-dim">{{ eic("circle-question-mark", "sm") }} <a href="https://github.com/aymaneprojects/leadcommons/blob/main/docs/engage.md#tasks" target="_blank" rel="noopener noreferrer">How tasks work</a></p>
   <div class="actions">
     {% if any_tasks and (f.view != "all" or f.tab != "all" or filtered) %}<a class="btn" href="/tasks?view=all">See every task</a>
     {% else %}<button class="btn" type="button" disabled aria-disabled="true" title="Pépite has one user here: everyone's tasks are your tasks, and there are none yet.">See everyone's tasks</button>{% endif %}

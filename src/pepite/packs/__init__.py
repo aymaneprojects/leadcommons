@@ -58,7 +58,7 @@ def build_pack(
     return _build(out_dir, sources, countries, limit_per_source)
 
 
-DEFAULT_PACKS_REPO = os.environ.get("PEPITE_PACKS_REPO", "aymaneprojects/pepite")
+DEFAULT_PACKS_REPO = os.environ.get("PEPITE_PACKS_REPO", "aymaneprojects/leadcommons")
 MANIFEST_FILE = "manifest.json"
 CATALOG_FILE = ".pack-catalog.json"  # the last manifest seen, for offline use
 CATALOG_TTL = timedelta(hours=6)

@@ -1,9 +1,9 @@
 # Pepite installer for Windows (PowerShell):
-#   irm https://raw.githubusercontent.com/aymaneprojects/pepite/main/scripts/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/aymaneprojects/leadcommons/main/scripts/install.ps1 | iex
 # Env overrides: PEPITE_REPO (owner/name), PEPITE_VERSION (tag, branch or commit).
 $ErrorActionPreference = 'Stop'
 
-$Repo = if ($env:PEPITE_REPO) { $env:PEPITE_REPO } else { 'aymaneprojects/pepite' }
+$Repo = if ($env:PEPITE_REPO) { $env:PEPITE_REPO } else { 'aymaneprojects/leadcommons' }
 $Version = $env:PEPITE_VERSION
 
 # 1. uv

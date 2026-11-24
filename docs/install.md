@@ -3,7 +3,7 @@
 ## Desktop app
 
 The easiest way: download the app for Windows, Mac (Apple Silicon) or Linux from the
-[latest release](https://github.com/aymaneprojects/pepite/releases/latest). See
+[latest release](https://github.com/aymaneprojects/leadcommons/releases/latest). See
 [desktop.md](desktop.md). The rest of this page is for the command line, Docker and servers.
 
 ## Requirements
@@ -14,11 +14,11 @@ The easiest way: download the app for Windows, Mac (Apple Silicon) or Linux from
 ## One-line installer
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/aymaneprojects/pepite/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/aymaneprojects/leadcommons/main/scripts/install.sh | sh
 ```
 
 ```powershell
-irm https://raw.githubusercontent.com/aymaneprojects/pepite/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/aymaneprojects/leadcommons/main/scripts/install.ps1 | iex
 ```
 
 It installs the latest release (or `main` if there is none), then tries to download the latest company pack. Options (environment variables):
@@ -39,7 +39,7 @@ Update by running the installer again. Uninstall with `uv tool uninstall pepite`
 ## Docker (local)
 
 ```sh
-git clone https://github.com/aymaneprojects/pepite.git
+git clone https://github.com/aymaneprojects/leadcommons.git pepite
 cd pepite
 mkdir -p data
 docker compose up --build
@@ -60,7 +60,7 @@ See [server.md](server.md) and [deploy-with-actions.md](deploy-with-actions.md).
 ## From source
 
 ```sh
-git clone https://github.com/aymaneprojects/pepite.git
+git clone https://github.com/aymaneprojects/leadcommons.git pepite
 cd pepite
 uv sync --extra dev
 uv run pepite serve
@@ -80,7 +80,7 @@ uv run pepite serve
 | `PEPITE_COOKIE_SECURE` | `1` to send cookies over HTTPS only | off |
 | `PEPITE_SMTP_PROBE` | `1` to enable live mailbox probing | off |
 | `PEPITE_WORKERS` | background workers | 4 |
-| `PEPITE_PACKS_REPO` | repo that `pack download latest` reads | `aymaneprojects/pepite` |
+| `PEPITE_PACKS_REPO` | repo that `pack download latest` reads | `aymaneprojects/leadcommons` |
 | `PEPITE_DUCKDB_MEMORY` | memory the company search may use (e.g. `1GB`) | 1/16 of RAM, 256 MB to 1 GB |
 | `PEPITE_DUCKDB_BUILD_MEMORY` | memory for preparing a downloaded pack for search | 1/6 of RAM, 512 MB to 2 GB |
 | `PEPITE_DUCKDB_THREADS` | CPU threads for company search | number of cores, at most 8 |

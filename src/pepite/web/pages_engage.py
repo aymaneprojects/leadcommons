@@ -60,7 +60,7 @@ def install_sender(app: Any) -> None:
 
 
 DAY_NAMES = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-GUIDE_URL = "https://github.com/aymaneprojects/pepite/blob/main/docs/engage.md"
+GUIDE_URL = "https://github.com/aymaneprojects/leadcommons/blob/main/docs/engage.md"
 
 PROVIDERS: dict[str, dict[str, Any]] = {
     "gmail": {

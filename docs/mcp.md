@@ -52,7 +52,7 @@ Remote clients need a URL, so the server must be reachable from the internet ove
 
    ```yaml
    mcp:
-     image: ghcr.io/aymaneprojects/pepite:latest
+     image: ghcr.io/aymaneprojects/leadcommons:latest
      restart: unless-stopped
      command: ["pepite", "mcp", "--http", "--host", "0.0.0.0", "--port", "8001"]
      environment:

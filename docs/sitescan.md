@@ -7,7 +7,7 @@ valid register number and publishes one fact: **this domain belongs to that comp
 
 ## For website owners
 
-**User-Agent:** `PepiteBot/<version> (+https://github.com/aymaneprojects/pepite/blob/main/docs/sitescan.md)`
+**User-Agent:** `PepiteBot/<version> (+https://github.com/aymaneprojects/leadcommons/blob/main/docs/sitescan.md)`
 
 **What it reads**, at most **4 pages per site** and **once per month**:
 

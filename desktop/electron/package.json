@@ -5,7 +5,7 @@
   "description": "Free, open-source prospecting on your own computer.",
   "author": "Pepite contributors",
   "license": "AGPL-3.0-or-later",
-  "homepage": "https://github.com/aymaneprojects/pepite",
+  "homepage": "https://github.com/aymaneprojects/leadcommons",
   "private": true,
   "main": "main.js",
   "scripts": {

@@ -10,7 +10,7 @@ window, menus and dialogs, and the Pépite engine runs inside the app, out of si
 only listens on your own computer (127.0.0.1); nothing is reachable from the network.
 
 Download the file for your computer from the
-[latest release](https://github.com/aymaneprojects/pepite/releases/latest):
+[latest release](https://github.com/aymaneprojects/leadcommons/releases/latest):
 
 | Computer | File |
 | --- | --- |

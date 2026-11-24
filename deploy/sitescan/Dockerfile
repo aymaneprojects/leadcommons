@@ -12,7 +12,7 @@ RUN uv venv /opt/venv && VIRTUAL_ENV=/opt/venv uv pip install .
 
 FROM python:3.13-slim AS runtime
 LABEL org.opencontainers.image.title="Pepite site scan" \
-      org.opencontainers.image.source="https://github.com/aymaneprojects/pepite" \
+      org.opencontainers.image.source="https://github.com/aymaneprojects/leadcommons" \
       org.opencontainers.image.licenses="AGPL-3.0-or-later"
 RUN groupadd --system --gid 10001 sitescan \
     && useradd --system --uid 10001 --gid sitescan --home-dir /data --shell /usr/sbin/nologin sitescan \

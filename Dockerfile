@@ -15,7 +15,7 @@ FROM python:3.13-slim AS runtime
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="Pepite" \
       org.opencontainers.image.description="Free, open-source, local-first prospecting from public data" \
-      org.opencontainers.image.source="https://github.com/aymaneprojects/pepite" \
+      org.opencontainers.image.source="https://github.com/aymaneprojects/leadcommons" \
       org.opencontainers.image.licenses="AGPL-3.0-or-later" \
       org.opencontainers.image.version="${VERSION}"
 
