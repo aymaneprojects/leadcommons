@@ -86,6 +86,13 @@ def test_failure_is_short_and_hides_traceback(runner, monkeypatch) -> None:
     assert "Traceback" not in job.error
     assert job.finished_at is not None
 
+    def bad_input(domain, **kw):
+        raise ValueError("CSV needs a name column")
+
+    monkeypatch.setattr(enrich, "find_people", bad_input)
+    job = wait_done(r, r.submit("find_people", {"domain": "a.example", "company_id": None}, "x"))
+    assert job.error == "CSV needs a name column"  # a message for the user, no exception name
+
 
 def test_unknown_person_fails(runner) -> None:
     r, _ = runner

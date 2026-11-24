@@ -147,8 +147,9 @@ class JobRunner:
             result = handler(job)
         except Exception as exc:
             log.exception("job %s (%s) failed", job_id, job.kind)
-            msg = f"{type(exc).__name__}: {exc}".strip()
-            self._finish(job_id, "failed", error=msg[:200])
+            # A ValueError is our own message about the user's input; others keep their type.
+            msg = str(exc) if isinstance(exc, ValueError) else f"{type(exc).__name__}: {exc}"
+            self._finish(job_id, "failed", error=msg.strip()[:200])
         else:
             self._finish(job_id, "done", result=result)
 
