@@ -1,0 +1,139 @@
+name: Install test
+
+# Proves that a user can install Pépite with the one-line installers on Windows, macOS and
+# Linux, and that the self-hosting stacks (Docker Compose) start and work end to end.
+on:
+  workflow_dispatch:
+  push:
+    branches: ["install/**", main]
+    paths:
+      - "scripts/install.*"
+      - "scripts/check-install.sh"
+      - "pyproject.toml"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "deploy/**"
+      - ".github/workflows/install-test.yml"
+  pull_request:
+    paths:
+      - "scripts/install.*"
+      - "scripts/check-install.sh"
+      - "pyproject.toml"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "deploy/**"
+      - ".github/workflows/install-test.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: install-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installer:
+    name: installer (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      PEPITE_REPO: ${{ github.repository }}
+      PEPITE_VERSION: ${{ github.sha }}
+      PEPITE_SKIP_PACK: "1" # the full data pack is hundreds of MB; the bundled sample is enough
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run the installer (Linux, macOS)
+        if: runner.os != 'Windows'
+        run: sh scripts/install.sh
+
+      - name: Run the installer (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./scripts/install.ps1
+          # A new terminal reads the user PATH from the registry: give it to the next steps.
+          [Environment]::GetEnvironmentVariable('Path', 'User') -split ';' |
+            Where-Object { $_ } | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
+      # A new login shell, as after opening a terminal: only what the installer set up is on PATH.
+      - name: Check the installed app (Linux)
+        if: runner.os == 'Linux'
+        shell: bash -l {0}
+        env:
+          PEPITE_HOME: ${{ runner.temp }}/pepite-home
+        run: sh scripts/check-install.sh
+      - name: Check the installed app (macOS)
+        if: runner.os == 'macOS'
+        shell: zsh -l {0}
+        env:
+          PEPITE_HOME: ${{ runner.temp }}/pepite-home
+        run: sh scripts/check-install.sh
+      - name: Check the installed app (Windows)
+        if: runner.os == 'Windows'
+        shell: bash {0}
+        env:
+          PEPITE_HOME: ${{ runner.temp }}/pepite-home
+        run: sh scripts/check-install.sh
+
+  docker:
+    name: docker (local mode and self-hosted server)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PW: ci-test-password
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Local mode, as in the README (docker compose up --build)
+        run: |
+          docker compose up --build -d --wait --wait-timeout 180 || { docker compose logs; exit 1; }
+          curl -fsS http://127.0.0.1:8000/healthz
+          curl -fsS 'http://127.0.0.1:8000/companies?all=1' | grep -q co-name
+          docker compose down
+
+      - name: Server stack, as in docs/server.md (app, worker, Postgres, Caddy)
+        run: |
+          set -eu
+          # The page tells users to pull ghcr.io/.../leadcommons:latest; use the image just built.
+          docker tag pepite:local ghcr.io/aymaneprojects/leadcommons:latest
+          dir="$RUNNER_TEMP/pepite"; mkdir -p "$dir"
+          cp deploy/Caddyfile "$dir/"
+          cp deploy/docker-compose.server.yml "$dir/docker-compose.yml"
+          cp deploy/.env.example "$dir/.env"
+          cd "$dir"
+          hash=$(printf '%s\n%s\n' "$PW" "$PW" \
+            | docker run --rm -i ghcr.io/aymaneprojects/leadcommons:latest pepite hash-password 2>/dev/null | grep -o 'scrypt[$][0-9a-f$]*')
+          # "localhost": Caddy serves it over HTTPS with its own local certificate.
+          sed -i -e "s|^DOMAIN=.*|DOMAIN=localhost|" \
+            -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -hex 24)|" \
+            -e "s|^PEPITE_SECRET_KEY=.*|PEPITE_SECRET_KEY=$(openssl rand -hex 32)|" \
+            -e "s|^PEPITE_PASSWORD_HASH=.*|PEPITE_PASSWORD_HASH='$hash'|" .env
+          docker compose up -d --wait --wait-timeout 240 || { docker compose logs; exit 1; }
+          docker compose ps
+
+          U=https://localhost
+          jar="$RUNNER_TEMP/jar"
+          code() { curl -ks -o /dev/null -w '%{http_code}' "$@"; }
+          [ "$(code $U/login)" = 200 ] || { echo "login page"; exit 1; }
+          [ "$(code "$U/companies?all=1")" != 200 ] || { echo "open without login"; exit 1; }
+          [ "$(code -d password=wrong $U/login)" = 401 ] || { echo "wrong password accepted"; exit 1; }
+          rc=$(code -c "$jar" -d "password=$PW" $U/login)
+          [ "$rc" = 303 ] || { echo "login refused (HTTP $rc)"; exit 1; }
+          curl -ksf -b "$jar" "$U/companies?all=1" | grep -q co-name
+          curl -ksf -b "$jar" -H 'content-type: application/json' \
+            -d '{"name":"CI list","kind":"companies"}' $U/api/lists
+          docker compose restart
+          docker compose up -d --wait --wait-timeout 240
+          curl -ksf -b "$jar" $U/api/lists | grep -q 'CI list' || { echo "list lost after restart"; exit 1; }
+          [ "$(docker compose ps --status running --services | sort | tr '\n' ' ')" = "app caddy db worker " ] \
+            || { docker compose ps -a; docker compose logs worker; exit 1; }
+
+      - name: Logs
+        if: failure()
+        run: |
+          cd "$RUNNER_TEMP/pepite" 2>/dev/null && docker compose logs --tail 80 || true

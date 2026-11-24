@@ -116,8 +116,7 @@ def _assistant_ctx(request: Request, cid: str | None) -> dict[str, Any]:
         "starters": STARTERS,
         "embed": request.query_params.get("embed") == "1",
         "mcp_dismissed": bool(_state(request).get("mcp_card_dismissed")),
-        "llm_on": settings.mode != "demo"
-        and bool(__import__("os").environ.get("PEPITE_LLM_URL")),
+        "llm_on": settings.mode != "demo" and bool(__import__("os").environ.get("PEPITE_LLM_URL")),
         "prefill": (request.query_params.get("prompt") or "")[:500],
         "mcp_doc": MCP_DOC,
         "enrich_on": settings.enrichment_enabled,

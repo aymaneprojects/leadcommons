@@ -6,6 +6,18 @@ on:
   # Publishing a release on github.com (which creates the tag) also starts this workflow.
   release:
     types: [published]
+  # "Release by dispatch": checks the versions, runs the tests, builds, then creates the tag and
+  # the GitHub release and starts the desktop build (see CONTRIBUTING.md, "Releasing").
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish, e.g. 0.2.0 (must match pyproject.toml, __init__.py, desktop/electron/package.json and a CHANGELOG.md section)"
+        required: true
+        type: string
+      dry_run:
+        description: "Check, test and build only: do not create the tag or the release"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -15,7 +27,45 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Tag and release triggers: only names the tag. Dispatch: checks the version, runs the tests.
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: tag
+        env:
+          VERSION: ${{ inputs.version }}
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$EVENT" = workflow_dispatch ]; then
+            sh scripts/release-check.sh "$VERSION"
+            echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=$REF_NAME" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Tag must not exist yet
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            echo "::error::tag $TAG already exists"; exit 1
+          fi
+      - uses: astral-sh/setup-uv@v5
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          enable-cache: true
+      - name: Tests
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          uv sync --extra dev --python 3.13
+          uv run pytest -q
+
   build:
+    needs: check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +79,7 @@ jobs:
           if-no-files-found: error
 
   github-release:
-    needs: build
+    needs: [check, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -42,19 +92,53 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ needs.check.outputs.tag }}
+          EVENT: ${{ github.event_name }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          VERSION: ${{ inputs.version }}
+          SHA: ${{ github.sha }}
         run: |
           files=(dist/*.whl dist/*.tar.gz scripts/install.sh scripts/install.ps1
                  deploy/docker-compose.server.yml deploy/Caddyfile deploy/.env.example)
+          if [ "$EVENT" = workflow_dispatch ]; then
+            sh scripts/release-check.sh "$VERSION" notes.md
+            if [ "$DRY_RUN" = true ]; then
+              {
+                echo "Dry run: would create tag $TAG on $SHA and a release (latest) with:"
+                printf -- '- %s\n' "${files[@]}"
+                echo; echo "Notes:"; cat notes.md
+              } | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            # Creates the tag on the dispatched commit. Events made with GITHUB_TOKEN start no
+            # workflow, so the desktop build is started by the next job.
+            gh release create "$TAG" --target "$SHA" --title "$TAG" --notes-file notes.md --latest \
+              "${files[@]}"
           # The release may already exist (made on github.com): then only attach the files.
-          if gh release view "$TAG" >/dev/null 2>&1; then
+          elif gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "${files[@]}" --clobber
           else
             gh release create "$TAG" --title "$TAG" --generate-notes "${files[@]}"
           fi
 
+  # A release made with GITHUB_TOKEN does not start desktop.yml: start it for the new tag.
+  desktop:
+    needs: [check, github-release]
+    if: github.event_name == 'workflow_dispatch' && !inputs.dry_run
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Start the desktop build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.check.outputs.tag }}
+        run: gh workflow run desktop.yml --ref "$TAG" -f tag="$TAG"
+
   image:
-    needs: build
+    needs: [check, build]
+    if: github.event_name != 'workflow_dispatch' || !inputs.dry_run
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -73,8 +157,8 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{version}},value=${{ needs.check.outputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.check.outputs.tag }}
             type=raw,value=latest
       - uses: docker/build-push-action@v6
         with:
@@ -90,8 +174,8 @@ jobs:
   pypi:
     # Optional: set the repository variable PUBLISH_PYPI=true and add a trusted
     # publisher for this workflow on pypi.org.
-    if: ${{ vars.PUBLISH_PYPI == 'true' }}
-    needs: build
+    if: ${{ vars.PUBLISH_PYPI == 'true' && (github.event_name != 'workflow_dispatch' || !inputs.dry_run) }}
+    needs: [check, build]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:

@@ -1121,8 +1121,7 @@ DISABLED_REASONS = {
         "Needs postal codes and map coordinates, which the open data packs do not include yet."
     ),
     "past_titles": (
-        "Pépite keeps only the current title of each person, so past titles cannot be "
-        "searched."
+        "Pépite keeps only the current title of each person, so past titles cannot be searched."
     ),
 }
 

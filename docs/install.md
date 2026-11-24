@@ -30,6 +30,7 @@ Options (environment variables):
 - `PEPITE_REPO`: `owner/name` of a fork.
 - `PEPITE_VERSION`: a tag, branch or commit to install.
 - `PEPITE_PACKS_REPO`: repository the company data comes from (default: `PEPITE_REPO`).
+- `PEPITE_SKIP_PACK`: set to `1` to skip the company data download at the end (the bundled sample is used; later run `pepite pack download latest`).
 
 Start the app:
 
@@ -48,11 +49,11 @@ Update by running the installer again. Uninstall with `uv tool uninstall pepite`
 ```sh
 git clone https://github.com/aymaneprojects/leadcommons.git pepite
 cd pepite
-mkdir -p data
 docker compose up --build
 ```
 
-The container runs as user id 10001. On Linux, give it write access to the data folder: `sudo chown 10001:10001 data`.
+Your data lives in the Docker volume `pepite-data` (kept when you stop or rebuild the container).
+To keep it in a folder instead, replace `pepite-data:/data` in `docker-compose.yml` with `./data:/data`; the container runs as user id 10001, so on Linux run `sudo chown 10001:10001 data`.
 
 The port is bound to `127.0.0.1` only. Data lives in the `data` folder. Download the companies
 of a country inside the container (a container has no system language to guess from, so name

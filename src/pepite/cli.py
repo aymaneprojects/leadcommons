@@ -57,9 +57,7 @@ def _guard[T](what: str, fn: Callable[[], T]) -> T:
     except Exception as exc:  # noqa: BLE001 - last-resort friendly message
         if os.environ.get("PEPITE_DEBUG"):
             raise
-        raise _fail(
-            f"{what} failed: {exc}", "Set PEPITE_DEBUG=1 for the full traceback."
-        ) from None
+        raise _fail(f"{what} failed: {exc}", "Set PEPITE_DEBUG=1 for the full traceback.") from None
 
 
 def _settings() -> Any:

@@ -1031,9 +1031,7 @@ class Assistant:
                 "Which website should I read? Paste the address, for example `example.com`.",
             )
         if self.demo:
-            return Reply(
-                DEMO_CRAWL + " Install Pépite on your computer to use it.", tone="warn"
-            )
+            return Reply(DEMO_CRAWL + " Install Pépite on your computer to use it.", tone="warn")
         try:
             info = read_site(domain, fetch=self._fetch_site)
         except Exception:

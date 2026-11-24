@@ -17,6 +17,7 @@ TEXTS = [*DOCS, ROOT / "CONTRIBUTING.md", ROOT / "SECURITY.md", ROOT / "deploy" 
 # Names the docs mention that are not read by src/ on purpose.
 NOT_IN_SRC = {
     "PEPITE_REPO": "read by scripts/install.sh and install.ps1",
+    "PEPITE_SKIP_PACK": "read by scripts/install.sh and install.ps1",
     "PEPITE_VERSION": "read by scripts/install.sh and install.ps1",
     "PEPITE_BACKEND": "read by the Electron shell (desktop/electron/main.js)",
 }

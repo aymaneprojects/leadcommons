@@ -7,9 +7,7 @@ from typing import Protocol
 
 from pepite.models import Company
 
-USER_AGENT = (
-    "Pepite/0.1 (+https://github.com/aymaneprojects/leadcommons; open-source prospecting)"
-)
+USER_AGENT = "Pepite/0.1 (+https://github.com/aymaneprojects/leadcommons; open-source prospecting)"
 
 
 class Connector(Protocol):
