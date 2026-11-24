@@ -42,6 +42,9 @@ services:
       db:
         condition: service_healthy
     command: ["pepite", "worker", "--interval", "60"]
+    # The image's health check asks the web port, which the worker does not serve.
+    healthcheck:
+      disable: true
 
   db:
     image: postgres:17-alpine
