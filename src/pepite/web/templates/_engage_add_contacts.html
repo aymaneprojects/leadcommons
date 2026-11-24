@@ -1,0 +1,23 @@
+{% from "_engage_macros.html" import eic, dlg_head %}
+<dialog class="eg-dlg eg-dlg-wide" data-autoopen data-eg-dlg aria-label="Add contacts">
+  <form method="post" action="/sequences/enroll" hx-post="/sequences/enroll" hx-swap="none" data-quiet>
+    {{ dlg_head("Add contacts", "to " ~ seq.name, "user-plus") }}
+    <input type="hidden" name="sequence_id" value="{{ seq.id }}">
+    <input type="hidden" name="next" value="/sequences/{{ seq.id }}?tab=contacts">
+    <input type="hidden" name="refresh" value="1">
+    <div class="eg-dlg-body">
+      <label class="eg-search eg-search-full">{{ eic("search", "sm") }}<span class="sr-only">Search your saved people</span>
+        <input type="search" placeholder="Search your saved people by name or title" autocomplete="off"
+               data-eg-live="/partials/sequence-contacts?sequence_id={{ seq.id }}" data-eg-live-target="#eg-add-results"></label>
+      <div id="eg-add-results" class="eg-results" data-eg-load="/partials/sequence-contacts?sequence_id={{ seq.id }}" aria-live="polite">
+        <p class="eg-dim">Loading your saved people…</p>
+      </div>
+      <p class="hint">Only people saved in Pépite with a usable email can be added. Find more in <a href="/people">People</a>.</p>
+    </div>
+    <footer class="eg-dlg-foot">
+      <span class="eg-dim" data-eg-selcount>0 selected</span>
+      <button type="button" class="btn close-dlg">Cancel</button>
+      <button class="btn primary" type="submit">{{ eic("user-plus", "sm") }}<span>Add to sequence</span></button>
+    </footer>
+  </form>
+</dialog>

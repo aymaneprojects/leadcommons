@@ -1,9 +1,9 @@
 {
-  "name": "leadcommons-desktop",
-  "productName": "LeadCommons",
+  "name": "pepite-desktop",
+  "productName": "Pepite",
   "version": "0.1.1",
   "description": "Free, open-source prospecting on your own computer.",
-  "author": "LeadCommons contributors",
+  "author": "Pepite contributors",
   "license": "AGPL-3.0-or-later",
   "homepage": "https://github.com/aymaneprojects/leadcommons",
   "private": true,
@@ -18,9 +18,9 @@
     "electron-builder": "26.18.0"
   },
   "build": {
-    "appId": "org.leadcommons.desktop",
-    "productName": "LeadCommons",
-    "copyright": "LeadCommons contributors. AGPL-3.0-or-later.",
+    "appId": "org.pepite.desktop",
+    "productName": "Pepite",
+    "copyright": "Pepite contributors. AGPL-3.0-or-later.",
     "directories": {
       "output": "../../dist-desktop",
       "buildResources": "resources"
@@ -34,14 +34,14 @@
     ],
     "extraResources": [
       {
-        "from": "../../dist/leadcommons-backend",
+        "from": "../../dist/pepite-backend",
         "to": "backend",
         "filter": [
           "**/*"
         ]
       }
     ],
-    "artifactName": "LeadCommons-${version}-${os}-${arch}.${ext}",
+    "artifactName": "Pepite-${version}-${os}-${arch}.${ext}",
     "asar": true,
     "afterPack": "scripts/after-pack.js",
     "win": {
@@ -60,9 +60,9 @@
       "perMachine": false,
       "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
-      "shortcutName": "LeadCommons",
+      "shortcutName": "Pepite",
       "deleteAppDataOnUninstall": false,
-      "artifactName": "LeadCommons-${version}-windows-x64-setup.${ext}"
+      "artifactName": "Pepite-${version}-windows-x64-setup.${ext}"
     },
     "mac": {
       "target": [
@@ -80,8 +80,8 @@
       "darkModeSupport": true
     },
     "dmg": {
-      "artifactName": "LeadCommons-${version}-macos-arm64.${ext}",
-      "title": "LeadCommons"
+      "artifactName": "Pepite-${version}-macos-arm64.${ext}",
+      "title": "Pepite"
     },
     "linux": {
       "target": [
@@ -101,14 +101,14 @@
       "icon": "resources/icon.png",
       "category": "Office",
       "synopsis": "Free, open-source prospecting on your own computer",
-      "maintainer": "LeadCommons contributors <noreply@users.noreply.github.com>",
-      "executableName": "leadcommons-desktop"
+      "maintainer": "Pepite contributors <noreply@users.noreply.github.com>",
+      "executableName": "pepite-desktop"
     },
     "appImage": {
-      "artifactName": "LeadCommons-${version}-linux-x86_64.${ext}"
+      "artifactName": "Pepite-${version}-linux-x86_64.${ext}"
     },
     "deb": {
-      "artifactName": "LeadCommons-${version}-linux-amd64.${ext}"
+      "artifactName": "Pepite-${version}-linux-amd64.${ext}"
     },
     "publish": null
   }

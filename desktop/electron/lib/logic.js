@@ -5,16 +5,16 @@ const path = require("node:path");
 const net = require("node:net");
 const http = require("node:http");
 
-/** Where the frozen Python backend lives inside the installed app (or LEADCOMMONS_BACKEND). */
+/** Where the frozen Python backend lives inside the installed app (or PEPITE_BACKEND). */
 function backendExecutable({ resourcesPath, platform, env = process.env }) {
-  if (env.LEADCOMMONS_BACKEND) return env.LEADCOMMONS_BACKEND;
-  const exe = platform === "win32" ? "leadcommons-backend.exe" : "leadcommons-backend";
+  if (env.PEPITE_BACKEND) return env.PEPITE_BACKEND;
+  const exe = platform === "win32" ? "pepite-backend.exe" : "pepite-backend";
   return path.join(resourcesPath, "backend", exe);
 }
 
-/** The data folder shared with the command-line install (~/.leadcommons or LEADCOMMONS_HOME). */
+/** The data folder shared with the command-line install (~/.pepite or PEPITE_HOME). */
 function dataHome({ env = process.env, homedir }) {
-  return env.LEADCOMMONS_HOME || path.join(homedir, ".leadcommons");
+  return env.PEPITE_HOME || path.join(homedir, ".pepite");
 }
 
 /** A free TCP port on 127.0.0.1. */

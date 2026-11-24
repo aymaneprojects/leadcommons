@@ -1,4 +1,4 @@
-# Run LeadCommons on your own server
+# Run Pépite on your own server
 
 A small VPS (1 vCPU, 2 GB RAM) is enough. You get HTTPS, a login and a Postgres database.
 
@@ -20,7 +20,7 @@ Open ports 80 and 443 in your firewall (`sudo ufw allow 80,443/tcp`; also `443/u
 ## 3. Get the files
 
 ```sh
-mkdir -p ~/leadcommons && cd ~/leadcommons
+mkdir -p ~/pepite && cd ~/pepite
 BASE=https://raw.githubusercontent.com/aymaneprojects/leadcommons/main/deploy
 curl -fsSLO $BASE/Caddyfile
 curl -fsSL $BASE/docker-compose.server.yml -o docker-compose.yml
@@ -32,8 +32,8 @@ chmod 600 .env
 
 ```sh
 openssl rand -hex 24   # POSTGRES_PASSWORD
-openssl rand -hex 32   # LEADCOMMONS_SECRET_KEY
-docker run --rm -it ghcr.io/aymaneprojects/leadcommons:latest leadcommons hash-password   # LEADCOMMONS_PASSWORD_HASH
+openssl rand -hex 32   # PEPITE_SECRET_KEY
+docker run --rm -it ghcr.io/aymaneprojects/leadcommons:latest pepite hash-password   # PEPITE_PASSWORD_HASH
 ```
 
 Edit `.env`: set `DOMAIN`, the three generated values, and keep the single quotes around the hash.
@@ -54,22 +54,22 @@ Check health: `curl https://your-domain/healthz`.
 Everything personal is in the Postgres volume (and the pack files, which can be re-downloaded).
 
 ```sh
-cd ~/leadcommons
-docker compose exec -T db pg_dump -U leadcommons leadcommons | gzip > backup-$(date +%F).sql.gz
+cd ~/pepite
+docker compose exec -T db pg_dump -U pepite pepite | gzip > backup-$(date +%F).sql.gz
 ```
 
 Restore into a fresh database:
 
 ```sh
-gunzip -c backup-2026-01-01.sql.gz | docker compose exec -T db psql -U leadcommons leadcommons
+gunzip -c backup-2026-01-01.sql.gz | docker compose exec -T db psql -U pepite pepite
 ```
 
-Automate with cron, for example `0 3 * * * cd ~/leadcommons && docker compose exec -T db pg_dump -U leadcommons leadcommons | gzip > ~/backups/lc-$(date +\%F).sql.gz`, and copy the files off the server.
+Automate with cron, for example `0 3 * * * cd ~/pepite && docker compose exec -T db pg_dump -U pepite pepite | gzip > ~/backups/lc-$(date +\%F).sql.gz`, and copy the files off the server.
 
 ## Updates
 
 ```sh
-cd ~/leadcommons
+cd ~/pepite
 docker compose pull
 docker compose up -d
 ```
@@ -79,5 +79,5 @@ To pin a version, replace `:latest` in `docker-compose.yml` with a tag such as `
 ## Troubleshooting
 
 - Certificate not issued: check DNS and that ports 80/443 are reachable; see `docker compose logs caddy`.
-- Cannot log in over HTTP: the cookie is HTTPS-only (`LEADCOMMONS_COOKIE_SECURE=1`); use the HTTPS address.
+- Cannot log in over HTTP: the cookie is HTTPS-only (`PEPITE_COOKIE_SECURE=1`); use the HTTPS address.
 - Hash rejected: it contains `$`, so keep it in single quotes in `.env`.

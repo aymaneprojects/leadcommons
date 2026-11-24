@@ -9,10 +9,10 @@ import httpx
 import pytest
 import respx
 
-from leadcommons.connectors import USER_AGENT, EdgarConnector
-from leadcommons.connectors.edgar import SUBMISSIONS_URL, TICKERS_URL, pad_cik, parse_submission
-from leadcommons.models import make_id
-from leadcommons.packs.isic import sic_section
+from pepite.connectors import USER_AGENT, EdgarConnector
+from pepite.connectors.edgar import SUBMISSIONS_URL, TICKERS_URL, pad_cik, parse_submission
+from pepite.models import make_id
+from pepite.packs.isic import sic_section
 
 DATA = Path(__file__).parent / "fixtures" / "data"
 
@@ -27,7 +27,7 @@ def url(cik: str) -> str:
 
 @pytest.fixture(autouse=True)
 def _no_contact(monkeypatch):
-    monkeypatch.delenv("LEADCOMMONS_CONTACT_EMAIL", raising=False)
+    monkeypatch.delenv("PEPITE_CONTACT_EMAIL", raising=False)
 
 
 def conn() -> EdgarConnector:
@@ -70,7 +70,7 @@ def test_parse_submission():
 
 @respx.mock
 def test_iter_companies(monkeypatch):
-    monkeypatch.setenv("LEADCOMMONS_CONTACT_EMAIL", "ops@example.invalid")
+    monkeypatch.setenv("PEPITE_CONTACT_EMAIL", "ops@example.invalid")
     respx.get(TICKERS_URL).mock(return_value=httpx.Response(200, json=load("edgar_tickers.json")))
     apple = respx.get(url("0000320193")).mock(
         return_value=httpx.Response(200, json=load("edgar_apple.json"))
@@ -104,5 +104,5 @@ def test_limit_and_fetch_by_cik_and_404():
 @respx.mock
 def test_403_gives_contact_hint():
     respx.get(TICKERS_URL).mock(return_value=httpx.Response(403))
-    with pytest.raises(RuntimeError, match="LEADCOMMONS_CONTACT_EMAIL"):
+    with pytest.raises(RuntimeError, match="PEPITE_CONTACT_EMAIL"):
         list(conn().iter_companies())

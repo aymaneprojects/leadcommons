@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from leadcommons.web import auth
-from leadcommons.web.auth import hash_password, safe_next, verify_password
+from pepite.web import auth
+from pepite.web.auth import hash_password, safe_next, verify_password
 from tests.test_api import build_app, make_settings
 
 
@@ -134,7 +134,7 @@ def test_auth_disabled(tmp_path: Path) -> None:
 
 
 def test_cookie_secure_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("LEADCOMMONS_COOKIE_SECURE", "1")
+    monkeypatch.setenv("PEPITE_COOKIE_SECURE", "1")
     app = build_app(make_settings(tmp_path, password="pw"))
     c = TestClient(app, base_url="https://testserver", follow_redirects=False)
     r = c.post("/login", data={"password": "pw"})

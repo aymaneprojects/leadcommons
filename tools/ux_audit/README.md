@@ -3,8 +3,8 @@
 Checks that every visible button, link, menu, tab and checkbox does something.
 
 ```bash
-LEADCOMMONS_HOME=/tmp/lc-audit python tools/ux_audit/seed.py          # fake people + a list
-LEADCOMMONS_HOME=/tmp/lc-audit leadcommons serve --port 8170 &
+PEPITE_HOME=/tmp/lc-audit python tools/ux_audit/seed.py          # fake people + a list
+PEPITE_HOME=/tmp/lc-audit pepite serve --port 8170 &
 node tools/ux_audit/audit.cjs --base http://127.0.0.1:8170 --out /tmp/lc-audit/report
 ```
 

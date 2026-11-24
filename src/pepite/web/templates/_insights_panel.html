@@ -1,0 +1,73 @@
+{# Company insights card. Context: c, ins, tab, tabs, counts, refreshing, job_id, error, demo, can_refresh ...
+   Header: title + refresh state, a gear menu (refresh, company page, what is read) and a
+   collapse chevron (remembered in this browser). The tab strip keeps the reference order; News
+   and Website visitors sit in it, disabled, with the reason. #}
+{% set hx_url = "/partials/insights?company_id=" ~ c.id %}
+{% set why_off = demo_reason if demo else ("No known domain, so there is no website to read." if not c.domain else "") %}
+{% macro refresh_form(label, primary=False, as_item=False) -%}
+<form method="post" action="/api/companies/{{ c.id }}/insights/refresh?tab={{ tab }}"
+      hx-post="/api/companies/{{ c.id }}/insights/refresh?tab={{ tab }}" hx-target="#ins-{{ c.id }}" hx-swap="outerHTML" hx-push-url="false">
+  {% set off = refreshing or not can_refresh %}
+  {% set reason = "Already refreshing." if refreshing else why_off %}
+  {% if off %}<span class="tipwrap{% if not as_item %} inline{% endif %}" data-tip="{{ reason }}" tabindex="0">{% endif %}
+  <button class="{{ 'menu-item' if as_item else 'btn sm' ~ (' primary' if primary else '') }}" type="submit" {% if off %}disabled aria-describedby="ins-why-{{ c.id }}"{% endif %}>
+    <svg class="icon sm {{ 'spin' if refreshing }}" aria-hidden="true" focusable="false"><use href="/static/icons/tools-sprite.svg#t-refresh-cw"></use></svg>
+    <span>{{ "Refreshing" if refreshing else label }}</span>
+  </button>
+  {% if off %}</span>{% endif %}
+</form>
+{%- endmacro %}
+<section class="ins" id="ins-{{ c.id }}" aria-label="Company insights" data-ins
+  {% if refreshing and job_id %}hx-get="{{ hx_url }}&tab={{ tab }}&job={{ job_id }}" hx-trigger="load delay:2s" hx-target="this" hx-swap="outerHTML"{% endif %}>
+  {% if refreshing or not can_refresh %}<span class="sr-only" id="ins-why-{{ c.id }}">{{ "Already refreshing." if refreshing else why_off }}</span>{% endif %}
+  <header class="ins-head">
+    <div class="ins-title">
+      <h3>Company insights</h3>
+      <p class="ins-state muted" role="status">
+        {% if refreshing %}<span class="ins-dot busy" aria-hidden="true"></span>Refreshing now, this takes a minute…
+        {% elif ins %}<span class="ins-dot ok" aria-hidden="true"></span>Refreshed {{ ins_ago(ins.refreshed_at) }}{% if ins.pages_crawled %} · {{ ins.pages_crawled }} page{{ "" if ins.pages_crawled == 1 else "s" }} read{% endif %}
+        {% else %}<span class="ins-dot off" aria-hidden="true"></span>Never refreshed{% endif %}
+      </p>
+    </div>
+    <div class="ins-tools">
+      <details class="dd ins-gear">
+        <summary class="btn ghost icon-only sm" aria-label="Insight settings" title="Insight settings"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons/results-sprite.svg#r-settings"></use></svg></summary>
+        <div class="menu right ins-menu">
+          {{ refresh_form("Refresh insights now", as_item=True) }}
+          <a class="menu-item" href="/companies/{{ c.id }}"><svg class="icon sm" aria-hidden="true" focusable="false"><use href="/static/icons/results-sprite.svg#r-building-2"></use></svg><span>Open the company page</span></a>
+          <div class="menu-sep"></div>
+          <p class="menu-note ins-what">A refresh reads {{ c.domain or "the company website" }}, the job board it links to and Wikidata. Only public pages, robots.txt respected, nothing personal kept.</p>
+        </div>
+      </details>
+      <button type="button" class="btn ghost icon-only sm ins-fold" data-ins-fold aria-expanded="true" aria-controls="ins-body-{{ c.id }}" title="Collapse" aria-label="Collapse company insights"><svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons/results-sprite.svg#r-chevron-up"></use></svg></button>
+    </div>
+  </header>
+  <div class="ins-fold-body" id="ins-body-{{ c.id }}">
+  {% if demo %}<p class="ins-note" role="note">{{ demo_reason }}{% if ins %} The data below was saved earlier.{% endif %}</p>{% endif %}
+  {% if error %}<p class="ins-note err" role="alert">{{ error }}</p>{% endif %}
+  <nav class="ins-tabs" role="tablist" aria-label="Insight sections">
+    {% for key, label in tabs %}
+    <a href="{{ hx_url }}&tab={{ key }}" role="tab" aria-selected="{{ 'true' if key == tab else 'false' }}"
+       hx-get="{{ hx_url }}&tab={{ key }}{% if job_id %}&job={{ job_id }}{% endif %}" hx-target="#ins-{{ c.id }}" hx-swap="outerHTML" hx-push-url="false">{{ label }}{% if counts.get(key) %}<span class="n">{{ counts[key] }}</span>{% endif %}</a>
+    {% if key == "overview" %}<span class="ins-tab-off" role="tab" aria-disabled="true" aria-selected="false" tabindex="0" data-tip="News needs a licensed news feed. Pépite only uses sources that are free to use." aria-describedby="ins-news-{{ c.id }}">News</span><span class="sr-only" id="ins-news-{{ c.id }}">News needs a licensed news feed. Pépite only uses sources that are free to use.</span>{% endif %}
+    {% if key == "contact" %}<span class="ins-tab-off" role="tab" aria-disabled="true" aria-selected="false" tabindex="0" data-tip="Website visitors need a tracking script on your own website. That is not built yet." aria-describedby="ins-visit-{{ c.id }}">Website visitors</span><span class="sr-only" id="ins-visit-{{ c.id }}">Website visitors need a tracking script on your own website. That is not built yet.</span>{% endif %}
+    {% endfor %}
+  </nav>
+  <div class="ins-body" role="tabpanel">
+    {% if not ins %}
+      <div class="ins-empty">
+        <h4>No insights yet</h4>
+        <p class="muted">Refresh reads {{ c.domain or "the company website" }}, the job board it links to and Wikidata, then shows technologies, open positions, business phone numbers and trends. Only public pages are read, and robots.txt is respected.</p>
+        <div class="ins-empty-act">{{ refresh_form("Refresh insights", primary=True) }}</div>
+      </div>
+    {% else %}
+      {% include "_insights_" ~ tab ~ ".html" %}
+      {% if tab == "overview" and ins.notes %}
+      <ul class="ins-limits" aria-label="What this refresh could not find">
+        {% for n in ins.notes %}<li>{{ n }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+    {% endif %}
+  </div>
+  </div>
+</section>

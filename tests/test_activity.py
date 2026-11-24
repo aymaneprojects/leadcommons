@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
-from leadcommons.store.pipeline import ActivityRepo, Pipeline
+from pepite.store.pipeline import ActivityRepo, Pipeline
 from tests.test_deals_support import HX, app, client, people, pl  # noqa: F401
 
 # ---- the shared ActivityRepo contract

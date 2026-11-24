@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Pépite">
+  <path fill="#FFC08F" d="M22 16 38 11 29 27Z"/>
+  <path fill="#FF9A5C" d="M38 11 51 19 40 35 29 27Z"/>
+  <path fill="#FF6B1A" d="M51 19 55 34 40 35Z"/>
+  <path fill="#E85A0C" d="M55 34 46 49 40 35Z"/>
+  <path fill="#B84607" d="M46 49 29 53 40 35Z"/>
+  <path fill="#D9520A" d="M29 53 16 44 29 27 40 35Z"/>
+  <path fill="#FF7F33" d="M16 44 14 31 29 27Z"/>
+  <path fill="#FFA66B" d="M14 31 22 16 29 27Z"/>
+  <path fill="#FFAA70" d="M53 6.5 54.2 10.3 58 11.5 54.2 12.7 53 16.5 51.8 12.7 48 11.5 51.8 10.3Z"/>
+</svg>

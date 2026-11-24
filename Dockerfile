@@ -13,23 +13,23 @@ RUN uv venv /opt/venv \
 # ---- runtime stage ----
 FROM python:3.13-slim AS runtime
 ARG VERSION=dev
-LABEL org.opencontainers.image.title="LeadCommons" \
+LABEL org.opencontainers.image.title="Pepite" \
       org.opencontainers.image.description="Free, open-source, local-first prospecting from public data" \
       org.opencontainers.image.source="https://github.com/aymaneprojects/leadcommons" \
       org.opencontainers.image.licenses="AGPL-3.0-or-later" \
       org.opencontainers.image.version="${VERSION}"
 
-RUN groupadd --system --gid 10001 leadcommons \
-    && useradd --system --uid 10001 --gid leadcommons --home-dir /data --shell /usr/sbin/nologin leadcommons \
-    && mkdir -p /data && chown leadcommons:leadcommons /data
+RUN groupadd --system --gid 10001 pepite \
+    && useradd --system --uid 10001 --gid pepite --home-dir /data --shell /usr/sbin/nologin pepite \
+    && mkdir -p /data && chown pepite:pepite /data
 
 COPY --from=build /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    LEADCOMMONS_HOME=/data
+    PEPITE_HOME=/data
 
-USER leadcommons
+USER pepite
 WORKDIR /data
 VOLUME /data
 EXPOSE 8000
@@ -37,4 +37,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD ["python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=4).status == 200 else 1)"]
 
-CMD ["leadcommons", "serve", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["pepite", "serve", "--host", "0.0.0.0", "--port", "8000"]

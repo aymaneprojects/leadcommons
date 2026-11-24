@@ -1,9 +1,9 @@
 # UX parity: results and records (toolbar, selection bar, dialogs, field editor, drawers, lists)
 
 Status of every control listed in `docs/dev/ux-inventory.md` for screens B1, B2, B3, B4 and
-11 to 20, in LeadCommons. **works** = does the job for real; **disabled** = visible,
+11 to 20, in Pépite. **works** = does the job for real; **disabled** = visible,
 `aria-disabled` or disabled inside a `.tipwrap`, with a tooltip and a screen-reader description
-saying why and how to turn it on; **n/a** = not part of LeadCommons, with the reason.
+saying why and how to turn it on; **n/a** = not part of Pépite, with the reason.
 
 Rows that belong to other parity files are listed once per screen as a range:
 
@@ -11,14 +11,14 @@ Rows that belong to other parity files are listed once per screen as a range:
   (`base.html`), see the shell parity file;
 - filter side panel and All filters window (Total / Net new / Saved tabs, filter accordions,
   chips, Clear all, View all filters): the filters parity file;
-- trial banners and credit pills: n/a everywhere (rule 3: LeadCommons is free, no plans, no
+- trial banners and credit pills: n/a everywhere (rule 3: Pépite is free, no plans, no
   credits).
 
 Tests: `tests/test_search_parity_v3.py` (one or more tests per screen below).
 
 ## B1 - Find people results (`/people?...`)
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | B1-01..03 | Trial banner, benefits button, close | No trials or plans | n/a (rule 3) |
 | B1-04..23 | Rail, top bar, palette, AI Assistant, bell, avatar, help | Shell | see shell parity |
@@ -49,7 +49,7 @@ Tests: `tests/test_search_parity_v3.py` (one or more tests per screen below).
 
 ## B2 - Results with rows selected
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | B2-01..03 | Trial banner | | n/a (rule 3) |
 | B2-04..23 | Rail, top bar, help | Shell | see shell parity |
@@ -74,7 +74,7 @@ Tests: `tests/test_search_parity_v3.py` (one or more tests per screen below).
 
 ## B3 - Person page (`/people/<id>`)
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | B3-01..03 | Trial banner | | n/a (rule 3) |
 | B3-04..23 | Rail, top bar, help | Shell | see shell parity |
@@ -111,7 +111,7 @@ Tests: `tests/test_search_parity_v3.py` (one or more tests per screen below).
 
 ## B4 - Company drawer (`/companies/<id>` in the drawer; full page without htmx)
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | B4-01 | Breadcrumb | Companies > name | works |
 | B4-02 | Logo | Initials avatar | works |
@@ -145,7 +145,7 @@ Tests: `tests/test_search_parity_v3.py` (one or more tests per screen below).
 
 ## 11 - Saved-view menu ("Default view")
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | 11-01..06 | Rail, top bar | Shell | see shell parity |
 | 11-03 | Credits | | n/a (rule 3) |
@@ -170,7 +170,7 @@ Tests: `tests/test_search_parity_v3.py` (one or more tests per screen below).
 
 ## 12 - Search settings drawer
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | 12-01..02 | Title, close | | works |
 | 12-03..04 | Fields row with count | Opens the field editor | works |
@@ -186,7 +186,7 @@ Tests: `tests/test_search_parity_v3.py` (one or more tests per screen below).
 
 ## 13 - Field editor
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | 13-01..03 | Back, title, close | | works |
 | 13-04 | Displayed fields count | | works |
@@ -208,7 +208,7 @@ Order and choice persist per screen in `localStorage` (`lc-cols-people`, `lc-col
 
 ## 14 - Selection bar (icon buttons)
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | 14-01..06 | Rail, top bar | Shell | see shell parity |
 | 14-07..09 | Import, Default view, Hide filters | | works |
@@ -219,7 +219,7 @@ Order and choice persist per screen in `localStorage` (`lc-cols-people`, `lc-col
 
 ## 15 - Save window
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | 15-01..02 | Title, close | "Save people" / "Save companies" | works |
 | 15-03 | Enrichment header with info | "Look up missing details" with an on/off switch and an info tip | works; disabled in the demo (reason) |
@@ -244,7 +244,7 @@ Order and choice persist per screen in `localStorage` (`lc-cols-people`, `lc-col
 
 ## 16 - Import menu
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | 16-01..06 | Rail, top bar | Shell | see shell parity |
 | 16-07 | Import | | works |
@@ -256,7 +256,7 @@ Order and choice persist per screen in `localStorage` (`lc-cols-people`, `lc-col
 
 ## 17 - Export tooltip
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | 17-01..07 | Rail, top bar, Import | | shell / works |
 | 17-08 | Tooltip "Export" | Short "Export CSV" tip above the icon; the column list is read by screen readers | works |
@@ -265,10 +265,10 @@ Order and choice persist per screen in `localStorage` (`lc-cols-people`, `lc-col
 
 ## 18 - AI menu from the selection bar
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | 18-01..07 | Rail, top bar, Import | | shell / works |
-| 18-08 | Run custom AI prompt | Runs your model on the selected rows, temporary column | works with `LEADCOMMONS_LLM_URL` + `LEADCOMMONS_LLM_MODEL`; otherwise disabled (reason); disabled in the demo |
+| 18-08 | Run custom AI prompt | Runs your model on the selected rows, temporary column | works with `PEPITE_LLM_URL` + `PEPITE_LLM_MODEL`; otherwise disabled (reason); disabled in the demo |
 | 18-09 | Generate AI formula | Same | as 18-08 |
 | 18-10 | Use Assistant | "Ask the Assistant" (third, like the reference) | works |
 | 18-11 | Start with a template | Four prompt templates | as 18-08 |
@@ -277,7 +277,7 @@ Order and choice persist per screen in `localStorage` (`lc-cols-people`, `lc-col
 
 ## 19 - AI menu from the toolbar
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | 19-01..07 | Rail, top bar, Import | | shell / works |
 | 19-08..15 | Toolbar controls | As B1-26..33 | works |
@@ -288,7 +288,7 @@ Order and choice persist per screen in `localStorage` (`lc-cols-people`, `lc-col
 
 ## 20 - Lists, first visit (`/lists` on a fresh home)
 
-| # | Control | LeadCommons | Status |
+| # | Control | Pépite | Status |
 |---|---|---|---|
 | 20-01..20 | Rail, top bar, help | Shell | see shell parity |
 | 20-17 | Credits | | n/a (rule 3) |

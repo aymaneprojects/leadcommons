@@ -6,11 +6,11 @@ from pathlib import Path
 
 import duckdb
 
-from leadcommons.models import Company
-from leadcommons.packs.builder import company_to_row, pack_schema, write_parquet
-from leadcommons.packs.duck import DuckDBCompanySearch
-from leadcommons.search import PACK_COLUMNS, CompanyFilters
-from leadcommons.store.codec import company_from_dict, company_to_dict
+from pepite.models import Company
+from pepite.packs.builder import company_to_row, pack_schema, write_parquet
+from pepite.packs.duck import DuckDBCompanySearch
+from pepite.search import PACK_COLUMNS, CompanyFilters
+from pepite.store.codec import company_from_dict, company_to_dict
 
 FULL = Company(
     id="co_test1",

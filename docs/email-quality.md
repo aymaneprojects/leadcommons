@@ -2,7 +2,7 @@
 
 The email finder guesses a person's work address from the company's public pages, checks it
 and shows a status and a 0-100 score. This page reports how often it is right, measured with
-`leadcommons eval emails` on a gold set. It gives the numbers before and after the November
+`pepite eval emails` on a gold set. It gives the numbers before and after the November
 2026 rework, and says what verification can and cannot tell for each mail provider.
 
 ## What the statuses and the score mean now
@@ -28,7 +28,7 @@ stay "unknown" with an honest score, often 90 or more.
 
 ## Results
 
-All numbers come from `leadcommons eval emails` on the gold fixture in `tests/fixtures/email_gold/`.
+All numbers come from `pepite eval emails` on the gold fixture in `tests/fixtures/email_gold/`.
 The fixture holds fake people at fake companies (see "The gold fixture" below). Each person's
 own address is removed from the site evidence, so every row asks "find the address of someone
 whose address is not published". The **dev** split (1,050 people, 300 companies) was used to
@@ -95,7 +95,7 @@ swing with a single company.
 
 ## What verification can and cannot tell, per provider
 
-The SMTP probe runs only with `LEADCOMMONS_SMTP_PROBE=1` (or `--smtp`), never in demo mode,
+The SMTP probe runs only with `PEPITE_SMTP_PROBE=1` (or `--smtp`), never in demo mode,
 and never sends DATA. It sends EHLO, `MAIL FROM:<>`, RCPT for up to 3 candidates (stopping at
 the first accepted), then RCPT for a random, human-looking address to detect catch-all servers.
 Sessions to one MX host are paced (1-3 s apart, all threads), commands time out after 6 s,
@@ -125,8 +125,8 @@ the gains are the better ranking and the calibrated score.
 
 ## How it is measured
 
-- **Harness:** `src/leadcommons/enrich/eval.py`, run with
-  `leadcommons eval emails --gold <csv> [--smtp] [--world <json>] [--json out.json] [--details rows.csv] [--min-valid-precision 0.9] [--fit]`.
+- **Harness:** `src/pepite/enrich/eval.py`, run with
+  `pepite eval emails --gold <csv> [--smtp] [--world <json>] [--json out.json] [--details rows.csv] [--min-valid-precision 0.9] [--fit]`.
 - **Gold CSV:** `full_name, domain, true_address` (other columns ignored).
 - **World file** (`<gold>.world.json`, optional): per domain, the names and addresses the site
   shows (replayed instead of crawling). It can also hold MX hosts (simulated DNS) and a mail
@@ -192,9 +192,9 @@ gold we can get lawfully:
 
 ```sh
 # domains.txt: one company domain per line (pick a mix of countries, sizes and providers)
-leadcommons eval build-gold domains.txt --out ~/.leadcommons/eval/gold.csv
-leadcommons eval emails --gold ~/.leadcommons/eval/gold.csv          # replays the saved evidence
-leadcommons eval emails --gold ~/.leadcommons/eval/gold.csv --smtp   # from a host with port 25 open
+pepite eval build-gold domains.txt --out ~/.pepite/eval/gold.csv
+pepite eval emails --gold ~/.pepite/eval/gold.csv          # replays the saved evidence
+pepite eval emails --gold ~/.pepite/eval/gold.csv --smtp   # from a host with port 25 open
 ```
 
 `build-gold` crawls each site politely: robots.txt, rate limit, the same crawler as the app. It

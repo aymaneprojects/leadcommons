@@ -1,10 +1,10 @@
 #!/bin/sh
-# LeadCommons installer:  curl -fsSL https://raw.githubusercontent.com/aymaneprojects/leadcommons/main/scripts/install.sh | sh
-# Env overrides: LEADCOMMONS_REPO (owner/name), LEADCOMMONS_VERSION (tag, branch or commit).
+# Pepite installer:  curl -fsSL https://raw.githubusercontent.com/aymaneprojects/leadcommons/main/scripts/install.sh | sh
+# Env overrides: PEPITE_REPO (owner/name), PEPITE_VERSION (tag, branch or commit).
 set -eu
 
-REPO="${LEADCOMMONS_REPO:-aymaneprojects/leadcommons}"
-VERSION="${LEADCOMMONS_VERSION:-}"
+REPO="${PEPITE_REPO:-aymaneprojects/leadcommons}"
+VERSION="${PEPITE_VERSION:-}"
 
 say() { printf '%s\n' "$*"; }
 warn() { printf 'Warning: %s\n' "$*" >&2; }
@@ -32,10 +32,10 @@ if [ -z "$VERSION" ]; then
     VERSION=main
   fi
 fi
-say "Installing LeadCommons $VERSION ..."
+say "Installing Pepite $VERSION ..."
 
 # 3. Install
-uv tool install --force --python 3.13 "leadcommons @ git+https://github.com/$REPO@$VERSION" \
+uv tool install --force --python 3.13 "pepite @ git+https://github.com/$REPO@$VERSION" \
   || die "installation failed."
 
 # uv puts tools in this directory
@@ -45,11 +45,11 @@ export PATH
 
 # 4. Company data (not fatal: the app ships with a small sample)
 say "Downloading the latest company data pack ..."
-LEADCOMMONS_PACKS_REPO="${LEADCOMMONS_PACKS_REPO:-$REPO}" leadcommons pack download latest \
-  || warn "could not download a pack; the bundled sample will be used. Retry later with: leadcommons pack download latest"
+PEPITE_PACKS_REPO="${PEPITE_PACKS_REPO:-$REPO}" pepite pack download latest \
+  || warn "could not download a pack; the bundled sample will be used. Retry later with: pepite pack download latest"
 
 say ""
-say "LeadCommons is installed."
-say "Start it with:   leadcommons serve"
+say "Pepite is installed."
+say "Start it with:   pepite serve"
 say "Then open:       http://127.0.0.1:8000"
-say "If 'leadcommons' is not found, run: uv tool update-shell   (then open a new terminal)"
+say "If 'pepite' is not found, run: uv tool update-shell   (then open a new terminal)"

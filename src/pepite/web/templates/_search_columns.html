@@ -1,0 +1,83 @@
+{% from "_macros.html" import hxf %}
+{% from "_results_macros.html" import ri %}
+{# Search settings: a full-height drawer with three views. "main" (fields, applied filters,
+   enrichment mode, display options), "fields" (the column editor: drag to reorder, swap a field
+   with its dropdown, remove with x, add from the list below) and "filters" (applied filters with
+   remove buttons). Column order and choice live in localStorage (data-key), like before; the
+   enrichment mode is stored on the server (POST /search-settings). #}
+{% set auto_key = "auto_enrich_" ~ s.kind %}
+{% set auto_on = (ui_state(settings).get(auto_key) if settings is defined else false) and not s.demo %}
+{% set shown = s.columns|selectattr("default")|list|length %}
+<div class="ss-scrim" aria-hidden="true"></div>
+<aside id="col-chooser" class="sidepanel ss-drawer" hidden aria-label="Search settings" data-key="lc-cols-{{ s.kind }}">
+  <script type="application/json" data-fld-data>{{ {"columns": s.columns, "icons": rx.FIELD_ICONS}|tojson }}</script>
+
+  <section class="ss-view" data-ss-view="main" aria-labelledby="ss-h-main">
+    <header class="sp-head"><h2 id="ss-h-main">Search settings</h2><button type="button" class="btn ghost icon-only" data-close-panel aria-label="Close">{{ ri("x") }}</button></header>
+    <div class="sp-body">
+      <h3 class="ss-label">Fields</h3>
+      <button type="button" class="ss-row" data-ss-go="fields">{{ ri("list") }}<span class="ss-t">Fields</span><span class="n" data-col-count>{{ shown }}</span>{{ ri("chevron-right", "sm") }}</button>
+      <h3 class="ss-label">Applied filters</h3>
+      <button type="button" class="ss-row" data-ss-go="filters">{{ ri("list-filter") }}<span class="ss-t">Filters</span><span class="n">{{ s.active_total }}</span>{{ ri("chevron-right", "sm") }}</button>
+
+      <h3 class="ss-label">Enrichment mode</h3>
+      <form class="ss-auto" method="post" action="/search-settings" data-auto-form>
+        <input type="hidden" name="kind" value="{{ s.kind }}">
+        <input type="hidden" name="next" value="{{ current_url }}">
+        <div class="ss-switch{% if s.demo %} off{% endif %}"{% if s.demo %} data-tip="{{ demo_reason }}"{% endif %}>
+          <span class="switch"><input id="ss-auto" type="checkbox" name="auto" value="1" role="switch" data-auto-switch {% if auto_on %}checked{% endif %}{% if s.demo %} disabled aria-describedby="ss-auto-why"{% endif %}><i></i></span>
+          <label for="ss-auto"><b>{{ "Find emails as soon as people are saved" if s.kind == "people" else "Find people as soon as a company is saved" }}</b>
+            <small>{% if s.kind == "people" %}Each time you save people (to a list, from a row or from a profile), Pépite starts looking for the emails it does not have yet.{% else %}Each time you save a company or add it to a list, Pépite starts reading its website for the people who work there.{% endif %} Progress shows in the jobs menu.</small>
+          </label>
+        </div>
+        {% if s.demo %}<p class="fnote warn" id="ss-auto-why">{{ demo_reason }}</p>{% endif %}
+        <noscript><button class="btn sm" type="submit">Save</button></noscript>
+      </form>
+
+      <h3 class="ss-label">Display</h3>
+      <label class="ss-line"><span>Results per page</span>
+        <select name="per" form="f" aria-label="Results per page">{% for n in s.page_sizes %}<option value="{{ n }}" {% if p.per == n %}selected{% endif %}>{{ n }}</option>{% endfor %}</select>
+      </label>
+      <label class="ss-line"><span>Compact rows<small>A tighter table that fits more rows</small></span><span class="switch"><input type="checkbox" role="switch" data-pref="compact" form="ui-only"><i></i></span></label>
+      <label class="ss-line"><span>Show source chips<small>Where each value was found</small></span><span class="switch"><input type="checkbox" role="switch" data-pref="src" form="ui-only" checked><i></i></span></label>
+    </div>
+  </section>
+
+  <section class="ss-view" data-ss-view="fields" aria-labelledby="ss-h-fields" hidden>
+    <header class="sp-head"><button type="button" class="btn ghost icon-only" data-ss-go="main" aria-label="Back to Search settings">{{ ri("arrow-left") }}</button><h2 id="ss-h-fields">Fields</h2><button type="button" class="btn ghost icon-only" data-close-panel aria-label="Close">{{ ri("x") }}</button></header>
+    <div class="sp-body">
+      <p class="sp-sub">Displayed fields <span class="n" data-col-count>{{ shown }}</span></p>
+      <ol class="fld-list" data-fld-list aria-label="Columns in display order. Drag a row, or focus its handle and use the arrow keys, to move it."></ol>
+      <p class="sr-only" aria-live="polite" data-fld-live></p>
+      <button type="button" class="ss-row fld-add" data-fld-add aria-expanded="false" aria-controls="fld-pick">{{ ri("plus") }}<span class="ss-t">Add more fields</span><span class="n" data-fld-hidden>0</span>{{ ri("chevron-right", "sm") }}</button>
+      <div class="fld-pick" id="fld-pick" data-fld-pick hidden>
+        <label class="searchbox">{{ ri("search", "sm") }}<input type="search" data-col-search placeholder="Search fields" aria-label="Search fields" form="ui-only" autocomplete="off"></label>
+        <ul class="fld-avail" data-fld-avail role="list"></ul>
+      </div>
+      <button type="button" class="btn sm" data-col-reset>Reset to default</button>
+    </div>
+  </section>
+
+  <section class="ss-view" data-ss-view="filters" aria-labelledby="ss-h-filters" hidden>
+    <header class="sp-head"><button type="button" class="btn ghost icon-only" data-ss-go="main" aria-label="Back to Search settings">{{ ri("arrow-left") }}</button><h2 id="ss-h-filters">Applied filters</h2><button type="button" class="btn ghost icon-only" data-close-panel aria-label="Close">{{ ri("x") }}</button></header>
+    <div class="sp-body">
+      {% set applied = s.groups|selectattr("supported")|selectattr("state.count")|list %}
+      {% if applied %}
+      <p class="sp-sub">Filters in use <span class="n">{{ s.active_total }}</span></p>
+      {% for g in applied %}
+      <div class="af-group">
+        <div class="af-head"><span class="af-name">{{ g.label }}</span><a class="btn ghost sm" href="{{ g.state.clear_url }}" {{ hxf(g.state.clear_url) }} data-ss-keep="filters">Clear</a></div>
+        {% for ch in g.state.chips %}
+        <div class="af-row"><span class="af-title">{{ ch.title }}</span>
+          {% for v in ch.vals %}<a class="fchip{% if ch.exclude %} excl{% endif %}" href="{{ v.url }}" {{ hxf(v.url) }} data-ss-keep="filters" aria-label="Remove {{ v.text }}" title="Remove {{ v.text }}">{{ v.text }}{{ ri("x", "sm") }}</a>{% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+      <a class="btn sm" href="{{ s.clear_all_url }}" {{ hxf(s.clear_all_url) }} data-ss-keep="filters">{{ ri("x", "sm") }}<span>Clear all filters</span></a>
+      {% else %}
+      <p class="muted">No filters applied. Use the panel on the left, or All filters, to narrow the results.</p>
+      {% endif %}
+    </div>
+  </section>
+</aside>

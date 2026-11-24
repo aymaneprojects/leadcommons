@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from leadcommons import enrich, pipeline
-from leadcommons.models import EmailCandidate, EmailStatus
-from leadcommons.search import CompanyFilters
+from pepite import enrich, pipeline
+from pepite.models import EmailCandidate, EmailStatus
+from pepite.search import CompanyFilters
 from tests.fakes import FakeSearch, FakeStore
 from tests.test_api import make_settings
 

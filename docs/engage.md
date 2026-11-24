@@ -11,7 +11,7 @@ your password. Most providers want an **app password** (Gmail and iCloud need 2-
 verification first; Microsoft 365 may need an administrator to allow SMTP sign-in).
 
 - **Encryption.** Passwords are encrypted with Fernet before they are saved. The key is a
-  random file, `secret.key`, in `LEADCOMMONS_HOME`, created with mode 0600 the first time it is
+  random file, `secret.key`, in `PEPITE_HOME`, created with mode 0600 the first time it is
   needed and never logged. Back it up with the database: without it, stored passwords cannot
   be read and must be typed again.
 - **Test connection** signs in and quits. It never sends an email.
@@ -20,7 +20,7 @@ verification first; Microsoft 365 may need an administrator to allow SMTP sign-i
 - **Sending window**: the hours and weekdays automatic emails may go out, in the mailbox's
   time zone. A sequence can use its own window instead.
 - **Signature** is added under every email from that mailbox.
-- **Reply detection (IMAP, optional).** LeadCommons reads the headers of new messages in the
+- **Reply detection (IMAP, optional).** Pépite reads the headers of new messages in the
   watched folder (read-only, nothing is marked as read) and matches `In-Reply-To` and
   `References` against the Message-IDs it sent. A match marks the contact as replied and stops
   the sequence for them. Delivery reports (bounces) are matched the same way.
@@ -31,7 +31,7 @@ verification first; Microsoft 365 may need an administrator to allow SMTP sign-i
   unsubscribe link. Every email also carries a `List-Unsubscribe` header (link and mailto) and,
   over HTTPS, `List-Unsubscribe-Post` for one-click unsubscribe in mail clients.
 - **Address of this app**: unsubscribe links point to `<address>/u/<token>`. Recipients must
-  be able to open it, so set your public HTTPS address when you run LeadCommons on a server.
+  be able to open it, so set your public HTTPS address when you run Pépite on a server.
   On a laptop, people can still reply "unsubscribe", which reply detection understands.
 - **Timing**: default wait between steps, minimum minutes between two emails of one mailbox
   (emails are spaced out), how often replies are checked, and your own time zone (for task due
@@ -48,7 +48,7 @@ A sequence is an ordered list of steps, each with a wait in days after the previ
 | --- | --- |
 | Automatic email | Sent from the sequence's mailbox inside its window and daily limit. An empty subject replies in the same thread (`Re:` + `In-Reply-To`). |
 | Manual email | Creates an email task with the draft; you review and send it from Tasks. |
-| Phone call | Creates a call task. LeadCommons never dials. |
+| Phone call | Creates a call task. Pépite never dials. |
 | LinkedIn task | Creates a LinkedIn task. You do it yourself: nothing is automated on LinkedIn. |
 | Action item | Creates a to-do. |
 
@@ -66,7 +66,7 @@ unsubscribed. From the Contacts tab you can pause, resume, mark as replied or re
 
 ## The sender
 
-`leadcommons.engage.scheduler.run_due(store, settings, now)` does one pass:
+`pepite.engage.scheduler.run_due(store, settings, now)` does one pass:
 
 1. sends one-off emails whose scheduled time has come;
 2. runs due sequence steps: re-checks the do-not-contact list, respects the window, the daily
@@ -81,11 +81,11 @@ can run the sender safely.
 
 Where it runs:
 
-- `leadcommons serve` (local and server modes) starts a background thread that runs a pass
-  every 60 seconds. It is off in demo mode, with `LEADCOMMONS_SYNC_JOBS=1`, and with
-  `LEADCOMMONS_ENGAGE_SCHEDULER=0`.
-- `leadcommons worker` runs passes in a loop (`--interval 60`, `--once` for one pass). The
-  server Docker Compose file has a `worker` service; it must share `LEADCOMMONS_HOME` (the
+- `pepite serve` (local and server modes) starts a background thread that runs a pass
+  every 60 seconds. It is off in demo mode, with `PEPITE_SYNC_JOBS=1`, and with
+  `PEPITE_ENGAGE_SCHEDULER=0`.
+- `pepite worker` runs passes in a loop (`--interval 60`, `--once` for one pass). The
+  server Docker Compose file has a `worker` service; it must share `PEPITE_HOME` (the
   `app-data` volume) with the app so it can read the encryption key.
 - "Send due emails now" in Sending rules (and "Send due now" in Emails) runs one pass.
 
@@ -101,7 +101,7 @@ scheduled ones cancelled.
 Views: all open, due today, overdue, upcoming, completed, with filters by type and priority.
 Complete a task in one click, or with a note; skip it; reopen or delete it. Email tasks open
 the composer with their draft; LinkedIn tasks open a LinkedIn search for the person; call tasks
-open the call log. `leadcommons.engage.create_task(store, title, person_id=, company_id=,
+open the call log. `pepite.engage.create_task(store, title, person_id=, company_id=,
 deal_id=, due=, kind=)` creates tasks from workflows and the assistant.
 
 ## Unsubscribe page

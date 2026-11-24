@@ -7,14 +7,14 @@ from pathlib import Path
 
 import pytest
 
-from leadcommons.config import Settings
-from leadcommons.web.jobs import DEMO_DISABLED, JobRunner
+from pepite.config import Settings
+from pepite.web.jobs import DEMO_DISABLED, JobRunner
 from tests.fakes import FakeSearch, FakeStore, sample_companies, sample_person
 
 
 @pytest.fixture
 def clean_env(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
-    for name in ("VERCEL", "LEADCOMMONS_HOME", "LEADCOMMONS_SYNC_JOBS", "LEADCOMMONS_MODE"):
+    for name in ("VERCEL", "PEPITE_HOME", "PEPITE_SYNC_JOBS", "PEPITE_MODE"):
         monkeypatch.delenv(name, raising=False)
     return monkeypatch
 
@@ -22,29 +22,30 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
 def test_vercel_defaults_to_tmp_home_and_sync_jobs(clean_env: pytest.MonkeyPatch) -> None:
     clean_env.setenv("VERCEL", "1")
     s = Settings()
-    assert s.home == Path("/tmp/leadcommons")
-    assert s.database_url.startswith("sqlite:////tmp/leadcommons/")
+    assert s.home == Path("/tmp/pepite")
+    assert s.database_url.startswith("sqlite:////tmp/pepite/")
     assert s.sync_jobs is True
     assert s.mode == "demo" and s.enrichment_enabled is False and s.auth_required is False
 
 
 def test_vercel_mode_can_be_set_explicitly(clean_env: pytest.MonkeyPatch) -> None:
     clean_env.setenv("VERCEL", "1")
-    clean_env.setenv("LEADCOMMONS_MODE", "server")
+    clean_env.setenv("PEPITE_MODE", "server")
     s = Settings()
     assert s.mode == "server" and s.auth_required is True and s.enrichment_enabled is True
 
 
-def test_local_defaults_unchanged(clean_env: pytest.MonkeyPatch) -> None:
+def test_local_defaults_unchanged(clean_env: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    clean_env.setattr(Path, "home", lambda: tmp_path)
     s = Settings()
-    assert s.home == Path.home() / ".leadcommons"
+    assert s.home == tmp_path / ".pepite"
     assert s.sync_jobs is False
     assert s.enrichment_enabled is True
 
 
 def test_sync_jobs_can_be_forced_off_on_vercel(clean_env: pytest.MonkeyPatch) -> None:
     clean_env.setenv("VERCEL", "1")
-    clean_env.setenv("LEADCOMMONS_SYNC_JOBS", "0")
+    clean_env.setenv("PEPITE_SYNC_JOBS", "0")
     assert Settings().sync_jobs is False
 
 
@@ -59,7 +60,7 @@ def _runner(tmp_path: Path, **overrides: object) -> tuple[JobRunner, FakeStore]:
 def test_demo_mode_refuses_enrichment_without_crawling(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from leadcommons import enrich
+    from pepite import enrich
 
     def boom(*_a: object, **_k: object) -> list:
         raise AssertionError("demo mode must not crawl")
@@ -75,7 +76,7 @@ def test_demo_mode_refuses_enrichment_without_crawling(
 def test_sync_jobs_finish_before_submit_returns(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from leadcommons import enrich
+    from pepite import enrich
 
     company = sample_companies()[0]
     monkeypatch.setattr(enrich, "find_people", lambda domain, **kw: [sample_person(company)])
@@ -89,9 +90,9 @@ def test_sync_jobs_finish_before_submit_returns(
 def test_serverless_app_uses_bundled_pack_when_present(
     clean_env: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    clean_env.setenv("LEADCOMMONS_HOME", str(tmp_path))
-    clean_env.delenv("LEADCOMMONS_DATA_DIR", raising=False)
-    serverless = importlib.import_module("leadcommons.web.serverless")
+    clean_env.setenv("PEPITE_HOME", str(tmp_path))
+    clean_env.delenv("PEPITE_DATA_DIR", raising=False)
+    serverless = importlib.import_module("pepite.web.serverless")
     bundled = tmp_path / "bundled"
     bundled.mkdir()
     clean_env.setattr(serverless, "BUNDLED_PACKS", bundled)

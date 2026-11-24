@@ -3,7 +3,7 @@ requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
 [project]
-name = "leadcommons"
+name = "pepite"
 version = "0.1.1"
 description = "Free, open-source, local-first prospecting: find companies, people and verified emails from public data."
 readme = "README.md"
@@ -28,17 +28,17 @@ dependencies = [
 
 [project.optional-dependencies]
 server = ["psycopg[binary]>=3.2"]
-# A native window for `leadcommons desktop` (the installable apps include it).
+# A native window for `pepite desktop` (the installable apps include it).
 desktop = ["pywebview>=5.3"]
-# Only needed to build company packs (`leadcommons pack build`); the app reads packs with DuckDB.
+# Only needed to build company packs (`pepite pack build`); the app reads packs with DuckDB.
 build = ["pyarrow>=17"]
 dev = ["pyarrow>=17", "pytest>=8", "pytest-asyncio>=0.24", "ruff>=0.7", "respx>=0.21", "actionlint-py>=1.7", "shellcheck-py>=0.10"]
 
 [project.scripts]
-leadcommons = "leadcommons.cli:app"
+pepite = "pepite.cli:app"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/leadcommons"]
+packages = ["src/pepite"]
 
 [tool.ruff]
 line-length = 100

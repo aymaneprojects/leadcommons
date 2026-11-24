@@ -1,17 +1,17 @@
-# Self-hosting: LeadCommons + Postgres + Caddy (automatic HTTPS).
+# Self-hosting: Pepite + Postgres + Caddy (automatic HTTPS).
 # Files needed next to this one: Caddyfile and .env (see .env.example).
-name: leadcommons
+name: pepite
 
 services:
   app:
     image: ghcr.io/aymaneprojects/leadcommons:latest
     restart: unless-stopped
     environment:
-      LEADCOMMONS_MODE: server
-      LEADCOMMONS_COOKIE_SECURE: "1"
-      LEADCOMMONS_PASSWORD_HASH: ${LEADCOMMONS_PASSWORD_HASH:?set LEADCOMMONS_PASSWORD_HASH in .env}
-      LEADCOMMONS_SECRET_KEY: ${LEADCOMMONS_SECRET_KEY:?set LEADCOMMONS_SECRET_KEY in .env}
-      LEADCOMMONS_DATABASE_URL: postgresql+psycopg://leadcommons:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/leadcommons
+      PEPITE_MODE: server
+      PEPITE_COOKIE_SECURE: "1"
+      PEPITE_PASSWORD_HASH: ${PEPITE_PASSWORD_HASH:?set PEPITE_PASSWORD_HASH in .env}
+      PEPITE_SECRET_KEY: ${PEPITE_SECRET_KEY:?set PEPITE_SECRET_KEY in .env}
+      PEPITE_DATABASE_URL: postgresql+psycopg://pepite:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/pepite
     volumes:
       - app-data:/data
     depends_on:
@@ -23,37 +23,37 @@ services:
       - -c
       - |
         if ! ls /data/packs/*.parquet >/dev/null 2>&1; then
-          leadcommons pack download latest || echo "No pack downloaded; using the bundled sample."
+          pepite pack download latest || echo "No pack downloaded; using the bundled sample."
         fi
-        exec leadcommons serve --host 0.0.0.0 --port 8000
+        exec pepite serve --host 0.0.0.0 --port 8000
 
-  # Sends due sequence emails, creates due tasks and checks for replies (leadcommons worker).
+  # Sends due sequence emails, creates due tasks and checks for replies (pepite worker).
   # It shares app-data with the app: mailbox passwords are encrypted with the key kept there.
   worker:
     image: ghcr.io/aymaneprojects/leadcommons:latest
     restart: unless-stopped
     environment:
-      LEADCOMMONS_MODE: server
-      LEADCOMMONS_SECRET_KEY: ${LEADCOMMONS_SECRET_KEY:?set LEADCOMMONS_SECRET_KEY in .env}
-      LEADCOMMONS_DATABASE_URL: postgresql+psycopg://leadcommons:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/leadcommons
+      PEPITE_MODE: server
+      PEPITE_SECRET_KEY: ${PEPITE_SECRET_KEY:?set PEPITE_SECRET_KEY in .env}
+      PEPITE_DATABASE_URL: postgresql+psycopg://pepite:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/pepite
     volumes:
       - app-data:/data
     depends_on:
       db:
         condition: service_healthy
-    command: ["leadcommons", "worker", "--interval", "60"]
+    command: ["pepite", "worker", "--interval", "60"]
 
   db:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: leadcommons
-      POSTGRES_DB: leadcommons
+      POSTGRES_USER: pepite
+      POSTGRES_DB: pepite
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U leadcommons -d leadcommons"]
+      test: ["CMD-SHELL", "pg_isready -U pepite -d pepite"]
       interval: 5s
       timeout: 5s
       retries: 10

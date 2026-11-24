@@ -1,13 +1,13 @@
-# LeadCommonsBot: the site scan
+# PepiteBot: the site scan
 
-LeadCommons links company websites to the companies that own them. Companies must print their
+Pépite links company websites to the companies that own them. Companies must print their
 legal details on their own site (France: *mentions légales* with SIREN/RCS, UK: company number,
 Germany: *Impressum*, Norway: org.nr, Australia: ABN...). Our bot reads those pages, finds a
 valid register number and publishes one fact: **this domain belongs to that company**.
 
 ## For website owners
 
-**User-Agent:** `LeadCommonsBot/<version> (+https://github.com/aymaneprojects/leadcommons/blob/main/docs/sitescan.md)`
+**User-Agent:** `PepiteBot/<version> (+https://github.com/aymaneprojects/leadcommons/blob/main/docs/sitescan.md)`
 
 **What it reads**, at most **4 pages per site** and **once per month**:
 
@@ -32,7 +32,7 @@ people. The pages themselves are not stored.
 visit and will never read another page of your site:
 
 ```
-User-agent: LeadCommonsBot
+User-agent: PepiteBot
 Disallow: /
 ```
 
@@ -47,15 +47,15 @@ Pipeline: `sitescan hosts` (candidate domains) -> `sitescan run` (read the pages
 ```bash
 # 1. Candidate domains. Common Crawl's URL index, per country TLD (runs in GitHub Actions:
 #    .github/workflows/sitescan-hosts.yml publishes a release sitescan-hosts-YYYY-MM).
-leadcommons sitescan hosts --tld fr --out hosts/
+pepite sitescan hosts --tld fr --out hosts/
 #    ...or the domains the packs already know (to verify them):
-leadcommons sitescan hosts --packs packs/ --out hosts/
+pepite sitescan hosts --packs packs/ --out hosts/
 
 # 2. Scan. Resumable: run the same command again after an interruption.
-leadcommons sitescan run --domains hosts/domains-fr.txt.gz --country FR --out findings/ --concurrency 60
+pepite sitescan run --domains hosts/domains-fr.txt.gz --country FR --out findings/ --concurrency 60
 
 # 3. Shard for the packs (domain, website, registry, company number, switchboard phone).
-leadcommons sitescan shard findings/ --out shards/
+pepite sitescan shard findings/ --out shards/
 ```
 
 `sitescan run` writes `findings-NNNNN.parquet` files (one row per domain: status, title, register
@@ -72,7 +72,7 @@ another domain, timeout).
 ```bash
 docker compose -f deploy/sitescan/docker-compose.yml build
 TLDS="fr" PROCS=2 docker compose -f deploy/sitescan/docker-compose.yml run --rm sitescan
-# monthly, from cron:  0 2 1 * *  cd /srv/leadcommons && TLDS=fr PROCS=2 docker compose ... run --rm sitescan
+# monthly, from cron:  0 2 1 * *  cd /srv/pepite && TLDS=fr PROCS=2 docker compose ... run --rm sitescan
 ```
 
 Findings are in the `sitescan-data` volume (`/data/findings/YYYY-MM/<tld>/part-K/`), the shard in
@@ -100,7 +100,7 @@ per process.
 CA-CORP, US-SEC): `domain`, `website`, `registry`, `company_number` (FR also `siren`), `phone`
 (first switchboard number), source `sitescan`, licence "n/a (public web pages, facts only)", and
 the page where the number was read as the provenance URL. Copy it next to the other shards and run
-the packs workflow (`leadcommons pack merge shards/ ...`): the merge joins it to the register's
+the packs workflow (`pepite pack merge shards/ ...`): the merge joins it to the register's
 company through the register key and attaches domain, website and phone (tier "web").
 
 A site that shows several different companies of the same register (a group site, a franchise, an

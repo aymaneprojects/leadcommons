@@ -19,14 +19,14 @@ from typing import Any
 
 import pytest
 
-from leadcommons.config import Settings
-from leadcommons.engage import core, create_task, crypto, enroll, mailer
-from leadcommons.engage.replies import poll_mailbox
-from leadcommons.engage.scheduler import run_due
-from leadcommons.models import EmailCandidate, EmailStatus, Person, make_id
-from leadcommons.store import Store
-from leadcommons.store.engage import repo_for
-from leadcommons.store.pipeline import ActivityRepo
+from pepite.config import Settings
+from pepite.engage import core, create_task, crypto, enroll, mailer
+from pepite.engage.replies import poll_mailbox
+from pepite.engage.scheduler import run_due
+from pepite.models import EmailCandidate, EmailStatus, Person, make_id
+from pepite.store import Store
+from pepite.store.engage import repo_for
+from pepite.store.pipeline import ActivityRepo
 
 # A Monday, 10:00 UTC (11:00 in Paris): inside the default window.
 MONDAY = datetime(2026, 11, 16, 10, 0, tzinfo=UTC)
@@ -157,7 +157,7 @@ def imap(monkeypatch: pytest.MonkeyPatch) -> type[FakeIMAP]:
 @pytest.fixture
 def events(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, dict[str, Any]]]:
     seen: list[tuple[str, dict[str, Any]]] = []
-    import leadcommons.workflows as wf
+    import pepite.workflows as wf
 
     monkeypatch.setattr(wf, "emit", lambda event, **payload: seen.append((event, payload)))
     return seen
@@ -843,7 +843,7 @@ def test_render_variables_and_fallbacks() -> None:
         core.render("Hi {{ first_name }} at {{company|your team}}", values)
         == "Hi Claire at your team"
     )
-    from leadcommons.engage.render import missing_vars, unknown_vars
+    from pepite.engage.render import missing_vars, unknown_vars
 
     assert missing_vars("{{company}} {{title|x}}", values) == ["company"]
     assert unknown_vars("{{first_name}} {{nickname}}") == ["nickname"]
@@ -864,7 +864,7 @@ def test_message_parses_back(settings: Settings) -> None:
 def test_background_scheduler_starts_only_where_allowed(tmp_path: Path) -> None:
     from fastapi.testclient import TestClient
 
-    from leadcommons.web.app import create_app
+    from pepite.web.app import create_app
     from tests.fakes import FakeJobs, FakeSearch
 
     def running() -> bool:

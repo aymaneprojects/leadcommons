@@ -6,7 +6,7 @@
 # Findings go to the volume `sitescan-data` (/data/findings/YYYY-MM/...), the shard for the packs
 # workflow to /data/shards/YYYY-MM/sitescan.parquet. Run it again after an interruption: finished
 # domains are skipped. Keep PROCS the same for the whole month.
-name: leadcommons-sitescan
+name: pepite-sitescan
 
 services:
   sitescan:

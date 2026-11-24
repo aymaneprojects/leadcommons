@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from leadcommons.packs import installed
-from leadcommons.packs.installed import INSTALLED_FILE, InstalledCountry
+from pepite.packs import installed
+from pepite.packs.installed import INSTALLED_FILE, InstalledCountry
 
 
 def _entry(cc: str, file: str, release: str = "packs-2026-12") -> InstalledCountry:

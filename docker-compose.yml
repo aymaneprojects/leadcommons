@@ -1,12 +1,12 @@
 # One-command local run:  docker compose up --build
 # Then open http://127.0.0.1:8000 . Your data lives in ./data
 services:
-  leadcommons:
+  pepite:
     build: .
-    image: leadcommons:local
+    image: pepite:local
     restart: unless-stopped
     environment:
-      LEADCOMMONS_MODE: local
+      PEPITE_MODE: local
     volumes:
       - ./data:/data
     ports:

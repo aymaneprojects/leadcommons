@@ -8,9 +8,9 @@ from pathlib import Path
 import httpx
 import respx
 
-from leadcommons.connectors._http import PoliteClient
-from leadcommons.insights import trends
-from leadcommons.insights.model import EmployeePoint, Trends
+from pepite.connectors._http import PoliteClient
+from pepite.insights import trends
+from pepite.insights.model import EmployeePoint, Trends
 
 FIXTURES = Path(__file__).parent / "fixtures" / "insights"
 ENTITY = "https://www.wikidata.org/wiki/Special:EntityData/{}.json"

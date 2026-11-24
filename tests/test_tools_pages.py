@@ -12,12 +12,12 @@ import respx
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from leadcommons.config import Settings
-from leadcommons.models import EmailStatus, utcnow
-from leadcommons.store import Store
-from leadcommons.store.tools import hash_token, repo_for
-from leadcommons.web.app import create_app
-from leadcommons.workflows import stats
+from pepite.config import Settings
+from pepite.models import EmailStatus, utcnow
+from pepite.store import Store
+from pepite.store.tools import hash_token, repo_for
+from pepite.web.app import create_app
+from pepite.workflows import stats
 from tests.fakes import FakeJobs, FakeSearch, sample_email, sample_person
 
 HX = {"HX-Request": "true"}
@@ -219,8 +219,8 @@ def test_analytics_pipeline_and_outreach_numbers(app: FastAPI, client: TestClien
     eng = repo_for(app.state.store).engine
     from sqlalchemy.orm import Session
 
-    from leadcommons.store import engage as e
-    from leadcommons.store import pipeline as pl
+    from pepite.store import engage as e
+    from pepite.store import pipeline as pl
 
     now = utcnow()
     with Session(eng) as db:
@@ -303,13 +303,13 @@ def test_webhook_crud_and_test_button(app: FastAPI, client: TestClient) -> None:
     )
     html = client.get("/settings/integrations").text
     assert "https://hooks.test/x" in html and hook.secret in html and "Send test" in html
-    assert "claude mcp add leadcommons" in html and "/api/docs" in html and "docs/mcp.md" in html
+    assert "claude mcp add pepite" in html and "/api/docs" in html and "docs/mcp.md" in html
     with respx.mock() as mock:
         route = mock.post("https://hooks.test/x").respond(200)
         r = client.post(f"/settings/integrations/webhooks/{hook.id}/test")
     assert route.called and "arrived" in r.headers["location"]
-    assert route.calls[0].request.headers["X-LeadCommons-Event"] == "ping"
-    assert "X-LeadCommons-Signature" in route.calls[0].request.headers
+    assert route.calls[0].request.headers["X-Pepite-Event"] == "ping"
+    assert "X-Pepite-Signature" in route.calls[0].request.headers
     assert repo.deliveries(hook.id)[0].ok
     with respx.mock() as mock:
         mock.post("https://hooks.test/x").respond(500)
@@ -388,7 +388,7 @@ def test_tokens_open_the_api_and_mcp_in_server_mode(tmp_path: Path) -> None:
 
 
 def test_public_unsubscribe_prefix_needs_no_login(tmp_path: Path) -> None:
-    from leadcommons.web.auth import PUBLIC_PREFIXES
+    from pepite.web.auth import PUBLIC_PREFIXES
 
     assert "/u/" in PUBLIC_PREFIXES
     app = make_app(tmp_path, mode="server", password="pw")
@@ -456,7 +456,7 @@ def test_palette_lists_new_pages_and_workflows(app: FastAPI, client: TestClient)
 def test_notifications_include_workflow_runs_replies_and_activities(
     app: FastAPI, client: TestClient
 ) -> None:
-    from leadcommons.store.pipeline import ActivityRepo
+    from pepite.store.pipeline import ActivityRepo
 
     repo = repo_for(app.state.store)
     wid = repo.create_workflow("Notify", {"type": "manual"}, [], [{"type": "notify"}])

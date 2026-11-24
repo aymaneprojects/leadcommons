@@ -2,7 +2,7 @@
 
 import multiprocessing
 
-from leadcommons.desktop import main
+from pepite.desktop import main
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()

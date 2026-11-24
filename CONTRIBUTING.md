@@ -1,14 +1,14 @@
 # Contributing
 
-Thanks for helping. LeadCommons is built for people who cannot pay for sales tools, so keep it free, local-first and lawful.
+Thanks for helping. Pépite is built for people who cannot pay for sales tools, so keep it free, local-first and lawful.
 
 ## Development setup
 
 ```sh
-git clone https://github.com/aymaneprojects/leadcommons.git
-cd leadcommons
+git clone https://github.com/aymaneprojects/leadcommons.git pepite
+cd pepite
 uv sync --extra dev
-uv run leadcommons serve --reload
+uv run pepite serve --reload
 ```
 
 ## Checks
@@ -31,11 +31,11 @@ CI runs the same on Python 3.12 and 3.13 and builds the Docker image. Tests must
 
 ## Writing a connector
 
-Connectors turn one open data source into `Company` records. See `src/leadcommons/connectors/base.py` for the interface.
+Connectors turn one open data source into `Company` records. See `src/pepite/connectors/base.py` for the interface.
 
-1. Add `src/leadcommons/connectors/<name>.py` implementing the base connector class: a `name`, a `licence` (SPDX id), and a method that yields `Company` objects with a `Provenance` entry.
+1. Add `src/pepite/connectors/<name>.py` implementing the base connector class: a `name`, a `licence` (SPDX id), and a method that yields `Company` objects with a `Provenance` entry.
 2. Use `httpx` with the shared user agent and polite delays; paginate and support `countries` and `limit`.
-3. Register it so `leadcommons pack build --source <name>` finds it.
+3. Register it so `pepite pack build --source <name>` finds it.
 4. Add tests with recorded or hand-written fixtures (no live calls).
 5. Document the source and licence in `docs/data-sources.md` and the pack attribution.
 

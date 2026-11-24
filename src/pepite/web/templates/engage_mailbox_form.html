@@ -1,0 +1,99 @@
+{% extends "shell_settings_base.html" %}
+{% from "_engage_macros.html" import eic, day_picker, hour_select %}
+{% block title %}{{ "Edit mailbox" if m else "Connect a mailbox" }} · Pépite{% endblock %}
+{% set smtp = provider.smtp %}{% set imap = provider.imap %}
+{% block settings_body %}
+<div class="eg-set">
+<nav class="crumbs" aria-label="Breadcrumb"><a href="/settings/mailboxes">Mailboxes</a>{{ eic("chevron-right", "sm") }}<span aria-current="page">{{ m.from_email if m else "Connect a mailbox" }}</span></nav>
+<div class="eg-set-head"><div class="eg-set-title"><h1 class="set-h1">{{ "Edit mailbox" if m else "Connect a mailbox" }}</h1></div></div>
+{% if demo %}<div class="eg-bar" role="note">{{ eic("lock") }}<span>{{ demo_reason }} Passwords are never stored in the public demo.</span></div>{% endif %}
+
+<form class="eg-form" method="post" action="{{ '/settings/mailboxes/' ~ m.id if m else '/settings/mailboxes' }}" autocomplete="off">
+  {% if not m %}
+  <section class="eg-card">
+    <h2>{{ eic("server", "sm") }} Provider</h2>
+    <div class="field"><label for="eg-m-provider">Your email provider</label>
+      <select id="eg-m-provider" data-eg-provider>
+        {% for key, pv in providers.items() %}
+        <option value="{{ key }}" data-smtp="{{ pv.smtp|join('|') }}" data-imap="{{ pv.imap|join('|') }}" data-hint="{{ pv.hint }}"{% if key == provider_key %} selected{% endif %}>{{ pv.label }}</option>
+        {% endfor %}
+      </select>
+      <span class="hint" data-eg-provider-hint>{{ provider.hint }}</span></div>
+  </section>
+  {% endif %}
+
+  <section class="eg-card">
+    <h2>{{ eic("user", "sm") }} Sender</h2>
+    <div class="eg-row2">
+      <div class="field"><label for="eg-m-fname">Your name</label><input id="eg-m-fname" type="text" name="from_name" value="{{ m.from_name if m else '' }}" maxlength="120" placeholder="Jane Doe"></div>
+      <div class="field"><label for="eg-m-femail">Email address</label><input id="eg-m-femail" type="email" name="from_email" value="{{ m.from_email if m else '' }}" required maxlength="320" placeholder="jane@yourcompany.com" data-eg-copy-to="#eg-m-user"></div>
+    </div>
+    <div class="field"><label for="eg-m-label">Label <span class="eg-dim">(optional)</span></label><input id="eg-m-label" type="text" name="name" value="{{ m.name if m else '' }}" maxlength="120" placeholder="e.g. Sales mailbox"></div>
+  </section>
+
+  <section class="eg-card">
+    <h2>{{ eic("send", "sm") }} Sending server (SMTP)</h2>
+    <div class="eg-row3">
+      <div class="field eg-grow2"><label for="eg-m-host">Server</label><input id="eg-m-host" type="text" name="smtp_host" value="{{ m.smtp_host if m else smtp[0] }}" required maxlength="255" placeholder="smtp.example.com" data-eg-smtp="host"></div>
+      <div class="field"><label for="eg-m-port">Port</label><input id="eg-m-port" type="number" name="smtp_port" min="1" max="65535" value="{{ m.smtp_port if m else smtp[1] }}" data-eg-smtp="port"></div>
+      <div class="field"><label for="eg-m-sec">Security</label>
+        <select id="eg-m-sec" name="smtp_security" data-eg-smtp="security">
+          {% for v, l in [("ssl", "SSL/TLS (usually 465)"), ("starttls", "STARTTLS (usually 587)"), ("none", "None (not recommended)")] %}<option value="{{ v }}"{% if (m.smtp_security if m else smtp[2]) == v %} selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select></div>
+    </div>
+    <div class="eg-row2">
+      <div class="field"><label for="eg-m-user">Username</label><input id="eg-m-user" type="text" name="smtp_username" value="{{ m.smtp_username if m else '' }}" maxlength="320" placeholder="Usually your email address" autocomplete="username"></div>
+      <div class="field"><label for="eg-m-pass">Password or app password</label>
+        <input id="eg-m-pass" type="password" name="smtp_password" maxlength="500" autocomplete="new-password"{% if demo %} disabled placeholder="Not stored in the public demo"{% elif m and m.smtp_password %} placeholder="Stored and encrypted. Leave empty to keep it."{% else %} placeholder="Password"{% endif %}></div>
+    </div>
+    <p class="hint">{{ eic("lock", "sm") }} Encrypted on this machine before it is saved. It is only used to sign in to your server.</p>
+  </section>
+
+  <section class="eg-card" id="imap">
+    <h2>{{ eic("inbox", "sm") }} Reply detection (IMAP) <span class="chip plain">Optional</span></h2>
+    <p class="eg-dim">With IMAP, Pépite reads only the headers of new messages to match replies and bounces to your emails, and stops sequences for people who answer. Nothing is marked as read.</p>
+    <div class="eg-row3">
+      <div class="field eg-grow2"><label for="eg-m-ihost">Server</label><input id="eg-m-ihost" type="text" name="imap_host" value="{{ m.imap_host if m else imap[0] }}" maxlength="255" placeholder="imap.example.com (leave empty to skip)" data-eg-imap="host"></div>
+      <div class="field"><label for="eg-m-iport">Port</label><input id="eg-m-iport" type="number" name="imap_port" min="1" max="65535" value="{{ m.imap_port if m else imap[1] }}" data-eg-imap="port"></div>
+      <div class="field"><label for="eg-m-isec">Security</label>
+        <select id="eg-m-isec" name="imap_security" data-eg-imap="security">
+          {% for v, l in [("ssl", "SSL/TLS (usually 993)"), ("starttls", "STARTTLS (usually 143)"), ("none", "None")] %}<option value="{{ v }}"{% if (m.imap_security if m else imap[2]) == v %} selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select></div>
+    </div>
+    <div class="eg-row3">
+      <div class="field"><label for="eg-m-iuser">Username</label><input id="eg-m-iuser" type="text" name="imap_username" value="{{ m.imap_username if m else '' }}" maxlength="320" placeholder="Same as SMTP"></div>
+      <div class="field"><label for="eg-m-ipass">Password</label><input id="eg-m-ipass" type="password" name="imap_password" maxlength="500" autocomplete="new-password"{% if demo %} disabled placeholder="Not stored in the public demo"{% elif m and m.imap_password %} placeholder="Stored. Leave empty to keep it."{% else %} placeholder="Same as SMTP"{% endif %}></div>
+      <div class="field"><label for="eg-m-ifolder">Folder</label><input id="eg-m-ifolder" type="text" name="imap_folder" value="{{ m.imap_folder if m else 'INBOX' }}" maxlength="120"></div>
+    </div>
+    {% if m and m.imap_host %}<label class="eg-check-row"><input type="checkbox" name="clear_imap"> Turn reply detection off and forget the IMAP details</label>{% endif %}
+  </section>
+
+  <section class="eg-card">
+    <h2>{{ eic("calendar-clock", "sm") }} Daily limit and sending window</h2>
+    <div class="eg-row3">
+      <div class="field"><label for="eg-m-limit">Emails per day</label><input id="eg-m-limit" type="number" name="daily_limit" min="1" max="2000" value="{{ m.daily_limit if m else 50 }}">
+        <span class="hint">Start low (30 to 50) with a new mailbox.</span></div>
+      <div class="field"><label for="eg-m-ws">From</label>{{ hour_select("window_start", m.window_start if m else 8, "eg-m-ws") }}</div>
+      <div class="field"><label for="eg-m-we">Until</label>{{ hour_select("window_end", m.window_end if m else 18, "eg-m-we", true) }}</div>
+    </div>
+    <div class="eg-row2">
+      <div class="field"><span class="eg-label">Days</span>{{ day_picker("days", m.days if m else [0, 1, 2, 3, 4]) }}</div>
+      <div class="field"><label for="eg-m-tz">Time zone</label>
+        <select id="eg-m-tz" name="timezone" data-eg-tz-default="{{ '' if m else '1' }}">{% for z in timezones %}<option{% if z == default_tz %} selected{% endif %}>{{ z }}</option>{% endfor %}</select></div>
+    </div>
+  </section>
+
+  <section class="eg-card">
+    <h2>{{ eic("square-pen", "sm") }} Signature</h2>
+    <div class="field"><label class="sr-only" for="eg-m-sig">Signature</label>
+      <textarea id="eg-m-sig" name="signature" rows="4" maxlength="4000" placeholder="Jane Doe&#10;Head of Sales, Your Company&#10;+33 1 23 45 67 89">{{ m.signature if m else '' }}</textarea>
+      <span class="hint">Added under every email from this mailbox, above the unsubscribe footer.</span></div>
+  </section>
+
+  <div class="eg-form-foot">
+    <a class="btn" href="/settings/mailboxes">Cancel</a>
+    <button class="btn primary" type="submit">{{ eic("check", "sm") }}<span>{{ "Save mailbox" if m else "Connect mailbox" }}</span></button>
+  </div>
+</form>
+</div>
+{% endblock %}

@@ -15,13 +15,13 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from leadcommons.config import Settings
-from leadcommons.models import EmailStatus, Seniority
-from leadcommons.store import Store
-from leadcommons.web import results
-from leadcommons.web.app import create_app
-from leadcommons.web.deps import STATIC_DIR, TEMPLATES_DIR
-from leadcommons.web.pages import insight_phone
+from pepite.config import Settings
+from pepite.models import EmailStatus, Seniority
+from pepite.store import Store
+from pepite.web import results
+from pepite.web.app import create_app
+from pepite.web.deps import STATIC_DIR, TEMPLATES_DIR
+from pepite.web.pages import insight_phone
 from tests.fakes import FakeJobs, FakeSearch, sample_email, sample_person
 from tests.insights_samples import sample_insights
 
@@ -232,7 +232,7 @@ def test_enrichment_mode_is_off_in_the_demo(demo: World) -> None:
 
 
 def test_phone_column_reads_business_numbers_from_insights(w: World) -> None:
-    from leadcommons.store.insights import InsightsRepo
+    from pepite.store.insights import InsightsRepo
 
     ins = sample_insights(w.nordwind.id, w.nordwind.domain)
     assert insight_phone(ins) == "+49401234567"
@@ -271,8 +271,8 @@ def test_selection_bar_is_icon_buttons_with_short_tips(w: World) -> None:
 
 
 def test_ai_menu_order_and_reasons(w: World, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("LEADCOMMONS_LLM_URL", raising=False)
-    monkeypatch.delenv("LEADCOMMONS_LLM_MODEL", raising=False)
+    monkeypatch.delenv("PEPITE_LLM_URL", raising=False)
+    monkeypatch.delenv("PEPITE_LLM_MODEL", raising=False)
     html = w.client.get("/people?all=1").text
     sel = html[html.index("ai-dd ai-sel") :]
     sel = sel[: sel.index("</details>\n")]
@@ -292,7 +292,7 @@ def test_ai_menu_order_and_reasons(w: World, monkeypatch: pytest.MonkeyPatch) ->
     assert all(
         'aria-disabled="true"' in i and 'aria-describedby="ai-people-sel-why"' in i for i in items
     )
-    assert 'id="ai-people-sel-why"' in sel and "LEADCOMMONS_LLM_URL" in sel
+    assert 'id="ai-people-sel-why"' in sel and "PEPITE_LLM_URL" in sel
     toolbar = html[html.index('class="dd ai-dd"') :]
     assert toolbar.index("Ask the Assistant") < toolbar.index("plain words")
 
@@ -381,7 +381,7 @@ def test_bulk_save_lists_looks_up_and_filters(w: World) -> None:
 
 
 def test_bulk_save_adds_to_a_sequence_with_engage(w: World) -> None:
-    from leadcommons.store.engage import repo_for
+    from pepite.store.engage import repo_for
 
     sid = repo_for(w.store).create_sequence("Intro", status="active")
     html = w.client.get("/people?all=1").text
@@ -473,7 +473,7 @@ def test_saved_company_shows_its_lists(w: World) -> None:
 
 
 def test_company_locations_from_open_data_and_website(w: World) -> None:
-    from leadcommons.store.insights import InsightsRepo
+    from pepite.store.insights import InsightsRepo
 
     InsightsRepo(w.store.engine).save(sample_insights(w.nordwind.id, w.nordwind.domain))
     html = w.client.get(f"/companies/{w.nordwind.id}", headers=HX).text

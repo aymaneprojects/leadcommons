@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from leadcommons.enrich.crawl import Page
-from leadcommons.insights import contact
+from pepite.enrich.crawl import Page
+from pepite.insights import contact
 
 FIXTURES = Path(__file__).parent / "fixtures" / "insights"
 

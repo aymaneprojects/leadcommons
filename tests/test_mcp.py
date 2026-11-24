@@ -7,16 +7,16 @@ import re
 import pytest
 from typer.testing import CliRunner
 
-from leadcommons import enrich
-from leadcommons.cli import app
-from leadcommons.mcp_server import (
+from pepite import enrich
+from pepite.cli import app
+from pepite.mcp_server import (
     BearerTokenMiddleware,
     build_http_app,
     build_server,
     resolve_http_token,
 )
-from leadcommons.models import EmailCandidate, EmailStatus, Person, make_id
-from leadcommons.store import Store
+from pepite.models import EmailCandidate, EmailStatus, Person, make_id
+from pepite.store import Store
 from tests.fakes import FakeSearch
 
 
@@ -106,7 +106,7 @@ async def test_find_people_find_email_and_suppression(server, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_find_email_never_stores_suppressed(server, monkeypatch):
-    store = server._leadcommons_backend.store
+    store = server._pepite_backend.store
     p = Person(id="pe_x", full_name="Bob Smith", company_domain="example.org")
     store.save_person(p)
     await call(server, "opt_out", email_or_domain="bob@example.org")
@@ -135,7 +135,7 @@ async def test_bad_enum_message(server):
 
 @pytest.mark.asyncio
 async def test_lists_and_csv_export_is_safe(server, monkeypatch):
-    store = server._leadcommons_backend.store
+    store = server._pepite_backend.store
     evil = Person(id="pe_e", full_name="=HYPERLINK(1)", title="+cmd", company_domain="ok.example")
     sup = Person(id="pe_s", full_name="Sue Hidden", company_domain="ok.example")
     store.save_person(evil)
@@ -231,21 +231,21 @@ def test_cli_help_shows_mcp():
 
 
 def test_cli_mcp_http_server_mode_needs_token(monkeypatch, tmp_path):
-    monkeypatch.setenv("LEADCOMMONS_HOME", str(tmp_path))
-    monkeypatch.setenv("LEADCOMMONS_MODE", "server")
-    monkeypatch.delenv("LEADCOMMONS_MCP_TOKEN", raising=False)
+    monkeypatch.setenv("PEPITE_HOME", str(tmp_path))
+    monkeypatch.setenv("PEPITE_MODE", "server")
+    monkeypatch.delenv("PEPITE_MCP_TOKEN", raising=False)
     result = runner.invoke(app, ["mcp", "--http"])
     assert result.exit_code == 1
-    assert "LEADCOMMONS_MCP_TOKEN" in result.output
+    assert "PEPITE_MCP_TOKEN" in result.output
 
 
 def test_cli_mcp_http_starts_with_token(monkeypatch, tmp_path):
     import uvicorn
 
     calls = {}
-    monkeypatch.setenv("LEADCOMMONS_HOME", str(tmp_path))
-    monkeypatch.setenv("LEADCOMMONS_MODE", "server")
-    monkeypatch.setenv("LEADCOMMONS_MCP_TOKEN", "tok")
+    monkeypatch.setenv("PEPITE_HOME", str(tmp_path))
+    monkeypatch.setenv("PEPITE_MODE", "server")
+    monkeypatch.setenv("PEPITE_MCP_TOKEN", "tok")
     monkeypatch.setattr(uvicorn, "run", lambda asgi, **k: calls.update(asgi=asgi, **k))
     result = runner.invoke(app, ["mcp", "--http", "--port", "9100"])
     assert result.exit_code == 0, result.output

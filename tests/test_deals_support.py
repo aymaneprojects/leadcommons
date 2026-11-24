@@ -9,13 +9,13 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.testclient import TestClient
 
-from leadcommons.config import Settings
-from leadcommons.store import Store
-from leadcommons.store.pipeline import Pipeline
-from leadcommons.web.deps import STATIC_DIR
-from leadcommons.web.pages import router as pages_router
-from leadcommons.web.pages_extra import router as extra_router
-from leadcommons.web.pages_pipeline import router as pipeline_router
+from pepite.config import Settings
+from pepite.store import Store
+from pepite.store.pipeline import Pipeline
+from pepite.web.deps import STATIC_DIR
+from pepite.web.pages import router as pages_router
+from pepite.web.pages_extra import router as extra_router
+from pepite.web.pages_pipeline import router as pipeline_router
 from tests.fakes import FakeJobs, FakeSearch, sample_email, sample_person
 
 HX = {"HX-Request": "true"}

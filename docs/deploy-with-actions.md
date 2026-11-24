@@ -20,11 +20,11 @@ Settings, Secrets and variables, Actions, New repository secret.
 | `SSH_PORT` | no | default 22 |
 | `DOMAIN` | yes | e.g. `leads.example.com` |
 | `POSTGRES_PASSWORD` | yes | `openssl rand -hex 24` |
-| `LEADCOMMONS_PASSWORD_HASH` | yes | output of `leadcommons hash-password` |
-| `LEADCOMMONS_SECRET_KEY` | yes | `openssl rand -hex 32` |
+| `PEPITE_PASSWORD_HASH` | yes | output of `pepite hash-password` |
+| `PEPITE_SECRET_KEY` | yes | `openssl rand -hex 32` |
 
 ## Run
 
-Actions tab, "Deploy to my server", Run workflow. The job copies `docker-compose.server.yml`, `Caddyfile` and a generated `.env` to `~/leadcommons` on the server, runs `docker compose pull && docker compose up -d`, and finally checks `https://$DOMAIN/healthz`.
+Actions tab, "Deploy to my server", Run workflow. The job copies `docker-compose.server.yml`, `Caddyfile` and a generated `.env` to `~/pepite` on the server, runs `docker compose pull && docker compose up -d`, and finally checks `https://$DOMAIN/healthz`.
 
 Run it again whenever you want to update. If your fork publishes its own image, change the image name in `deploy/docker-compose.server.yml`.

@@ -32,7 +32,7 @@ import duckdb
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from leadcommons.search import CompanyFilters  # noqa: E402
+from pepite.search import CompanyFilters  # noqa: E402
 
 # Share of the rows per country (FR is the "one big country" case: ~60% of the rows).
 COUNTRY_SHARE = {
@@ -438,10 +438,10 @@ def run(
     keep: bool = False,
 ) -> dict[str, Any]:
     if memory_limit:
-        os.environ["LEADCOMMONS_DUCKDB_MEMORY"] = memory_limit
+        os.environ["PEPITE_DUCKDB_MEMORY"] = memory_limit
     if threads:
-        os.environ["LEADCOMMONS_DUCKDB_THREADS"] = str(threads)
-    from leadcommons.packs import DuckDBCompanySearch
+        os.environ["PEPITE_DUCKDB_THREADS"] = str(threads)
+    from pepite.packs import DuckDBCompanySearch
 
     report: dict[str, Any] = {"raw": raw, "rows": 0, "timings": {}, "memory": {}}
     samples = sample_values(data)
@@ -561,7 +561,7 @@ def _desc(flt: CompanyFilters) -> str:
 def install_local(src: Path, data_dir: Path) -> float:
     """Copy the release files into data_dir and build the local search database, as a
     download does. Returns the seconds spent building (copy excluded)."""
-    from leadcommons.packs import index as pack_index
+    from pepite.packs import index as pack_index
 
     manifest = json.loads((src / "manifest.json").read_text(encoding="utf-8"))
     for entry in manifest["countries"]:

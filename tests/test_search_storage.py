@@ -11,12 +11,12 @@ from pathlib import Path
 
 import pytest
 
-from leadcommons.models import SIZE_RANGES, Company
-from leadcommons.packs import DuckDBCompanySearch, duck
-from leadcommons.packs import index as pack_index
-from leadcommons.packs.builder import write_parquet
-from leadcommons.packs.domains import normalize_domain
-from leadcommons.search import KEYWORD_FIELDS, PACK_COLUMNS, CompanyFilters
+from pepite.models import SIZE_RANGES, Company
+from pepite.packs import DuckDBCompanySearch, duck
+from pepite.packs import index as pack_index
+from pepite.packs.builder import write_parquet
+from pepite.packs.domains import normalize_domain
+from pepite.search import KEYWORD_FIELDS, PACK_COLUMNS, CompanyFilters
 
 WORDS = ["Acme", "Zeta", "Boulangerie", "Martin", "Café", "Élan", "Nord", "Sud", "Tech", "Bio",
          "Garage", "Conseil", "100%_Pure", "Holding", "Smith", "Øst"]  # fmt: skip
@@ -352,14 +352,14 @@ def test_old_pack_schema_is_indexed(tmp_path: Path) -> None:
 
 
 def test_memory_and_threads_limits(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setenv("LEADCOMMONS_DUCKDB_MEMORY", "300MB")
-    monkeypatch.setenv("LEADCOMMONS_DUCKDB_THREADS", "2")
+    monkeypatch.setenv("PEPITE_DUCKDB_MEMORY", "300MB")
+    monkeypatch.setenv("PEPITE_DUCKDB_THREADS", "2")
     s = DuckDBCompanySearch(None)
     limit, threads = s._query(
         "SELECT current_setting('memory_limit'), current_setting('threads')", []
     )[0]
     assert threads == 2 and limit.replace(" ", "") in ("286.1MiB", "300.0MB", "286MiB")
-    monkeypatch.delenv("LEADCOMMONS_DUCKDB_MEMORY")
+    monkeypatch.delenv("PEPITE_DUCKDB_MEMORY")
     mb = int(pack_index.default_memory_limit().removesuffix("MB"))
     assert 256 <= mb <= 1024
 

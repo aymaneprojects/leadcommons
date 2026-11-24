@@ -22,8 +22,8 @@ def demo_pack_url(repo: str) -> str | None:
     """Download URL of the demo file of the newest release that has a manifest, if any."""
     import httpx
 
-    from leadcommons.connectors.base import USER_AGENT
-    from leadcommons.packs import MANIFEST_FILE, list_pack_releases
+    from pepite.connectors.base import USER_AGENT
+    from pepite.packs import MANIFEST_FILE, list_pack_releases
 
     for release in list_pack_releases(repo):
         if not release.has_manifest:
@@ -45,9 +45,9 @@ def main() -> int:
     out = ROOT / "data" / "packs"
     out.mkdir(parents=True, exist_ok=True)
     try:
-        from leadcommons.packs import DEFAULT_PACKS_REPO, download_pack, latest_pack_url
+        from pepite.packs import DEFAULT_PACKS_REPO, download_pack, latest_pack_url
 
-        repo = os.environ.get("LEADCOMMONS_PACKS_REPO", DEFAULT_PACKS_REPO)
+        repo = os.environ.get("PEPITE_PACKS_REPO", DEFAULT_PACKS_REPO)
         url = demo_pack_url(repo) or latest_pack_url(repo)
         path = download_pack(url, out)
         print(f"Bundled company pack: {path}")

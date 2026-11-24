@@ -9,9 +9,9 @@ import respx
 from fastapi.testclient import TestClient
 from starlette.requests import Request
 
-from leadcommons.ai import ignored_filters, parse_query, to_query_params, to_url
-from leadcommons.ai import llm as llm_mod
-from leadcommons.models import SIZE_RANGES, Seniority
+from pepite.ai import ignored_filters, parse_query, to_query_params, to_url
+from pepite.ai import llm as llm_mod
+from pepite.models import SIZE_RANGES, Seniority
 from tests.test_api import build_app, make_settings
 
 SMALL = ["1-10", "11-50"]
@@ -22,7 +22,7 @@ LARGE = ["1001-5000", "5001-10000", "10001+"]
 
 @pytest.fixture(autouse=True)
 def no_llm(monkeypatch: pytest.MonkeyPatch) -> None:
-    for var in ("LEADCOMMONS_LLM_URL", "LEADCOMMONS_LLM_MODEL", "LEADCOMMONS_LLM_API_KEY"):
+    for var in ("PEPITE_LLM_URL", "PEPITE_LLM_MODEL", "PEPITE_LLM_API_KEY"):
         monkeypatch.delenv(var, raising=False)
 
 
@@ -244,7 +244,7 @@ def _request(query: str) -> Request:
 
 
 def test_round_trip_with_pages_parsers() -> None:
-    pages = pytest.importorskip("leadcommons.web.pages")
+    pages = pytest.importorskip("pepite.web.pages")
     p = parse_query("PME françaises banques croissance", "companies")
     query, _ = to_url(p, "companies")
     parsed = pages.parse_company_params(_request(query))
@@ -269,8 +269,8 @@ URL = "http://llm.test/v1"
 
 @pytest.fixture
 def llm_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("LEADCOMMONS_LLM_URL", URL + "/")
-    monkeypatch.setenv("LEADCOMMONS_LLM_MODEL", "tiny")
+    monkeypatch.setenv("PEPITE_LLM_URL", URL + "/")
+    monkeypatch.setenv("PEPITE_LLM_MODEL", "tiny")
 
 
 def chat(content: str) -> httpx.Response:
@@ -302,7 +302,7 @@ def test_llm_fills_what_rules_missed(llm_env: None) -> None:
 
 @respx.mock
 def test_rules_win_on_conflict(llm_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("LEADCOMMONS_LLM_API_KEY", "sk-test")
+    monkeypatch.setenv("PEPITE_LLM_API_KEY", "sk-test")
     route = respx.post(f"{URL}/chat/completions").mock(
         return_value=chat('{"countries": ["DE"], "size_ranges": ["1-10"], "industries": ["J"]}')
     )
@@ -347,7 +347,7 @@ def test_llm_timeout_falls_back(llm_env: None) -> None:
 
 
 def test_llm_disabled_without_both_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("LEADCOMMONS_LLM_URL", URL)
+    monkeypatch.setenv("PEPITE_LLM_URL", URL)
     assert llm_mod.llm_config() is None  # model missing: never calls out
     assert parse_query("banks").engine == "rules"
 

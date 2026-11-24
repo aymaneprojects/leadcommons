@@ -9,16 +9,16 @@ import httpx
 import pytest
 import respx
 
-from leadcommons.connectors import USER_AGENT, WikidataConnector
-from leadcommons.connectors.wikidata import (
+from pepite.connectors import USER_AGENT, WikidataConnector
+from pepite.connectors.wikidata import (
     ENDPOINT,
     build_details_query,
     build_ids_query,
 )
-from leadcommons.models import SIZE_RANGES, make_id
-from leadcommons.packs.domains import normalize_domain
-from leadcommons.packs.isic import isic_section
-from leadcommons.packs.normalize import size_bucket
+from pepite.models import SIZE_RANGES, make_id
+from pepite.packs.domains import normalize_domain
+from pepite.packs.isic import isic_section
+from pepite.packs.normalize import size_bucket
 
 DATA = Path(__file__).parent / "fixtures" / "data"
 
@@ -137,7 +137,7 @@ def test_gives_up_after_repeated_errors():
 
 
 def test_parse_binding_registry_ids():
-    from leadcommons.connectors.wikidata import parse_binding
+    from pepite.connectors.wikidata import parse_binding
 
     row = {
         "item": {"value": "http://www.wikidata.org/entity/Q9"},
@@ -199,7 +199,7 @@ def test_failed_chunk_is_skipped_not_fatal(caplog):
     import logging
     import re
 
-    caplog.set_level(logging.INFO, logger="leadcommons")
+    caplog.set_level(logging.INFO, logger="pepite")
     state = {"n": 0}
 
     def handler(request):

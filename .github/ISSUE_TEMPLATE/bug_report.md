@@ -12,6 +12,6 @@ labels: bug
 1.
 
 **Environment**
-- LeadCommons version (`leadcommons version`):
+- Pepite version (`pepite version`):
 - How installed (installer / Docker / source):
 - OS:

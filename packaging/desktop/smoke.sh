@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 # Start a built desktop app without a window and check that it serves the main pages.
-# Usage: packaging/desktop/smoke.sh <path to LeadCommons binary or AppImage> [port]
-# Set LEADCOMMONS_HOME to a throwaway folder first.
+# Usage: packaging/desktop/smoke.sh <path to Pepite binary or AppImage> [port]
+# Set PEPITE_HOME to a throwaway folder first.
 set -euo pipefail
 
 BIN="$1"
 PORT="${2:-8765}"
 BASE="http://127.0.0.1:$PORT"
 OUT="$(mktemp)"
-export LEADCOMMONS_DESKTOP_NO_DOWNLOAD=1
+export PEPITE_DESKTOP_NO_DOWNLOAD=1
 
 "$BIN" --headless --port "$PORT" --exit-after 150 >"$OUT" 2>&1 &
 PID=$!
 
 show_log() {
   echo "--- app output"; cat "$OUT" || true
-  echo "--- desktop.log"; cat "${LEADCOMMONS_HOME:-$HOME/.leadcommons}/desktop.log" || true
+  echo "--- desktop.log"; cat "${PEPITE_HOME:-$HOME/.pepite}/desktop.log" || true
 }
 
 for _ in $(seq 1 120); do
@@ -38,7 +38,7 @@ check() {
 
 check /healthz '"ok"'
 check "/companies?all=1" 'co-name'
-check "/people" 'LeadCommons'
+check "/people" 'Pépite'
 check "/settings/data-packs" 'Data packs'
 check "/api/docs" 'API reference'
 check "/static/css/app.css" '--orange'

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * Every-button UX audit for LeadCommons.
+ * Every-button UX audit for Pépite.
  *
  * Visits every page reachable from the app's own links, then clicks every visible control on
  * each page from a fresh page load and records what happened: navigation, download, dialog,

@@ -10,11 +10,11 @@ import pyarrow.parquet as pq
 import pytest
 import respx
 
-from leadcommons.models import Company, Provenance, make_id
-from leadcommons.packs import build_pack, download_pack
-from leadcommons.packs.builder import Deduper, merge_companies
-from leadcommons.packs.builder import build_pack as build
-from leadcommons.search import PACK_COLUMNS
+from pepite.models import Company, Provenance, make_id
+from pepite.packs import build_pack, download_pack
+from pepite.packs.builder import Deduper, merge_companies
+from pepite.packs.builder import build_pack as build
+from pepite.search import PACK_COLUMNS
 
 LEI = "5493001KJTIIGC8Y1R12"
 
@@ -204,7 +204,7 @@ def test_merge_on_cik_and_name_fallback():
 
 
 def test_ids_fall_back_to_siren_then_cik():
-    from leadcommons.packs.builder import company_id
+    from pepite.packs.builder import company_id
 
     s = sirene_row("652014051", "X", "X")
     assert company_id(s) == make_id("co", "siren", "652014051")
@@ -310,7 +310,7 @@ def test_build_needs_pyarrow_message(tmp_path: Path, monkeypatch):
 
     monkeypatch.setitem(sys.modules, "pyarrow", None)
     monkeypatch.setitem(sys.modules, "pyarrow.parquet", None)
-    with pytest.raises(RuntimeError, match=r"leadcommons\[build\]"):
+    with pytest.raises(RuntimeError, match=r"pepite\[build\]"):
         build(
             tmp_path,
             connectors={"wikidata": FakeConn("wikidata", []), "gleif": FakeConn("gleif", [])},
@@ -333,7 +333,7 @@ class Flaky(FakeConn):
 def test_one_country_failing_still_builds_pack(tmp_path: Path, caplog):
     import logging
 
-    caplog.set_level(logging.INFO, logger="leadcommons")
+    caplog.set_level(logging.INFO, logger="pepite")
     wdc = Flaky("wikidata", [wd("A", "Q1", country="GB"), wd("B", "Q2", country="DE")], {"FR"})
     path = build(
         tmp_path,
@@ -384,7 +384,7 @@ def test_sources_metadata_lists_only_contributors(tmp_path: Path):
 def test_build_logs_progress(tmp_path: Path, caplog):
     import logging
 
-    caplog.set_level(logging.INFO, logger="leadcommons")
+    caplog.set_level(logging.INFO, logger="pepite")
     sirene = Registry("sirene", [sirene_row("300000001", "ZETA", "ZETA SA")], ("FR",), "siren", [])
     build(
         tmp_path,
@@ -400,4 +400,4 @@ def test_build_logs_progress(tmp_path: Path, caplog):
     assert "sirene FR: 1 rows" in text
     assert "country FR done: 2 rows" in text
     assert "pack built:" in text and "2 rows" in text
-    assert all(r.name.startswith("leadcommons") for r in caplog.records)
+    assert all(r.name.startswith("pepite") for r in caplog.records)

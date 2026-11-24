@@ -2,10 +2,13 @@
 
 ## Unreleased
 
+- LeadCommons is now **Pépite** (`pepite` command, `PEPITE_*` settings), with a new logo. Existing
+  installs keep their data: `~/.leadcommons`, `leadcommons.db` and `LEADCOMMONS_*` settings are
+  still read.
 - Company data per country: Settings > Data packs lists the countries of the newest release
   (companies, size, installed or update available) with Download, Update and Remove; downloads
   resume after an interruption and are checked (sha256). The desktop app downloads your own
-  country at the first start. `leadcommons pack download --country FR`, `pack countries`.
+  country at the first start. `pepite pack download --country FR`, `pack countries`.
 - Search stays fast with millions of companies: each downloaded pack is prepared for search
   (a local DuckDB database). On 12 million companies the results page answers in under 0.7 s
   (p95) on a laptop-sized memory budget, instead of 3.7 s.
@@ -15,18 +18,18 @@
 - Desktop app, built like the big desktop apps: an Electron shell (own window, real menu bar in
   English or French, splash screen, native "Save as" for exports, system notifications when
   background jobs finish, badge on the Dock or taskbar, one instance at a time, window size kept,
-  update notice) around the LeadCommons engine. Installers for Windows (.exe), macOS on Apple
+  update notice) around the Pépite engine. Installers for Windows (.exe), macOS on Apple
   Silicon (.dmg) and Linux (.deb and .AppImage), built and tested by GitHub Actions.
 - In the app, pages behave like an application: no browser reload or developer shortcuts, no
   stray text selection, links to other sites open in your browser.
 - Settings > Data packs: download the newest company pack from the app; search switches to it
   when the download is done. A new download replaces the previous one, never your own packs. The
   desktop app does this by itself at the first start.
-- `leadcommons desktop` opens a window from a command-line install.
+- `pepite desktop` opens a window from a command-line install.
 
 ## 0.1.0 (2026-11-15)
 
-First public release. LeadCommons is a free, open-source, local-first prospecting app built
+First public release. Pépite is a free, open-source, local-first prospecting app built
 on public data only.
 
 ### Find

@@ -8,9 +8,9 @@ from pathlib import Path
 import httpx
 import respx
 
-from leadcommons.connectors import USER_AGENT, GleifConnector
-from leadcommons.connectors.gleif import ENDPOINT
-from leadcommons.models import make_id
+from pepite.connectors import USER_AGENT, GleifConnector
+from pepite.connectors.gleif import ENDPOINT
+from pepite.models import make_id
 
 DATA = Path(__file__).parent / "fixtures" / "data"
 

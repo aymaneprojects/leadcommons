@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{% from "_shell_macros.html" import tic %}
+{% block title %}{{ "Edit workflow" if wf_id else "New workflow" }} · Pépite{% endblock %}
+{% block content %}
+<div class="crumbs"><a href="/workflows">Workflows</a> {{ tic("chevron-right", "sm") }} <span aria-current="page">{{ draft.name or "New workflow" }}</span></div>
+<form class="wf-form" id="wf-form" method="post" action="{{ '/workflows/' ~ wf_id if wf_id else '/workflows' }}">
+  <div class="page-head">
+    <div class="wf-name field"><label class="sr-only" for="wf-name">Workflow name</label><input id="wf-name" type="text" name="name" value="{{ draft.name }}" placeholder="Name this workflow" maxlength="160" required></div>
+    <div class="actions">
+      {% if wf_id %}
+      <button class="btn" type="submit" form="wf-run">{{ tic("play", "sm") }} Run now</button>
+      {% endif %}
+      <button class="btn primary" type="submit">{{ icon("check") }} Save workflow</button>
+    </div>
+  </div>
+  {% if error %}<div class="notice error" role="alert">{{ error }}</div>{% endif %}
+  {% if demo %}<div class="notice" role="note">Demo: you can save this workflow, but it will not crawl, send webhooks or run on a schedule here.</div>{% endif %}
+  <noscript><div class="notice error">The workflow builder needs JavaScript.</div></noscript>
+
+  <section class="card wf-step">
+    <h2><span class="wf-n">1</span> When this happens</h2>
+    <div class="seg3" role="radiogroup" aria-label="Trigger type">
+      <label><input type="radio" name="trigger_type" value="event" data-trig{% if draft.trigger.type == "event" %} checked{% endif %}> <span>{{ tic("zap", "sm") }} An event</span></label>
+      <label><input type="radio" name="trigger_type" value="schedule" data-trig{% if draft.trigger.type == "schedule" %} checked{% endif %}> <span>{{ tic("clock", "sm") }} A schedule on a saved search</span></label>
+      <label><input type="radio" name="trigger_type" value="manual" data-trig{% if draft.trigger.type == "manual" %} checked{% endif %}> <span>{{ tic("hand", "sm") }} I run it by hand</span></label>
+    </div>
+    <div class="trig-pane" data-pane="event"{% if draft.trigger.type != "event" %} hidden{% endif %}>
+      <div class="field"><label for="wf-event">Event</label>
+        <select id="wf-event" name="event">{% for e in events %}<option value="{{ e }}"{% if draft.trigger.event == e %} selected{% endif %}>{{ ev_labels[e] }}</option>{% endfor %}</select></div>
+    </div>
+    <div class="trig-pane" data-pane="schedule"{% if draft.trigger.type != "schedule" %} hidden{% endif %}>
+      <div class="wf-grid">
+        <div class="field"><label for="wf-saved">Start from a saved search</label><select id="wf-saved" data-saved><option value="">Choose…</option></select></div>
+        <div class="field"><label for="wf-source">Search in</label><select id="wf-source" name="source"><option value="companies"{% if draft.trigger.source != "people" %} selected{% endif %}>Companies</option><option value="people"{% if draft.trigger.source == "people" %} selected{% endif %}>People</option></select></div>
+        <div class="field wide"><label for="wf-query">Search filters <span class="muted">(the address query of the Companies or People page)</span></label><input id="wf-query" type="text" name="query" value="{{ draft.trigger.query or '' }}" placeholder="country=FR&amp;size=11-50" class="mono"></div>
+        <div class="field"><label for="wf-freq">Repeat</label><select id="wf-freq" name="frequency"><option value="daily"{% if draft.trigger.frequency != "weekly" %} selected{% endif %}>Every day</option><option value="weekly"{% if draft.trigger.frequency == "weekly" %} selected{% endif %}>Every week</option></select></div>
+        <div class="field" data-weekday{% if draft.trigger.frequency != "weekly" %} hidden{% endif %}><label for="wf-wd">On</label><select id="wf-wd" name="weekday">{% for d in weekdays %}<option value="{{ loop.index0 }}"{% if draft.trigger.weekday == loop.index0 %} selected{% endif %}>{{ d }}</option>{% endfor %}</select></div>
+        <div class="field"><label for="wf-hour">At (UTC)</label><select id="wf-hour" name="hour">{% for h in range(24) %}<option value="{{ h }}"{% if (draft.trigger.hour if draft.trigger.hour is not none else 8) == h %} selected{% endif %}>{{ "%02d"|format(h) }}:00</option>{% endfor %}</select></div>
+      </div>
+      <p class="hint">Each run acts on up to 100 records that were not handled before.</p>
+    </div>
+    <div class="trig-pane" data-pane="manual"{% if draft.trigger.type != "manual" %} hidden{% endif %}>
+      <div class="field"><label for="wf-mlist">Act on the members of a list <span class="muted">(or leave empty for your 25 most recent people)</span></label>
+        <select id="wf-mlist" name="manual_list"><option value="">Most recent people</option>{% for l in lists %}<option value="{{ l.id }}"{% if draft.trigger.list_id == l.id %} selected{% endif %}>{{ l.name }} ({{ l.kind }})</option>{% endfor %}</select></div>
+    </div>
+  </section>
+
+  <section class="card wf-step">
+    <h2><span class="wf-n">2</span> Only if <span class="muted wf-opt">optional</span></h2>
+    <p class="muted">Every condition must be true for a record. With none, every record qualifies.</p>
+    <div id="cond-rows" class="wf-rows"></div>
+    <button class="btn sm" type="button" data-add-cond>{{ icon("plus", "sm") }} Add condition</button>
+  </section>
+
+  <section class="card wf-step">
+    <h2><span class="wf-n">3</span> Then do</h2>
+    <p class="muted">Steps run in order for each record. A step that fails never stops the next ones. In text you can use <code>{name}</code>, <code>{company}</code>, <code>{title}</code>, <code>{email}</code>.</p>
+    <div id="act-rows" class="wf-rows"></div>
+    <button class="btn sm" type="button" data-add-act>{{ icon("plus", "sm") }} Add action</button>
+  </section>
+  <script type="application/json" id="wf-config">{{ config_json }}</script>
+</form>
+
+{% if wf_id %}
+<form id="wf-run" method="post" action="/workflows/{{ wf_id }}/run" hidden></form>
+<section class="card wf-meta">
+  <div class="wf-meta-row">
+    <form method="post" action="/workflows/{{ wf_id }}/toggle"><input type="hidden" name="enabled" value="{{ 0 if wf.enabled else 1 }}"><input type="hidden" name="next" value="/workflows/{{ wf_id }}">
+      <button class="btn" type="submit">{{ "Turn off" if wf.enabled else "Turn on" }}</button></form>
+    <span class="muted">This workflow is <b>{{ "on" if wf.enabled else "off" }}</b>.{% if wf.next_run_at and wf.enabled %} Next scheduled run {{ wf.next_run_at.strftime('%Y-%m-%d %H:%M') }} UTC.{% endif %}</span>
+    <span class="grow"></span>
+    <form method="post" action="/workflows/{{ wf_id }}/delete" onsubmit="return confirm('Delete this workflow and its history?')"><button class="btn btn-danger" type="submit">{{ tic("trash-2", "sm") }} Delete</button></form>
+  </div>
+</section>
+<h2 class="hub-sub" id="runs-h">Run history</h2>
+{% include "_tools_runs.html" %}
+{% endif %}
+{% endblock %}

@@ -16,13 +16,13 @@ import respx
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from leadcommons import engage, workflows
-from leadcommons.config import Settings
-from leadcommons.models import EmailStatus, Seniority, utcnow
-from leadcommons.store import Store
-from leadcommons.store.tools import repo_for
-from leadcommons.web.app import create_app
-from leadcommons.workflows import engine, scheduler, webhooks
+from pepite import engage, workflows
+from pepite.config import Settings
+from pepite.models import EmailStatus, Seniority, utcnow
+from pepite.store import Store
+from pepite.store.tools import repo_for
+from pepite.web.app import create_app
+from pepite.workflows import engine, scheduler, webhooks
 from tests.fakes import FakeJobs, FakeSearch, sample_email, sample_person
 
 
@@ -335,7 +335,7 @@ def test_deal_stage_condition(app: FastAPI) -> None:
 
 
 def test_activity_is_logged_for_the_person(app: FastAPI, world: dict) -> None:
-    from leadcommons.store.pipeline import ActivityRepo
+    from pepite.store.pipeline import ActivityRepo
 
     add(app, "act", EVENT, [{"type": "notify"}])
     workflows.emit("person_found", person_id=world["claire"].id)

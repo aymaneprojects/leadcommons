@@ -6,9 +6,9 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from leadcommons import workflows
-from leadcommons.store.pipeline import Pipeline
-from leadcommons.web.pages_pipeline import money, parse_amount, totals_label
+from pepite import workflows
+from pepite.store.pipeline import Pipeline
+from pepite.web.pages_pipeline import money, parse_amount, totals_label
 from tests.test_deals_support import HX, app, client, people, pl  # noqa: F401
 
 JSON = {"Accept": "application/json"}

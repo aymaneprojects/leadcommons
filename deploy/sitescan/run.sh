@@ -24,7 +24,7 @@ from pathlib import Path
 repo, want, dest, tlds = sys.argv[1], sys.argv[2], Path(sys.argv[3]), sys.argv[4].split()
 req = urllib.request.Request(
     f"https://api.github.com/repos/{repo}/releases?per_page=30",
-    headers={"User-Agent": "LeadCommonsBot-deploy", "Accept": "application/vnd.github+json"},
+    headers={"User-Agent": "PepiteBot-deploy", "Accept": "application/vnd.github+json"},
 )
 releases = json.load(urllib.request.urlopen(req, timeout=60))
 hosts = [r for r in releases if r["tag_name"].startswith("sitescan-hosts-")]
@@ -55,14 +55,14 @@ for tld in $TLDS; do
     args=(sitescan run --domains "$DATA/hosts/$tag/domains-$tld.txt.gz" --out "$findings/$tld"
       --concurrency "$CONCURRENCY" --delay "$DELAY" --max-pages "$MAX_PAGES" --part "$k/$PROCS")
     if [ -n "$LIMIT" ]; then args+=(--limit "$LIMIT"); fi
-    leadcommons "${args[@]}" > "$findings/$tld.part-$k.stats.json" &
+    pepite "${args[@]}" > "$findings/$tld.part-$k.stats.json" &
     pids+=("$!")
   done
 done
 status=0
 for pid in "${pids[@]}"; do wait "$pid" || status=1; done
 
-# 3. The shard for `leadcommons pack merge` (also built after a failure: whatever was read counts).
-leadcommons sitescan shard "$findings" --out "$DATA/shards/$MONTH"
+# 3. The shard for `pepite pack merge` (also built after a failure: whatever was read counts).
+pepite sitescan shard "$findings" --out "$DATA/shards/$MONTH"
 echo "done: $DATA/shards/$MONTH/sitescan.parquet" >&2
 exit "$status"
