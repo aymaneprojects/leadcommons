@@ -45,17 +45,24 @@ docker compose up -d
 docker compose logs -f app
 ```
 
-On first start the app downloads the latest company pack. Caddy requests a certificate; this takes under a minute once DNS is right. Open `https://your-domain` and log in with the password you hashed.
+On first start the app tries to download company data. A container has no system language to guess your country from, so this often does nothing and the app starts with its small bundled sample. Download the countries you need once:
+
+```sh
+docker compose exec app pepite pack download --country FR
+```
+
+(or use Settings > Data packs after you log in; repeat `--country` for more). Caddy requests a certificate; this takes under a minute once DNS is right. Open `https://your-domain` and log in with the password you hashed. The stack also runs a `worker` service that sends sequence emails and checks replies (see [engage.md](engage.md)).
 
 Check health: `curl https://your-domain/healthz`.
 
 ## Backups
 
-Everything personal is in the Postgres volume (and the pack files, which can be re-downloaded).
+People, lists, sequences and deals are in the Postgres volume. Mailbox passwords in that database are encrypted with a key file, `secret.key`, kept in the `app-data` volume: back it up too, or you will have to type the passwords again. The pack files can be re-downloaded.
 
 ```sh
 cd ~/pepite
 docker compose exec -T db pg_dump -U pepite pepite | gzip > backup-$(date +%F).sql.gz
+docker compose cp app:/data/secret.key ./secret.key
 ```
 
 Restore into a fresh database:
@@ -64,7 +71,7 @@ Restore into a fresh database:
 gunzip -c backup-2026-01-01.sql.gz | docker compose exec -T db psql -U pepite pepite
 ```
 
-Automate with cron, for example `0 3 * * * cd ~/pepite && docker compose exec -T db pg_dump -U pepite pepite | gzip > ~/backups/lc-$(date +\%F).sql.gz`, and copy the files off the server.
+Automate with cron, for example `0 3 * * * cd ~/pepite && docker compose exec -T db pg_dump -U pepite pepite | gzip > ~/backups/pepite-$(date +\%F).sql.gz`, and copy the files off the server.
 
 ## Updates
 

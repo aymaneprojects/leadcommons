@@ -5,6 +5,12 @@
 - LeadCommons is now **Pépite** (`pepite` command, `PEPITE_*` settings), with a new logo. Existing
   installs keep their data: `~/.leadcommons`, `leadcommons.db` and `LEADCOMMONS_*` settings are
   still read.
+- Company data from eight whole official registers (INSEE SIRENE, UK Companies House,
+  Brønnøysund, Australian Business Register, Corporations Canada, SEC EDGAR, GLEIF, Wikidata):
+  21.8 million active companies in 227 countries in `packs-2026-11`. `pepite pack sources`,
+  `pack fetch-source`, `pack merge` and `pack quality` rebuild them.
+- New guide [docs/getting-started.md](docs/getting-started.md): your first hour, from install to a
+  first email sequence.
 - Company data per country: Settings > Data packs lists the countries of the newest release
   (companies, size, installed or update available) with Download, Update and Remove; downloads
   resume after an interruption and are checked (sha256). The desktop app downloads your own

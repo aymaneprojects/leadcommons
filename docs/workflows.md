@@ -57,4 +57,4 @@ expected = "sha256=" + hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdi
 assert hmac.compare_digest(expected, request.headers["X-Pepite-Signature"])
 ```
 
-**Settings, API tokens** creates tokens (shown once; only a hash is stored). Send one as `Authorization: Bearer lc_…` to `/api/*` and `/mcp` when the instance asks for a login.
+**Settings, API tokens** creates tokens (shown once; only a hash is stored). Send one as `Authorization: Bearer lc_…` to `/api/*` when the instance asks for a login. The MCP server has its own token (`PEPITE_MCP_TOKEN`, see [mcp.md](mcp.md)).

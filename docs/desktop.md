@@ -54,7 +54,7 @@ If it closes at once on a recent Ubuntu (a security setting for AppImages), star
 
 ## What you get
 
-- **Menus**: File (new searches, import a CSV, update the company data, settings, quit),
+- **Menus**: File (new searches, import or enrich a CSV, update the company data, settings, quit),
   Edit, View (zoom, full screen), Go (back, forward, and every section with Ctrl/Cmd+1 to 9),
   Window and Help (documentation, report a problem, open the data folder or the log, check
   for updates). In French when your computer is in French.
@@ -69,9 +69,13 @@ If it closes at once on a recent Ubuntu (a security setting for AppImages), star
 ## First start
 
 The app comes with a small sample of companies, so it works at once. At the first start it also
-downloads the full company pack (a few minutes, shown in the jobs menu at the top). Search
-switches to it as soon as the download is done. Later, **File > Update the company data** gets the
-monthly update.
+downloads the companies of your own country, chosen from your computer's language (a few
+minutes, shown in the jobs menu at the top). Search switches to it as soon as the download is
+done. If your country is not published yet, or you want others, open **Settings > Data packs**
+(the same page opens from **File > Update the company data**): download more countries there, or
+click **Update my countries** for the monthly update.
+
+New to Pépite? [getting-started.md](getting-started.md) walks through your first hour.
 
 ## Good to know
 

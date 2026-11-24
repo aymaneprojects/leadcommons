@@ -13,6 +13,7 @@
 <p align="center">
   <a href="https://github.com/aymaneprojects/leadcommons/releases/latest"><b>Download the app</b></a> ·
   <a href="https://leadcommons.vercel.app"><b>Live demo</b></a> ·
+  <a href="docs/getting-started.md">Getting started</a> ·
   <a href="docs/install.md">Install guide</a> ·
   <a href="docs/data-sources.md">Data sources</a>
 </p>
@@ -64,6 +65,8 @@ It runs on **your** computer. Your leads never leave it.
 **Desktop app (easiest):** download it for Windows, macOS (Apple Silicon) or Linux from the
 [latest release](https://github.com/aymaneprojects/leadcommons/releases/latest) and open it like any
 other app. It downloads your country's companies on first start. See [docs/desktop.md](docs/desktop.md).
+New here? [Your first hour with Pépite](docs/getting-started.md) goes from install to your first
+email sequence.
 
 **One-line install** (Linux, macOS):
 
@@ -77,7 +80,8 @@ Windows PowerShell:
 irm https://raw.githubusercontent.com/aymaneprojects/leadcommons/main/scripts/install.ps1 | iex
 ```
 
-Then run `pepite serve` and open <http://127.0.0.1:8000>.
+It also downloads the companies of your country. Then run `pepite serve` and open
+<http://127.0.0.1:8000>.
 
 <details>
 <summary><b>Docker, your own server, from source, Vercel</b></summary>
@@ -88,6 +92,9 @@ Then run `pepite serve` and open <http://127.0.0.1:8000>.
 git clone https://github.com/aymaneprojects/leadcommons.git pepite && cd pepite
 docker compose up --build
 ```
+
+Then, in a second terminal, download a country (data lives in `./data`):
+`docker compose exec pepite pepite pack download --country FR`.
 
 **Your own server** with Postgres, automatic HTTPS and a login: [docs/server.md](docs/server.md),
 or deploy from GitHub Actions: [docs/deploy-with-actions.md](docs/deploy-with-actions.md).
@@ -117,6 +124,7 @@ pepite optout someone@example.com   # never contact this address
 ```
 
 Use it from Claude Code with `claude mcp add pepite -- pepite mcp` ([more](docs/mcp.md)).
+Settings are listed in [docs/install.md](docs/install.md); `pepite --help` lists every command.
 
 ## Where the data comes from
 
@@ -125,7 +133,7 @@ Use it from Claude Code with `claude mcp add pepite -- pepite mcp` ([more](docs/
 | [INSEE SIRENE](https://www.sirene.fr) | France | Licence Ouverte 2.0 |
 | [Companies House](https://www.gov.uk/government/organisations/companies-house) | United Kingdom | OGL 3.0 |
 | [Brønnøysund Register Centre](https://www.brreg.no) | Norway | NLOD 2.0 |
-| [Australian Business Register](https://abr.gov.au) | Australia | CC BY 4.0 |
+| [Australian Business Register](https://abr.gov.au) | Australia | CC BY 3.0 AU |
 | [Corporations Canada](https://ised-isde.canada.ca/site/corporations-canada/en) | Canada | OGL Canada 2.0 |
 | [GLEIF](https://www.gleif.org) | worldwide (legal entities) | CC0 |
 | [Wikidata](https://www.wikidata.org) | worldwide | CC0 |

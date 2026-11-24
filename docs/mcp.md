@@ -47,7 +47,7 @@ From a source checkout: `claude mcp add pepite -- uv run --directory /path/to/pe
 
 Remote clients need a URL, so the server must be reachable from the internet over HTTPS, with a token.
 
-1. Set a token in the server's `.env`: `PEPITE_MCP_TOKEN=$(openssl rand -hex 32)`.
+1. Make a token with `openssl rand -hex 32` and put it in the server's `.env` as `PEPITE_MCP_TOKEN=<the token>`.
 2. Run the MCP server next to the app. With the Docker Compose deployment from [server.md](server.md), add a service that reuses the same image and environment:
 
    ```yaml

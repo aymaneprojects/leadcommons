@@ -92,7 +92,7 @@ legal advice (have a lawyer review before large campaigns).
   to object, at the latest in your first message (and within one month). The sequences in
   Engage can carry that line; the unsubscribe link must work.
 - **Opt-out**: add the address or the domain to the suppression list (person or company page,
-  Settings, Privacy); it is honoured by Find people, Find email and Engage.
+  Settings, Privacy and opt-out); it is honoured by Find people, Find email and Engage.
 - Do not use these sources for personal addresses, only for business roles. Pépite does not
   collect personal phone numbers or home addresses and drops them from register responses.
 - Keep it on your machine: people are stored in your local database, never in a pack.
