@@ -67,13 +67,13 @@
     {% if kind == "person" and dnc.domain_suppressed %}
       <p class="fnote">The domain is suppressed, so this person cannot be removed alone.{% if company %} <a href="/companies/{{ company.id }}">Manage it on the company page</a>.{% endif %}</p>
     {% else %}
-    <form method="post" action="/{{ 'people' if kind == 'person' else 'companies' }}/{{ rid }}/unsuppress" hx-post="/{{ 'people' if kind == 'person' else 'companies' }}/{{ rid }}/unsuppress" {{ hxa }}>
+    <form method="post" action="/{{ 'people' if kind == 'person' else 'companies' }}/{{ rid }}/unsuppress" {% if drawer %}hx-post="/{{ 'people' if kind == 'person' else 'companies' }}/{{ rid }}/unsuppress" {{ hxa }}{% endif %}>
       <button class="btn sm" type="submit">{{ ic("shield-check", "sm") }}<span>Remove from the list</span></button>
     </form>
     {% endif %}
   {% else %}
     <p class="muted">Not on your do-not-contact list.</p>
-    <form method="post" action="/{{ 'people' if kind == 'person' else 'companies' }}/{{ rid }}/suppress" hx-post="/{{ 'people' if kind == 'person' else 'companies' }}/{{ rid }}/suppress" {{ hxa }}>
+    <form method="post" action="/{{ 'people' if kind == 'person' else 'companies' }}/{{ rid }}/suppress" {% if drawer %}hx-post="/{{ 'people' if kind == 'person' else 'companies' }}/{{ rid }}/suppress" {{ hxa }}{% endif %}>
       {% set blocked = (kind == "person" and not dnc.address) or (kind == "company" and not dnc.domain) %}
       {% call tipwrap('No email address on file. Suppress the company domain from the company page.' if kind == 'person' else 'No known domain.', blocked) %}<button class="btn sm" type="submit" {% if blocked %}disabled{% endif %}>{{ ic("shield-off", "sm") }}<span>{{ "Mark this person as do not contact" if kind == "person" else "Mark everyone at this company" }}</span></button>{% endcall %}
     </form>
@@ -126,7 +126,7 @@
 {% macro save_company(c, is_saved, member_lists, lists, back, drawer=True) -%}
 {% set hxa = ('hx-target="#drawer" hx-swap="innerHTML" hx-push-url="false"' | safe) if drawer else "" %}
 {% if not is_saved %}
-<form method="post" action="/companies/{{ c.id }}/save" hx-post="/companies/{{ c.id }}/save" {{ hxa }}>
+<form method="post" action="/companies/{{ c.id }}/save" {% if drawer %}hx-post="/companies/{{ c.id }}/save" {{ hxa }}{% endif %}>
   <button class="btn primary" type="submit">{{ ri("bookmark") }}<span>Save company</span></button>
 </form>
 {% else %}
@@ -203,7 +203,7 @@
     </div>
     <div class="lead-tools">
       <label class="searchbox sm">{{ ri("search", "sm") }}<input type="search" data-lead-search placeholder="Search these people" aria-label="Search these people" form="ui-only" autocomplete="off"></label>
-      <form method="post" action="/companies/{{ c.id }}/find-people" hx-post="/companies/{{ c.id }}/find-people" {{ hxa }}>
+      <form method="post" action="/companies/{{ c.id }}/find-people" {% if drawer %}hx-post="/companies/{{ c.id }}/find-people" {{ hxa }}{% endif %}>
         {% if why %}<span class="tipwrap inline" data-tip="{{ why }}" tabindex="0"><button class="btn sm" type="submit" disabled aria-describedby="fp-why-{{ c.id }}">{{ ri("user-search", "sm") }}<span>Find more people</span></button></span><span class="sr-only" id="fp-why-{{ c.id }}">{{ why }}</span>
         {% else %}<button class="btn sm" type="submit" title="Reads the company website for its team">{{ ri("user-search", "sm") }}<span>Find more people</span></button>{% endif %}
       </form>
@@ -339,13 +339,13 @@
       {% if dnc.domain_suppressed %}
         <p class="fnote">The domain is suppressed, so this person cannot be removed alone.{% if company %} <a href="/companies/{{ company.id }}">Manage it on the company page</a>.{% endif %}</p>
       {% else %}
-      <form method="post" action="/people/{{ rid }}/unsuppress" hx-post="/people/{{ rid }}/unsuppress" {{ hxa }}>
+      <form method="post" action="/people/{{ rid }}/unsuppress" {% if drawer %}hx-post="/people/{{ rid }}/unsuppress" {{ hxa }}{% endif %}>
         <button class="btn sm" type="submit">{{ ic("shield-check", "sm") }}<span>Remove from the list</span></button>
       </form>
       {% endif %}
     {% else %}
       <p>Adding this person's email address means it is never exported and never emailed. You can undo it here at any time.</p>
-      <form method="post" action="/people/{{ rid }}/suppress" hx-post="/people/{{ rid }}/suppress" {{ hxa }}>
+      <form method="post" action="/people/{{ rid }}/suppress" {% if drawer %}hx-post="/people/{{ rid }}/suppress" {{ hxa }}{% endif %}>
         {% if not dnc.address %}
         <span class="tipwrap inline" data-tip="No email address on file. Suppress the company domain from the company page." tabindex="0"><button class="btn sm" type="submit" disabled aria-describedby="dnc-why-{{ rid }}">{{ ic("shield-off", "sm") }}<span>Mark as do not contact</span></button></span>
         <span class="sr-only" id="dnc-why-{{ rid }}">No email address on file. Suppress the company domain from the company page.</span>

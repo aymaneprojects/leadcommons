@@ -38,7 +38,7 @@
           <a class="menu-item" href="/partials/meeting-new?{{ q }}" data-dlg>{{ ic("calendar-plus", "sm") }}<span>Schedule meeting</span></a>
           <div class="menu-sep"></div>
           {% set nodomain = "No website is known for this company." %}
-          <form method="post" action="/companies/{{ c.id }}/find-people" hx-post="/companies/{{ c.id }}/find-people" {{ hxa }}>
+          <form method="post" action="/companies/{{ c.id }}/find-people" {% if drawer %}hx-post="/companies/{{ c.id }}/find-people" {{ hxa }}{% endif %}>
             {% if demo or not c.domain %}<span class="tipwrap" data-tip="{{ demo_reason if demo else nodomain }}" tabindex="0"><button class="menu-item" type="submit" disabled aria-describedby="cx-why-{{ c.id }}">{{ ri("user-search", "sm") }}<span>Find people</span></button></span>
             {% else %}<button class="menu-item" type="submit">{{ ri("user-search", "sm") }}<span>Find people</span></button>{% endif %}
           </form>

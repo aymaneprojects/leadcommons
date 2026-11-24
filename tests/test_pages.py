@@ -170,6 +170,11 @@ def test_company_drawer_partial_vs_full(app: FastAPI, client: TestClient) -> Non
     full = client.get(f"/companies/{cid}")
     assert "<html" in full.text and "Atelier Nuage" in full.text and "Find people" in full.text
     assert client.get("/companies/co_missing").status_code == 404
+    # The page posts its actions normally (303 + notice); only the drawer swaps in place.
+    # Before, the page sent them through HTMX and nested the drawer HTML inside the form.
+    save = f'hx-post="/companies/{cid}/save"'
+    assert save not in full.text
+    assert save in partial.text and 'hx-target="#drawer"' in partial.text
 
 
 def test_company_drawer_lists_people_with_email(seeded: FastAPI) -> None:
