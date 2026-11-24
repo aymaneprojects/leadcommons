@@ -73,7 +73,8 @@ PROVIDERS: dict[str, dict[str, Any]] = {
         "label": "Outlook / Microsoft 365",
         "smtp": ("smtp.office365.com", 587, "starttls"),
         "imap": ("outlook.office365.com", 993, "ssl"),
-        "hint": "Your administrator may need to allow SMTP sign-in (SMTP AUTH) for this mailbox.",
+        "hint": "Your administrator may need to allow SMTP sign-in (SMTP AUTH) for this mailbox. "
+        "Pépite signs in with a password only: if Microsoft refuses it, use another provider.",
     },
     "fastmail": {
         "label": "Fastmail",
@@ -1660,6 +1661,10 @@ async def task_action(
 # ---------------------------------------------------------------- settings: mailboxes
 
 
+SMTP_PORT = {"ssl": 465, "starttls": 587, "none": 25}
+IMAP_PORT = {"ssl": 993, "starttls": 143, "none": 143}
+
+
 def mailbox_form_values(
     form: Any, settings: Any, existing: Any = None
 ) -> tuple[dict[str, Any] | None, str]:
@@ -1682,11 +1687,11 @@ def mailbox_form_values(
         "from_name": str(form.get("from_name") or "").strip()[:120],
         "from_email": from_email,
         "smtp_host": host,
-        "smtp_port": _int(form.get("smtp_port"), 587, 1, 65535),
+        "smtp_port": _int(form.get("smtp_port"), SMTP_PORT[security], 1, 65535),
         "smtp_security": security,
         "smtp_username": str(form.get("smtp_username") or "").strip()[:320],
         "imap_host": str(form.get("imap_host") or "").strip()[:255],
-        "imap_port": _int(form.get("imap_port"), 993, 1, 65535),
+        "imap_port": _int(form.get("imap_port"), IMAP_PORT[imap_security], 1, 65535),
         "imap_security": imap_security,
         "imap_username": str(form.get("imap_username") or "").strip()[:320],
         "imap_folder": str(form.get("imap_folder") or "INBOX").strip()[:120] or "INBOX",
@@ -1700,6 +1705,8 @@ def mailbox_form_values(
     if not core.is_demo(settings):  # the public demo never stores passwords
         for key in ("smtp_password", "imap_password"):
             typed = str(form.get(key) or "")
+            if key == "smtp_password" and typed and not fields["smtp_username"]:
+                fields["smtp_username"] = from_email  # almost every provider signs in with it
             if typed:
                 fields[key] = crypto.encrypt(settings, typed)
             elif existing is None:
