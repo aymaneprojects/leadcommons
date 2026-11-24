@@ -194,6 +194,19 @@ jobs:
           pattern: shard-*
           path: shards
           merge-multiple: true
+      - name: Add the newest site scan, if any
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Site scans run off GitHub (docs/sitescan.md) and are uploaded as sitescan-YYYY-MM releases.
+          tag=$(gh release list --limit 100 --json tagName \
+            --jq '[.[].tagName | select(test("^sitescan-[0-9]{4}-[0-9]{2}$"))] | sort | last // empty')
+          if [ -n "$tag" ]; then
+            gh release download "$tag" --pattern sitescan.parquet --dir shards
+            echo "site scan: $tag"
+          else
+            echo "no site scan release yet"
+          fi
       - name: Check the core sources
         id: core
         env:

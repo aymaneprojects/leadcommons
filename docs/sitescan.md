@@ -99,9 +99,17 @@ per process.
 (domain, register number) for the registers the packs use (FR-SIREN, GB-CH, NO-BRREG, AU-ABN,
 CA-CORP, US-SEC): `domain`, `website`, `registry`, `company_number` (FR also `siren`), `phone`
 (first switchboard number), source `sitescan`, licence "n/a (public web pages, facts only)", and
-the page where the number was read as the provenance URL. Copy it next to the other shards and run
-the packs workflow (`pepite pack merge shards/ ...`): the merge joins it to the register's
+the page where the number was read as the provenance URL. The merge joins it to the register's
 company through the register key and attaches domain, website and phone (tier "web").
+
+To have the monthly packs build use it, publish it as a release named `sitescan-YYYY-MM`; the
+build takes the newest one:
+
+```bash
+gh release create sitescan-2026-12 /data/shards/2026-12/sitescan.parquet --latest=false --title "Site scan 2026-12" --notes "Register numbers read on company websites."
+```
+
+For a local build, copy it next to the other shards and run `pepite pack merge shards/ ...`.
 
 A site that shows several different companies of the same register (a group site, a franchise, an
 agency) is ambiguous: no row is written for it. Numbers of registers we have no pack for are not
