@@ -252,7 +252,7 @@ class JobRunner:
                 job.result = {"phase": phase, "progress": done, "total": total}
 
         result = run_pack_job(self.settings.data_dir, job.payload, progress)
-        fresh = DuckDBCompanySearch(self.settings.data_dir)
+        fresh = DuckDBCompanySearch(self.settings.data_dir, saved=self.store.get_company)
         self.search = fresh
         if self._state is not None:
             self._state.search = fresh

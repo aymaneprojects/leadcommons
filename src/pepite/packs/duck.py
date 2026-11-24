@@ -23,6 +23,7 @@ import json
 import logging
 import threading
 from collections import OrderedDict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -102,8 +103,12 @@ class DuckDBCompanySearch:
         *,
         memory_limit: str | None = None,
         threads: int | None = None,
+        saved: Callable[[str], Company | None] | None = None,
     ) -> None:
         from pepite.packs import SAMPLE_PACK_DIR
+
+        # Companies the user saved stay reachable when a pack update drops or renumbers them.
+        self.saved = saved
 
         files = self._find(data_dir) if data_dir else []
         base = Path(data_dir) if files and data_dir else None
@@ -604,7 +609,9 @@ class DuckDBCompanySearch:
 
     def get_company(self, company_id: str) -> Company | None:
         rows = self._rows_by_key(ix.KEY_ID, [str(company_id)], "id = ?", 1)
-        return self._to_company(rows[0]) if rows else None
+        if rows:
+            return self._to_company(rows[0])
+        return self.saved(str(company_id)) if self.saved else None
 
     def get_companies(self, company_ids: list[str]) -> dict[str, Company]:
         """id -> Company for the ids found (one query for many ids)."""
@@ -617,6 +624,9 @@ class DuckDBCompanySearch:
         for r in rows:
             c = self._to_company(r)
             out.setdefault(c.id, c)
+        for cid in ids:
+            if cid not in out and self.saved and (c := self.saved(cid)):
+                out[cid] = c
         return out
 
     def find_by_domain(self, domain: str, limit: int = 10) -> list[Company]:

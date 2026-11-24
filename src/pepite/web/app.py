@@ -26,14 +26,14 @@ def create_app(
     settings = settings or Settings()
     settings.ensure_dirs()
 
-    if search is None:
-        from pepite.packs import DuckDBCompanySearch
-
-        search = DuckDBCompanySearch(settings.data_dir)
     if store is None:
         from pepite.store import Store
 
         store = Store(settings.database_url)
+    if search is None:
+        from pepite.packs import DuckDBCompanySearch
+
+        search = DuckDBCompanySearch(settings.data_dir, saved=store.get_company)
     if jobs is None:
         from pepite.web.jobs import JobRunner
 

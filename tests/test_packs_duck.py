@@ -262,3 +262,22 @@ def test_works_without_pyarrow(tmp_path: Path, monkeypatch):
     assert info[0]["rows"] == 2 and info[0]["sources"] == ["wikidata"]
     assert info[0]["built_at"] == "2026-01-01T00:00:00+00:00"
     assert DuckDBCompanySearch(None).pack_info()  # bundled sample too
+
+
+def test_saved_companies_stay_reachable_when_the_pack_lacks_them(tmp_path: Path) -> None:
+    # e.g. saved from last month's pack, then dropped or renumbered by the update
+    from fastapi.testclient import TestClient
+
+    from pepite.config import Settings
+    from pepite.models import Company
+    from pepite.store import Store
+    from pepite.web.app import create_app
+
+    settings = Settings(home=tmp_path, data_dir=tmp_path / "packs")
+    settings.database_url = f"sqlite:///{tmp_path / 'db.sqlite'}"
+    Store(settings.database_url).save_company(Company(id="co_gone0000000001", name="Gone GmbH"))
+    app = create_app(settings)
+    assert app.state.search.get_companies(["co_gone0000000001"])["co_gone0000000001"].name
+    resp = TestClient(app).get("/companies/co_gone0000000001")
+    assert resp.status_code == 200 and "Gone GmbH" in resp.text
+    assert DuckDBCompanySearch(SAMPLE_PACK_DIR).get_company("co_gone0000000001") is None
