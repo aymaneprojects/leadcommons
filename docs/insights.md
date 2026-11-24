@@ -10,7 +10,7 @@ or scraped from login-walled sites.
 | Tab | Source | What you get |
 | --- | --- | --- |
 | Overview | all of the below | one row each for jobs, technologies, funding, employees, phone |
-| Technologies | homepage and a few company pages, response headers, cookie names, MX/SPF/TXT records | 290 rules over CMS, e-commerce, analytics, advertising pixels, tag managers, marketing automation, CRM forms, chat, payments, JS frameworks, CDN/hosting, web servers, A/B testing, consent managers, email providers and business tools. Every hit shows its evidence (for example `header server: cloudflare`). |
+| Technologies | homepage and a few company pages, response headers, cookie names, MX/SPF/TXT records | more than 290 rules over CMS, e-commerce, analytics, advertising pixels, tag managers, marketing automation, CRM forms, chat, payments, JS frameworks, CDN/hosting, web servers, A/B testing, consent managers, email providers and business tools. Every hit shows its evidence (for example `header server: cloudflare`). |
 | Job postings | public embed APIs of Greenhouse, Lever, Ashby, Workable, Recruitee and SmartRecruiters | title, department, location, remote, URL, posted date, plus open positions per department |
 | Funding | Wikidata (CC0) | stock exchange and ticker, revenue per year with currency, owner. Funding rounds are not in public data: the tab says "no public data" instead of guessing. |
 | Employee trends | Wikidata P1128 with point in time | employee counts over time, 1 and 2 year growth, chart |

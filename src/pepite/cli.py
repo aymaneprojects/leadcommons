@@ -113,7 +113,7 @@ def desktop(
         bool, typer.Option("--browser", help="Open in your browser instead of an app window.")
     ] = False,
 ) -> None:
-    """Open Pépite in its own window (needs: pip install 'pepite[desktop]')."""
+    """Open Pépite in its own window (needs: pip install 'pepite\\[desktop]')."""
     from pepite.desktop import main as desktop_main
 
     raise typer.Exit(desktop_main(["--browser"] if browser else []))

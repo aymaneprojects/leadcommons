@@ -3,9 +3,11 @@
 Pépite deploys to Vercel's Python runtime without changes:
 
 - `vercel_app.py` is the entrypoint (`[tool.vercel] entrypoint = "vercel_app:app"` in `pyproject.toml`).
-- The build step `scripts/vercel_build.py` downloads the newest published company pack
-  (a `packs-*` GitHub Release) into `data/packs/`; without one, the bundled sample pack is used.
-- `vercel.json` sets the function timeout and leaves tests, docs and deployment files out of the bundle.
+- The build step `scripts/vercel_build.py` downloads the small all-countries demo file of the newest
+  published company data (a `packs-*` GitHub Release; the function has a size limit, so it is not
+  the full per-country data) into `data/packs/`. It reads the repository in `PEPITE_PACKS_REPO`.
+  Without a published release, the bundled sample pack is used.
+- `vercel.json` sets the function timeout (60 seconds) and leaves tests, docs and deployment files out of the bundle.
 
 ## Demo mode
 

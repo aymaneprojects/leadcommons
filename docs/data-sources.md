@@ -2,18 +2,26 @@
 
 Pépite only uses public data that it is allowed to use.
 
-| Source | Licence | What we take | Notes |
+The monthly packs are built from eight whole registers, downloaded in bulk (details below).
+
+| Source | Countries | Licence | What we take |
 | --- | --- | --- | --- |
-| Wikidata | CC0 1.0 | company name, website, country, industry, size, founding year | no attribution required, we give it anyway |
-| GLEIF (LEI records) | CC0 1.0 | legal name, jurisdiction, address, LEI | company-level only |
-| INSEE SIRENE (France) | Licence Ouverte 2.0 (Etalab) | legal name, SIREN, address, activity code, size band | attribution: "Source: INSEE, base SIRENE" |
-| SEC EDGAR (United States) | US public data | name, CIK, ticker, state, SIC industry | needs a contact address, see below |
-| OpenStreetMap (planned) | ODbL 1.0 | local businesses | attribution and share-alike apply to the derived database |
-| Company websites | n/a | public team, about, legal notice and contact pages | robots.txt respected, rate-limited, kept only in your local database |
+| INSEE SIRENE | France | Licence Ouverte 2.0 (Etalab) | legal name, SIREN, address, activity code, size band, creation year |
+| UK Companies House | United Kingdom | OGL v3.0 | name, number, registered office, category, SIC code, incorporation year |
+| Brønnøysund Enhetsregisteret | Norway | NLOD 2.0 | name, organisation number, address, industry, employees, website |
+| Australian Business Register | Australia | CC BY 3.0 AU | name, ABN, state, postcode, entity type |
+| Corporations Canada | Canada | OGL Canada 2.0 | name, corporation number, registered office, incorporation year |
+| SEC EDGAR bulk submissions | United States | US public domain | name, CIK, address, SIC industry, website, business phone (needs a contact address, see below) |
+| GLEIF golden copy | worldwide | CC0 1.0 | legal name, address, legal form, creation year, LEI |
+| Wikidata organisations | worldwide | CC0 1.0 | website, register numbers, head count, industry, headquarters city |
+| Company websites | n/a | n/a | public legal notice and contact pages: register number, business phone; robots.txt respected, rate-limited ([sitescan.md](sitescan.md)) |
+
+OpenStreetMap (ODbL 1.0, local businesses) is planned. Its attribution and share-alike terms would
+apply to the derived database.
 
 Each pack ships with an `ATTRIBUTION.md` listing sources and licences. Packs contain companies only, never people.
 
-## Bulk registers (monthly packs)
+## What each bulk register keeps (monthly packs)
 
 The monthly packs are built from whole official registers, downloaded in bulk
 (`pepite pack sources` lists them; `pepite pack fetch-source <name> --out shards/`
@@ -61,15 +69,26 @@ under the SEC's limit of 10 per second. The bulk source `edgar_bulk` (one downlo
 
 ## Build your own pack
 
+Quick, small packs from the live APIs (needs the build extra: `pip install 'pepite[build]'`, or
+`uv sync --extra dev` in a source checkout):
+
 ```sh
 pepite pack build --country FR --country DE --out ./data/packs
 ```
 
-Options: `--source wikidata --source gleif --source sirene --source edgar`, `--limit N` per source. Packs are Parquet files; every `*.parquet` in the data directory is searched.
+Options: `--source wikidata --source gleif --source sirene --source edgar` (default: Wikidata and
+GLEIF, plus the national register of the country where there is one), `--limit N` per source.
+Packs are Parquet files; every `*.parquet` in the data directory is searched.
+
+To rebuild what is published, take the whole registers: run `pepite pack fetch-source <name> --out shards/`
+for each name from `pepite pack sources`, then `pepite pack merge shards/ --out packs/` (one file per
+country, with `manifest.json` and `ATTRIBUTION.md`) and `pepite pack quality packs/`. The workflow
+`.github/workflows/packs.yml` does exactly this every month. Copy the result into your data
+folder and run `pepite pack index`.
 
 ## Published packs
 
-A monthly workflow publishes a GitHub Release tagged `packs-YYYY-MM` containing one `companies-<CC>-<date>.parquet` per country, `manifest.json` (rows, size and sha256 per country) and `ATTRIBUTION.md`. The app downloads only the countries you pick (Settings > Data packs, or `pepite pack download --country FR`), checks each file's sha256 and prepares it for fast search (docs/dev/search-performance.md). Older releases with a single `companies-*.parquet` still work with `pepite pack download latest`.
+A monthly workflow (the 5th of each month) publishes a GitHub Release tagged `packs-YYYY-MM`. It contains one `companies-<CC>-<date>.parquet` per country, a small all-countries file `companies-0-demo-<date>.parquet` (for the public demo), `manifest.json` (rows, size and sha256 per country), `ATTRIBUTION.md`, and the quality report (`QUALITY.md`, `quality.json`). The app downloads only the countries you pick (Settings > Data packs, or `pepite pack download --country FR`), checks each file's sha256 and prepares it for fast search ([how](dev/search-performance.md)). Older releases with a single `companies-*.parquet` still work with `pepite pack download latest`.
 
 ## Adding a source
 

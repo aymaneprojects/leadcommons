@@ -12,6 +12,6 @@ labels: bug
 1.
 
 **Environment**
-- Pepite version (`pepite version`):
-- How installed (installer / Docker / source):
+- Pépite version (`pepite version`, or Help > About in the desktop app):
+- How installed (desktop app / installer / Docker / server / source):
 - OS:
